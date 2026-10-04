@@ -1,7 +1,29 @@
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-build/
-dist/
 *.egg-info/
 .pytest_cache/
+
+# Executables & Build artifacts
+build/
+dist/
+*.exe
+AvisWhatsAppSender.exe
+
+# Sensitive data: real donor lists and desktop log files
+donatori_test*.xlsx
+donatori_test.xlsx
+Log_Invio_*.xlsx
+*Log*.xlsx
+
+# Environment & credentials
+.env
+.env.*
+*.pem
+*.key
+
+# Internal tooling & temporary logs
+.superpowers/
+scratch/
+*.log

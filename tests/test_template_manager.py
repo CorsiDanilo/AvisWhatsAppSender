@@ -23,6 +23,12 @@ def test_render_template_empty_or_none_values():
     result = render_template(tpl, nome="", cognome="")
     assert result == "Ciao , benvenuto!"
 
+def test_render_template_with_backslashes():
+    tpl = "Ciao [nome] [cognome]!"
+    result = render_template(tpl, nome=r"Danilo\Test", cognome="Corsi")
+    assert r"Danilo\Test" in result
+
+
 def test_template_manager_default_templates_and_crud():
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
         tmp_path = tmp.name

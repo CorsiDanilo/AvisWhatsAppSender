@@ -111,3 +111,40 @@ def test_excel_manager_load_and_mark_sent():
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
+
+def test_create_desktop_log_copy_leaves_original_untouched():
+    with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as orig_tmp:
+        orig_path = orig_tmp.name
+    with tempfile.TemporaryDirectory() as dest_dir:
+        try:
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.append(["Nome", "Cognome", "Cellulare"])
+            ws.append(["Paolo", "Neri", "3331112233"])
+            wb.save(orig_path)
+            wb.close()
+
+            orig_size_before = os.path.getsize(orig_path)
+
+            manager = ExcelManager()
+            log_path = manager.create_desktop_log_copy(orig_path, destination_dir=dest_dir)
+
+            assert os.path.exists(log_path)
+            assert log_path != orig_path
+            assert "Log_Invio_AVIS" in os.path.basename(log_path)
+
+            # Segna inviato sul file di log
+            manager.mark_as_sent(log_path, row_idx=2, status="Sì")
+
+            # Verifica che il log contenga Sì
+            log_records = manager.load_file(log_path)
+            assert log_records[0].inviato.startswith("Sì")
+
+            # Verifica che l'originale sia rimasto intonso
+            orig_records = manager.load_file(orig_path)
+            assert orig_records[0].inviato == "No"
+            assert os.path.getsize(orig_path) == orig_size_before
+        finally:
+            if os.path.exists(orig_path):
+                os.remove(orig_path)
+

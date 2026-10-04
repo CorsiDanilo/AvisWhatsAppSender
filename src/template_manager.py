@@ -38,10 +38,10 @@ def render_template(template: str, nome: Optional[str] = "", cognome: Optional[s
     cognome_clean = (str(cognome).strip().title()) if cognome else ""
 
     result = template
-    # Sostituzione case-insensitive di [nome]
-    result = re.sub(r"\[nome\]", nome_clean, result, flags=re.IGNORECASE)
-    # Sostituzione case-insensitive di [cognome]
-    result = re.sub(r"\[cognome\]", cognome_clean, result, flags=re.IGNORECASE)
+    # Sostituzione case-insensitive di [nome] sicura da caratteri di escape
+    result = re.sub(r"\[nome\]", lambda _: nome_clean, result, flags=re.IGNORECASE)
+    # Sostituzione case-insensitive di [cognome] sicura da caratteri di escape
+    result = re.sub(r"\[cognome\]", lambda _: cognome_clean, result, flags=re.IGNORECASE)
 
     return result
 

@@ -1,8 +1,33 @@
+import os
 import re
+import shutil
 import datetime
 from dataclasses import dataclass
 from typing import Optional
 import openpyxl
+
+def get_desktop_path() -> str:
+    """Restituisce il percorso della cartella Desktop dell'utente Windows."""
+    try:
+        import winreg
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders")
+        desktop_val, _ = winreg.QueryValueEx(key, "Desktop")
+        winreg.CloseKey(key)
+        expanded = os.path.expandvars(desktop_val)
+        if os.path.exists(expanded):
+            return expanded
+    except Exception:
+        pass
+
+    for candidate in [
+        os.path.join(os.path.expanduser("~"), "Desktop"),
+        os.path.join(os.path.expanduser("~"), "OneDrive", "Desktop"),
+        (os.environ.get("USERPROFILE", "") + r"\Desktop") if os.environ.get("USERPROFILE") else ""
+    ]:
+        if candidate and os.path.exists(candidate):
+            return candidate
+
+    return os.path.expanduser("~")
 
 @dataclass
 class DonorRecord:
@@ -73,6 +98,47 @@ class ExcelManager:
     COL_ALIASES_COGNOME = ["cognome", "surname"]
     COL_ALIASES_TELEFONO = ["cellulare", "telefono", "tel", "cell", "mobile", "recapito"]
     COL_ALIASES_STATO = ["stato invio", "stato", "inviato", "esito"]
+
+    def create_desktop_log_copy(self, source_path: str, destination_dir: Optional[str] = None) -> str:
+        """
+        Crea una copia del file Excel originale sul Desktop con prefisso 'Log_Invio_AVIS_' e timestamp.
+        Il file originale non viene mai toccato né modificato.
+        Garantisce la presenza della colonna 'Stato Invio' nel nuovo file di log.
+        Restituisce il percorso assoluto del file di log creato.
+        """
+        dest_dir = destination_dir or get_desktop_path()
+        if not os.path.exists(dest_dir):
+            os.makedirs(dest_dir, exist_ok=True)
+
+        base_name = os.path.splitext(os.path.basename(source_path))[0]
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_filename = f"Log_Invio_AVIS_{base_name}_{timestamp}.xlsx"
+        log_path = os.path.join(dest_dir, log_filename)
+
+        # Copia sicura del file sorgente
+        shutil.copy2(source_path, log_path)
+
+        # Assicura la presenza della colonna 'Stato Invio' nel file di log
+        try:
+            wb = openpyxl.load_workbook(log_path)
+            ws = wb.active
+            if ws is not None:
+                header_row = 1
+                col_stato = None
+                for col in range(1, ws.max_column + 1):
+                    val = ws.cell(row=header_row, column=col).value
+                    if val is not None and any(alias in str(val).strip().lower() for alias in self.COL_ALIASES_STATO):
+                        col_stato = col
+                        break
+                if col_stato is None:
+                    col_stato = ws.max_column + 1
+                    ws.cell(row=header_row, column=col_stato).value = "Stato Invio"
+                wb.save(log_path)
+            wb.close()
+        except Exception:
+            pass
+
+        return log_path
 
     def load_file(self, filepath: str) -> list[DonorRecord]:
         """Carica il file Excel e restituisce la lista di DonorRecord."""
