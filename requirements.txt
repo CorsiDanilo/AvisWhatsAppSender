@@ -4,3 +4,4 @@ Pillow>=10.0.0
 pywin32>=306
 pytest>=8.0.0
 pyinstaller>=6.4.0
+playwright>=1.40.0

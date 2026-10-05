@@ -1,14 +1,19 @@
-import os
-import customtkinter
+# -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_all
 
-ctk_path = os.path.dirname(customtkinter.__file__)
+datas = [('C:/Users/Danilo Corsi/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0/LocalCache/local-packages/Python311/site-packages/customtkinter', 'customtkinter')]
+binaries = []
+hiddenimports = []
+tmp_ret = collect_all('playwright')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+
 
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[],
-    datas=[(ctk_path, 'customtkinter')],
-    hiddenimports=[],
+    binaries=binaries,
+    datas=datas,
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

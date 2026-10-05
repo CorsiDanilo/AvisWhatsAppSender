@@ -1,4 +1,5 @@
 import os
+import queue
 import random
 import threading
 import time
@@ -10,6 +11,7 @@ import customtkinter as ctk
 from src.excel_manager import ExcelManager, DonorRecord
 from src.template_manager import TemplateManager, render_template
 from src.dispatch_engine import copy_image_to_clipboard, open_whatsapp_chat, execute_autopilot_step
+from src.playwright_engine import WhatsAppBrowserController
 
 class AvisWhatsAppApp(ctk.CTk):
     """Interfaccia grafica principale per AVIS WhatsApp Sender."""
@@ -27,6 +29,9 @@ class AvisWhatsAppApp(ctk.CTk):
         # Moduli di supporto
         self.excel_mgr = ExcelManager()
         self.template_mgr = TemplateManager()
+        self.browser_controller = WhatsAppBrowserController(
+            on_close_callback=self._on_browser_closed_by_user
+        )
 
         # Stato interno
         self.current_excel_path: Optional[str] = None
@@ -38,9 +43,50 @@ class AvisWhatsAppApp(ctk.CTk):
         self.autopilot_running: bool = False
         self.autopilot_cancel_requested: bool = False
 
+        self._ui_queue = queue.Queue()
         self._build_ui()
         self._load_templates_to_menu()
         self._bind_shortcuts()
+        self.protocol("WM_DELETE_WINDOW", self._on_window_closing)
+        self._process_ui_queue()
+        self._poll_wa_connection_liveness()
+
+    def ui_dispatch(self, func, *args, **kwargs):
+        """Mette in coda un'azione da eseguire sul main thread della UI."""
+        self._ui_queue.put((func, args, kwargs))
+
+    def _process_ui_queue(self):
+        """Esegue tutti i task pendenti nella coda UI sul thread principale."""
+        if hasattr(self, "_ui_queue"):
+            while not self._ui_queue.empty():
+                try:
+                    func, args, kwargs = self._ui_queue.get_nowait()
+                    func(*args, **kwargs)
+                except queue.Empty:
+                    break
+                except Exception:
+                    pass
+        try:
+            super().after(50, self._process_ui_queue)
+        except Exception:
+            pass
+
+    def update(self):
+        self._process_ui_queue()
+        return super().update()
+
+    def after(self, ms, func=None, *args):
+        """Wrapper thread-safe per Tkinter after con fallback sincrono o via queue se non in mainloop."""
+        if func is None:
+            return super().after(ms)
+        if threading.current_thread() != threading.main_thread():
+            self.ui_dispatch(func, *args)
+            return "queued"
+        try:
+            return super().after(ms, func, *args)
+        except Exception:
+            self.ui_dispatch(func, *args)
+            return "queued"
 
 
     def _build_ui(self):
@@ -54,6 +100,27 @@ class AvisWhatsAppApp(ctk.CTk):
             font=ctk.CTkFont(size=20, weight="bold")
         )
         title_label.pack(side="left", padx=16, pady=8)
+
+        # Connessione WhatsApp Web via Edge
+        self.btn_connect_wa = ctk.CTkButton(
+            header_frame,
+            text="🌐 Connetti WhatsApp Web",
+            fg_color="#25D366",
+            hover_color="#1EBE5D",
+            command=self._on_click_connect_wa,
+            width=190,
+            height=30,
+            font=ctk.CTkFont(size=12, weight="bold")
+        )
+        self.btn_connect_wa.pack(side="left", padx=(8, 6), pady=8)
+
+        self.lbl_wa_status = ctk.CTkLabel(
+            header_frame,
+            text="⚪ Non connesso",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color="gray50"
+        )
+        self.lbl_wa_status.pack(side="left", padx=(4, 10), pady=8)
 
         # Pulsante Reset sulla destra dell'header
         self.btn_reset = ctk.CTkButton(
@@ -336,6 +403,103 @@ class AvisWhatsAppApp(ctk.CTk):
         if self.autopilot_running:
             self._stop_autopilot()
 
+    def _on_click_connect_wa(self):
+        """Avvia la connessione a WhatsApp Web via Google Chrome in un thread worker e monitora l'accesso."""
+        self.btn_connect_wa.configure(state="disabled")
+        self.lbl_wa_status.configure(text="🟡 Avvio di Google Chrome...", text_color="#fd7e14")
+
+        def worker():
+            try:
+                ok = self.browser_controller.ensure_browser()
+                if not ok:
+                    self.after(0, lambda: self._update_wa_status_ui("error"))
+                    return
+
+                # Monitora lo stato per un massimo di 90 secondi (o fino ad avvenuta autenticazione)
+                deadline = time.time() + 90.0
+                last_reported = ""
+
+                while time.time() < deadline:
+                    if not self.browser_controller.is_running:
+                        break
+
+                    auth = self.browser_controller.check_auth_status(timeout_ms=1500)
+                    if auth != last_reported:
+                        last_reported = auth
+                        self.after(0, lambda a=auth: self._update_wa_status_ui(a))
+
+                    if auth == "authenticated":
+                        return
+
+                    time.sleep(0.8)
+
+                final_auth = self.browser_controller.check_auth_status(timeout_ms=1000)
+                self.after(0, lambda: self._update_wa_status_ui(final_auth))
+            except Exception:
+                self.after(0, lambda: self._update_wa_status_ui("error"))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_browser_closed_by_user(self):
+        """Notifica quando la finestra del browser viene chiusa manualmente dall'utente."""
+        try:
+            self.after(0, lambda: self._update_wa_status_ui("not_connected"))
+        except Exception:
+            pass
+
+    def _poll_wa_connection_liveness(self):
+        """Monitora periodicamente lo stato di connessione se il browser risulta connesso."""
+        try:
+            if hasattr(self, "browser_controller") and self.browser_controller is not None:
+                if hasattr(self, "lbl_wa_status") and "WhatsApp Connesso" in self.lbl_wa_status.cget("text"):
+                    def check_liveness():
+                        try:
+                            if not self.browser_controller.is_running:
+                                self.after(0, lambda: self._update_wa_status_ui("not_connected"))
+                        except Exception:
+                            pass
+                    threading.Thread(target=check_liveness, daemon=True).start()
+        except Exception:
+            pass
+        finally:
+            try:
+                self.after(2500, self._poll_wa_connection_liveness)
+            except Exception:
+                pass
+
+    def _update_wa_status_ui(self, auth: str):
+        """Aggiorna l'etichetta dello stato di WhatsApp Web e il testo del pulsante."""
+        self.btn_connect_wa.configure(state="normal")
+        if auth == "authenticated":
+            self.lbl_wa_status.configure(text="🟢 WhatsApp Connesso", text_color="#28a745")
+            self.btn_connect_wa.configure(text="🌐 Mostra WhatsApp Web")
+        elif auth == "qr_required":
+            self.lbl_wa_status.configure(text="🟡 Inquadra QR Code su Chrome", text_color="#fd7e14")
+            self.btn_connect_wa.configure(text="🌐 Connetti WhatsApp Web")
+        elif auth == "loading":
+            self.lbl_wa_status.configure(text="🟡 Caricamento WhatsApp Web...", text_color="#fd7e14")
+            self.btn_connect_wa.configure(text="🌐 Connetti WhatsApp Web")
+        else:
+            self.lbl_wa_status.configure(text="⚪ Non connesso", text_color="gray50")
+            self.btn_connect_wa.configure(text="🌐 Connetti WhatsApp Web")
+
+    def _on_window_closing(self):
+        """Gestisce la chiusura sicura della finestra e la pulizia del browser controller."""
+        try:
+            if self.autopilot_running:
+                self.autopilot_cancel_requested = True
+                self.autopilot_running = False
+        except Exception:
+            pass
+
+        try:
+            if hasattr(self, "browser_controller") and self.browser_controller is not None:
+                self.browser_controller.close()
+        except Exception:
+            pass
+
+        self.destroy()
+
     def _load_templates_to_menu(self):
         templates = self.template_mgr.load_templates()
         names = list(templates.keys())
@@ -446,7 +610,7 @@ class AvisWhatsAppApp(ctk.CTk):
         # Trova il prossimo donatore non ancora inviato
         while self.current_index < len(self.records):
             rec = self.records[self.current_index]
-            if not rec.inviato.startswith("Sì") and rec.inviato != "Saltato":
+            if not rec.inviato.startswith("Sì") and not rec.inviato.startswith("Saltato"):
                 break
             self.current_index += 1
 
@@ -467,52 +631,126 @@ class AvisWhatsAppApp(ctk.CTk):
         if not self.records or self.current_index >= len(self.records):
             return
 
-        rec = self.records[self.current_index]
-
-        # Se eravamo in attesa di conferma invio per il donatore corrente, segniamo come inviato e passiamo al prossimo
         if self.waiting_for_next_confirm:
-            try:
-                target_file = self.current_log_path or self.current_excel_path
-                self.excel_mgr.mark_as_sent(target_file, rec.row_idx, status="Sì")
-                rec.inviato = "Sì"
-            except Exception as e:
-                messagebox.showerror("Errore Salvataggio Log Excel", f"Impossibile aggiornare il file di log:\n{e}")
-                return
+            return self._on_confirm_send_step()
+        else:
+            return self._on_prepare_step()
 
-            self.waiting_for_next_confirm = False
-            self.current_index += 1
-            self._update_stats_and_current_donor()
+    def _on_prepare_step(self):
+        if not self.records or self.current_index >= len(self.records):
             return
+
+        rec = self.records[self.current_index]
 
         # Altrimenti, prepariamo il donatore corrente:
         if not rec.is_valid:
-            if messagebox.askyesno("Numero non valido", f"Il numero di {rec.nome} {rec.cognome} ({rec.telefono_raw}) non sembra valido.\nVuoi saltarlo?"):
+            if messagebox.askyesno(
+                "Numero non valido",
+                f"Il numero di {rec.nome} {rec.cognome} ({rec.telefono_raw}) non sembra valido.\nVuoi saltarlo?"
+            ):
                 self._on_skip_step()
             return
 
-        # 1. Copia immagine negli appunti se presente
-        if self.current_image_path:
-            copied = copy_image_to_clipboard(self.current_image_path)
-            if not copied:
-                messagebox.showwarning("Attenzione Immagine", "Impossibile copiare l'immagine negli appunti di Windows.")
+        self.btn_dispatch.configure(text="⏳ Apertura chat in corso...", state="disabled")
+        self.lbl_instructions.configure(
+            text=f"Apertura chat Edge per {rec.nome} {rec.cognome}...",
+            text_color="#1f538d"
+        )
 
-        # 2. Genera testo personalizzato
+        def worker():
+            try:
+                if not self.browser_controller.is_running:
+                    ok = self.browser_controller.ensure_browser()
+                    if not ok:
+                        self.after(0, lambda: self._on_prepare_failed("Impossibile avviare Google Chrome."))
+                        return
+
+                status = self.browser_controller.open_chat(rec.telefono_clean)
+
+                if status == "invalid_number":
+                    self.after(0, lambda: self._handle_invalid_number_in_prepare(rec))
+                elif status == "ready":
+                    self.after(0, self._on_prepare_ready)
+                else:
+                    self.after(0, lambda: self._on_prepare_failed(f"Impossibile aprire la chat (stato: {status})."))
+            except Exception as e:
+                self.after(0, lambda err=e: self._on_prepare_failed(f"Errore: {err}"))
+
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
+        return thread
+
+    def _on_prepare_ready(self):
+        self.waiting_for_next_confirm = True
+        self.btn_dispatch.configure(
+            text="✅ CONFERMA E INVIA (SPAZIO)",
+            fg_color="#007bff",
+            state="normal"
+        )
+        self.lbl_instructions.configure(
+            text="Chat pronta su Chrome! Premi SPAZIO per inviare e passare al prossimo.",
+            text_color="#007bff"
+        )
+
+    def _handle_invalid_number_in_prepare(self, rec: DonorRecord):
+        target_file = self.current_log_path or self.current_excel_path
+        if target_file:
+            try:
+                self.excel_mgr.mark_as_sent(target_file, rec.row_idx, status="Saltato (Non su WhatsApp)")
+            except Exception:
+                pass
+        rec.inviato = "Saltato (Non su WhatsApp)"
+
+        messagebox.showwarning(
+            "Numero non registrato",
+            f"Il numero di {rec.nome} {rec.cognome} ({rec.telefono_clean}) non risulta registrato su WhatsApp.\n"
+            "È stato contrassegnato come 'Saltato (Non su WhatsApp)'."
+        )
+        self.waiting_for_next_confirm = False
+        self.current_index += 1
+        self._update_stats_and_current_donor()
+
+    def _on_prepare_failed(self, error_msg: str):
+        messagebox.showwarning("Attenzione", error_msg)
+        self.btn_dispatch.configure(text="▶ PREPARA DONATORE (SPAZIO)", fg_color="#28a745", state="normal")
+        self.lbl_instructions.configure(text=f"⚠️ {error_msg}", text_color="#d9534f")
+
+    def _on_confirm_send_step(self):
+        if not self.records or self.current_index >= len(self.records):
+            return
+
+        rec = self.records[self.current_index]
         template_text = self.txt_message.get("1.0", "end").strip()
         final_message = render_template(template_text, nome=rec.nome, cognome=rec.cognome)
 
-        # 3. Apri WhatsApp Web
-        open_whatsapp_chat(rec.telefono_clean, final_message, open_browser=True)
+        self.btn_dispatch.configure(text="⏳ Invio in corso...", state="disabled")
 
-        # 4. Cambia stato pulsante per il prossimo passo
-        self.waiting_for_next_confirm = True
-        self.btn_dispatch.configure(
-            text="✅ CONFERMA E PASSA AL PROSSIMO (SPAZIO)",
-            fg_color="#007bff"
-        )
-        self.lbl_instructions.configure(
-            text=f"📨 Scheda aperta per {rec.nome}! Su WhatsApp premi Ctrl+V e Invio. Poi torna qui e premi SPAZIO per confermare.",
-            text_color="#007bff"
-        )
+        def worker():
+            try:
+                sent = self.browser_controller.send_message(final_message, image_path=self.current_image_path)
+                def on_done():
+                    if sent:
+                        try:
+                            target_file = self.current_log_path or self.current_excel_path
+                            if target_file:
+                                self.excel_mgr.mark_as_sent(target_file, rec.row_idx, status="Sì")
+                            rec.inviato = "Sì"
+                        except Exception as e:
+                            messagebox.showerror("Errore Salvataggio Log Excel", f"Impossibile aggiornare il file di log:\n{e}")
+                        self.waiting_for_next_confirm = False
+                        self.current_index += 1
+                        self._update_stats_and_current_donor()
+                    else:
+                        messagebox.showwarning("Invio non riuscito", f"Impossibile inviare il messaggio a {rec.nome} {rec.cognome}.")
+                        self.btn_dispatch.configure(text="✅ CONFERMA E INVIA (SPAZIO)", state="normal")
+                self.after(0, on_done)
+            except Exception as e:
+                self.after(0, lambda: self.btn_dispatch.configure(text="✅ CONFERMA E INVIA (SPAZIO)", state="normal"))
+                self.after(0, lambda err=e: messagebox.showerror("Errore", f"Errore durante l'invio: {err}"))
+
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
+        return thread
 
     def _on_skip_step(self):
         if not self.records or self.current_index >= len(self.records):
@@ -521,7 +759,8 @@ class AvisWhatsAppApp(ctk.CTk):
         rec = self.records[self.current_index]
         try:
             target_file = self.current_log_path or self.current_excel_path
-            self.excel_mgr.mark_as_sent(target_file, rec.row_idx, status="Saltato")
+            if target_file:
+                self.excel_mgr.mark_as_sent(target_file, rec.row_idx, status="Saltato")
             rec.inviato = "Saltato"
         except Exception as e:
             messagebox.showerror("Errore Salvataggio Log Excel", f"Impossibile aggiornare il file di log:\n{e}")
@@ -547,7 +786,7 @@ class AvisWhatsAppApp(ctk.CTk):
         # Trova il primo donatore non ancora inviato
         while self.current_index < len(self.records):
             rec = self.records[self.current_index]
-            if not rec.inviato.startswith("Sì") and rec.inviato != "Saltato":
+            if not rec.inviato.startswith("Sì") and not rec.inviato.startswith("Saltato"):
                 break
             self.current_index += 1
 
@@ -573,14 +812,14 @@ class AvisWhatsAppApp(ctk.CTk):
             self.entry_anti_ban.delete(0, "end")
             self.entry_anti_ban.insert(0, "10")
 
-        rimanenti = sum(1 for r in self.records if not r.inviato.startswith("Sì") and r.inviato != "Saltato")
+        rimanenti = sum(1 for r in self.records if not r.inviato.startswith("Sì") and not r.inviato.startswith("Saltato"))
         if not messagebox.askyesno(
             "Avvio Pilota Automatico",
-            f"Stai per avviare l'invio automatico per {rimanenti} donatori.\n\n"
+            f"Stai per avviare l'invio automatico per {rimanenti} donatori con Google Chrome.\n\n"
             f"• Attesa caricamento WhatsApp: {page_wait}s\n"
             f"• Pausa anti-ban tra donatori: ~{anti_ban_delay}s\n\n"
             "⚠️ AVVERTENZE:\n"
-            "1. Durante l'invio evita di usare mouse e tastiera sul PC per non interferire con i comandi.\n"
+            "1. Durante l'invio evita di interagire sulla finestra di Edge per non interferire con l'automazione.\n"
             "2. Puoi fermare o mettere in pausa l'invio in qualsiasi momento premendo ESC o il pulsante 'Ferma'.\n\n"
             "Vuoi avviare il Pilota Automatico?"
         ):
@@ -621,12 +860,36 @@ class AvisWhatsAppApp(ctk.CTk):
         self.lbl_instructions.configure(text=text, text_color=text_color)
 
     def _autopilot_worker(self, page_wait: float, anti_ban_delay: float, reuse_tab: bool = True):
-        is_first = True
+        # 1. Assicura browser attivo
+        self.after(0, lambda: self._set_autopilot_status("🟡 Avvio di Google Chrome e connessione a WhatsApp Web..."))
+        ok = self.browser_controller.ensure_browser()
+        if not ok or self.autopilot_cancel_requested:
+            self.after(0, lambda: messagebox.showerror("Errore Browser", "Impossibile avviare Google Chrome."))
+            self.after(0, self._on_autopilot_finished)
+            return
+
+        # 2. Verifica autenticazione
+        auth = self.browser_controller.check_auth_status(timeout_ms=5000)
+        if auth != "authenticated":
+            self.after(0, lambda: self._set_autopilot_status("🟡 Attesa accesso a WhatsApp Web su Chrome (inquadra il QR Code se richiesto)...", text_color="#fd7e14"))
+            self.after(0, lambda: self.lbl_wa_status.configure(text="🟡 Inquadra QR Code su Chrome", text_color="#fd7e14"))
+            while auth != "authenticated" and self.autopilot_running and not self.autopilot_cancel_requested:
+                time.sleep(1.0)
+                auth = self.browser_controller.check_auth_status(timeout_ms=2000)
+
+        if self.autopilot_cancel_requested or not self.autopilot_running:
+            self.after(0, self._on_autopilot_finished)
+            return
+
+        if auth == "authenticated":
+            self.after(0, lambda: self.lbl_wa_status.configure(text="🟢 WhatsApp Connesso", text_color="#28a745"))
+
+        # 3. Invio donatori
         while self.autopilot_running and not self.autopilot_cancel_requested:
             # Trova il prossimo donatore da inviare
             while self.current_index < len(self.records):
                 rec = self.records[self.current_index]
-                if not rec.inviato.startswith("Sì") and rec.inviato != "Saltato":
+                if not rec.inviato.startswith("Sì") and not rec.inviato.startswith("Saltato"):
                     break
                 self.current_index += 1
 
@@ -639,7 +902,8 @@ class AvisWhatsAppApp(ctk.CTk):
             if not rec.is_valid:
                 try:
                     target_file = self.current_log_path or self.current_excel_path
-                    self.excel_mgr.mark_as_sent(target_file, rec.row_idx, status="Saltato (Non Valido)")
+                    if target_file:
+                        self.excel_mgr.mark_as_sent(target_file, rec.row_idx, status="Saltato (Non Valido)")
                     rec.inviato = "Saltato"
                 except Exception:
                     pass
@@ -651,54 +915,67 @@ class AvisWhatsAppApp(ctk.CTk):
             msg_text = self.txt_message.get("1.0", "end").strip()
             final_message = render_template(msg_text, nome=rec.nome, cognome=rec.cognome)
 
-            warmup_note = " (+5s sincronizzazione iniziale)" if is_first else ""
-            status_msg = f"🤖 [Autopilot] Inviando a {rec.nome} {rec.cognome} ({rec.telefono_clean}){warmup_note}... (Premi ESC per fermare)"
+            status_msg = f"🤖 [Autopilot] Inviando a {rec.nome} {rec.cognome} ({rec.telefono_clean})... (Premi ESC per fermare)"
             self.after(0, lambda m=status_msg: self._set_autopilot_status(m))
 
-            success = execute_autopilot_step(
-                phone=rec.telefono_clean,
-                text=final_message,
-                image_path=self.current_image_path,
-                page_wait_s=page_wait,
-                action_delay_s=1.5,
-                is_first=is_first,
-                reuse_tab=reuse_tab,
-                cancel_check=lambda: self.autopilot_cancel_requested
-            )
+            # Apertura chat
+            status = self.browser_controller.open_chat(rec.telefono_clean)
 
-            if not success or self.autopilot_cancel_requested:
+            if self.autopilot_cancel_requested or not self.autopilot_running:
                 break
 
-            is_first = False
+            if status == "invalid_number":
+                try:
+                    target_file = self.current_log_path or self.current_excel_path
+                    if target_file:
+                        self.excel_mgr.mark_as_sent(target_file, rec.row_idx, status="Saltato (Non su WhatsApp)")
+                    rec.inviato = "Saltato (Non su WhatsApp)"
+                except Exception:
+                    pass
+                self.current_index += 1
+                self.after(0, self._update_stats_and_current_donor)
+                continue
+            elif status == "ready":
+                sent = self.browser_controller.send_message(final_message, image_path=self.current_image_path)
 
-            # Salva sul file di log lo stato di invio riuscito
-            try:
-                target_file = self.current_log_path or self.current_excel_path
-                self.excel_mgr.mark_as_sent(target_file, rec.row_idx, status="Sì")
-                rec.inviato = "Sì"
-            except Exception as e:
-                self.after(0, lambda err=e: messagebox.showerror("Errore Salvataggio Log Excel", f"Errore durante l'aggiornamento del log:\n{err}"))
-                break
-
-            self.current_index += 1
-            self.after(0, self._update_stats_and_current_donor)
-
-            # Controlla se ci sono altri donatori da inviare per la pausa anti-ban
-            has_more = any(not r.inviato.startswith("Sì") and r.inviato != "Saltato" for r in self.records[self.current_index:])
-            if not has_more or self.autopilot_cancel_requested:
-                break
-
-            jitter = random.uniform(-1.0, 1.5)
-            actual_pause = max(3.0, anti_ban_delay + jitter)
-            elapsed = 0.0
-            step = 0.5
-            while elapsed < actual_pause:
                 if self.autopilot_cancel_requested or not self.autopilot_running:
                     break
-                rem = max(0, int(round(actual_pause - elapsed)))
-                self.after(0, lambda r=rem: self._set_autopilot_status(f"⏳ Pausa anti-ban di sicurezza: prossimo tra {r}s... (Premi ESC per fermare)"))
-                time.sleep(step)
-                elapsed += step
+
+                if sent:
+                    try:
+                        target_file = self.current_log_path or self.current_excel_path
+                        if target_file:
+                            self.excel_mgr.mark_as_sent(target_file, rec.row_idx, status="Sì")
+                        rec.inviato = "Sì"
+                    except Exception as e:
+                        self.after(0, lambda err=e: messagebox.showerror("Errore Salvataggio Log Excel", f"Errore durante l'aggiornamento del log:\n{err}"))
+                        break
+
+                    self.current_index += 1
+                    self.after(0, self._update_stats_and_current_donor)
+
+                    # Controlla se ci sono altri donatori da inviare per la pausa anti-ban
+                    has_more = any(not r.inviato.startswith("Sì") and not r.inviato.startswith("Saltato") for r in self.records[self.current_index:])
+                    if not has_more or self.autopilot_cancel_requested:
+                        break
+
+                    jitter = random.uniform(-1.0, 1.5)
+                    actual_pause = max(3.0, anti_ban_delay + jitter)
+                    elapsed = 0.0
+                    step = 0.5
+                    while elapsed < actual_pause:
+                        if self.autopilot_cancel_requested or not self.autopilot_running:
+                            break
+                        rem = max(0, int(round(actual_pause - elapsed)))
+                        self.after(0, lambda r=rem: self._set_autopilot_status(f"⏳ Pausa anti-ban di sicurezza: prossimo tra {r}s... (Premi ESC per fermare)"))
+                        time.sleep(step)
+                        elapsed += step
+                else:
+                    self.after(0, lambda: self._set_autopilot_status(f"⚠️ Invio fallito a {rec.nome} {rec.cognome}. Autopilot fermato.", text_color="#d9534f"))
+                    break
+            else:
+                self.after(0, lambda m=f"⚠️ Errore apertura chat ({status}). Autopilot fermato.": self._set_autopilot_status(m, text_color="#d9534f"))
+                break
 
         self.after(0, self._on_autopilot_finished)
 
@@ -721,7 +998,7 @@ class AvisWhatsAppApp(ctk.CTk):
 
         if was_cancelled:
             self._set_autopilot_status("⏹️ Pilota automatico fermato dall'operatore. Stato salvato nell'Excel!", text_color="#d9534f")
-        elif self.records and all(r.inviato.startswith("Sì") or r.inviato == "Saltato" for r in self.records):
+        elif self.records and all(r.inviato.startswith("Sì") or r.inviato.startswith("Saltato") for r in self.records):
             messagebox.showinfo("Completato!", "🎉 Fantastico! Tutti i donatori sono stati processati con successo dal Pilota Automatico!")
 
     # --- RESET / RIPRISTINO ---
@@ -751,10 +1028,12 @@ class AvisWhatsAppApp(ctk.CTk):
         self.current_index = 0
         self.waiting_for_next_confirm = False
 
-        # Reset etichette file
+        # Reset etichette file e stato WhatsApp
         self.lbl_excel_path.configure(text="Nessun file Excel caricato", text_color="gray40")
         self.lbl_stats.configure(text="Totale: 0 | Da inviare: 0 | Inviati: 0", text_color="#1f538d")
         self.lbl_img_path.configure(text="Nessuna immagine selezionata (invio solo testo)", text_color="gray40")
+        if hasattr(self, "lbl_wa_status"):
+            self.lbl_wa_status.configure(text="⚪ Non connesso", text_color="gray50")
 
         # Reset pannello donatore
         self.lbl_current_donor.configure(text="In attesa di caricamento file Excel...", text_color="#1f538d")
@@ -857,7 +1136,7 @@ class AvisWhatsAppApp(ctk.CTk):
             [
                 (
                     "Accesso a WhatsApp Web prima dell'invio",
-                    "Prima di avviare il programma o gli invii, apri il tuo browser preferito (Google Chrome, Microsoft Edge, ecc.) e collegati a:\nhttps://web.whatsapp.com\n"
+                    "Prima di avviare il programma o gli invii, apri il tuo browser preferito (Google Chrome, Google Chrome, ecc.) e collegati a:\nhttps://web.whatsapp.com\n"
                     "Inquadra il codice QR con WhatsApp sul tuo smartphone per accedere. Lascia aperta la scheda di WhatsApp Web nel browser per tutta la sessione di lavoro."
                 )
             ]

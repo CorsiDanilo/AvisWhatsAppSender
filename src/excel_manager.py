@@ -260,9 +260,9 @@ class ExcelManager:
         """Restituisce le statistiche su una lista di record."""
         totale = len(records)
         inviati = sum(1 for r in records if r.inviato.startswith("Sì"))
-        saltati = sum(1 for r in records if r.inviato == "Saltato")
+        saltati = sum(1 for r in records if r.inviato.startswith("Saltato"))
         validi = sum(1 for r in records if r.is_valid)
-        da_inviare = sum(1 for r in records if r.is_valid and not r.inviato.startswith("Sì") and r.inviato != "Saltato")
+        da_inviare = sum(1 for r in records if r.is_valid and not r.inviato.startswith("Sì") and not r.inviato.startswith("Saltato"))
 
         return {
             "totale": totale,
