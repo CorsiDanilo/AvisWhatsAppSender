@@ -1,1 +1,0 @@
-"""AVIS WhatsApp Sender package."""

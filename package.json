@@ -1,0 +1,39 @@
+{
+  "name": "aviswhatsappsender",
+  "version": "1.0.0",
+  "description": "Applicazione desktop AVIS per inviare messaggi personalizzati tramite WhatsApp Web.",
+  "main": "electron/main.cjs",
+  "directories": {
+    "doc": "docs",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "node --test test/data.test.js test/queue.test.js test/media.test.js test/settings.test.js test/logger.test.js test/gui-config.test.js test/whatsapp-media-regression.test.js test/presets.test.js test/results.test.js",
+    "build:gui": "npm --prefix gui run build",
+    "lint:gui": "npm --prefix gui run lint",
+    "prestart": "npm run build:gui",
+    "start": "electron electron/main.cjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CorsiDanilo/AvisWhatsAppSender.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/CorsiDanilo/AvisWhatsAppSender/issues"
+  },
+  "homepage": "https://github.com/CorsiDanilo/AvisWhatsAppSender#readme",
+  "dependencies": {
+    "csv-parser": "^3.2.1",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "https://github.com/wwebjs/whatsapp-web.js/archive/064a3d5.tar.gz",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1"
+  }
+}

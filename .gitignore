@@ -23,6 +23,14 @@ Log_Invio_*.xlsx
 *.pem
 *.key
 
+# Node/Electron runtime data
+node_modules/
+gui/node_modules/
+gui/dist/
+.wwebjs_auth/
+.wwebjs_cache/
+donatori*.csv
+
 # Internal tooling & temporary logs
 .superpowers/
 scratch/
