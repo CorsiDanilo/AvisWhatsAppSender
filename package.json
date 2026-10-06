@@ -3,16 +3,54 @@
   "version": "1.0.0",
   "description": "Applicazione desktop AVIS per inviare messaggi personalizzati tramite WhatsApp Web.",
   "main": "electron/main.cjs",
-  "directories": {
-    "doc": "docs",
-    "test": "test"
-  },
   "scripts": {
     "test": "node --test test/data.test.js test/queue.test.js test/media.test.js test/settings.test.js test/logger.test.js test/gui-config.test.js test/whatsapp-media-regression.test.js test/presets.test.js test/results.test.js",
     "build:gui": "npm --prefix gui run build",
     "lint:gui": "npm --prefix gui run lint",
     "prestart": "npm run build:gui",
-    "start": "electron electron/main.cjs"
+    "start": "electron electron/main.cjs",
+    "prebuild:win": "node scripts/copy-browser.js",
+    "build:win": "npm run build:gui && electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "it.avis.whatsappsender",
+    "productName": "AVIS WhatsApp Sender",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "sender/**/*",
+      "gui/dist/**/*",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": ".",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "asarUnpack": [
+      "**/node_modules/puppeteer-core/**",
+      "**/node_modules/puppeteer/**",
+      "**/node_modules/whatsapp-web.js/**"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AVIS WhatsApp Sender"
+    }
   },
   "repository": {
     "type": "git",
@@ -34,6 +72,9 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "electron": "^44.5.1"
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
+    "jimp": "^1.6.1",
+    "png-to-ico": "^3.0.2"
   }
 }

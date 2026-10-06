@@ -89,11 +89,17 @@ function setConnection(connection, qrDataUrl = '') {
 function createClient() {
   if (client) return client;
 
+  let executablePath = undefined;
+  if (app.isPackaged) {
+    executablePath = path.join(process.resourcesPath, 'browser', 'chrome.exe');
+  }
+
   client = new Client({
     authStrategy: new LocalAuth({
       dataPath: path.join(app.getPath('userData'), 'whatsapp-session'),
     }),
     puppeteer: {
+      executablePath,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     },
   });
