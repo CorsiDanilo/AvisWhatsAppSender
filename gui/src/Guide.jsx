@@ -13,23 +13,23 @@ function Guide({ onClose }) {
           <h3>2. Collegamento a WhatsApp</h3>
           <p>Premi “Collega WhatsApp”. Quando appare il QR code, apri WhatsApp sul telefono, vai in <strong>Impostazioni → Dispositivi collegati → Collega un dispositivo</strong> e inquadra il codice. Attendi lo stato “Pronto”.</p>
 
-          <h3>3. Preset e messaggio</h3>
-          <p>Scegli un preset dal menu, modifica il testo e usa <code>[nome]</code> o <code>[cognome]</code> per inserire automaticamente i dati del destinatario. Scrivi il nome del preset e premi “Salva preset” per aggiornare quello esistente o crearne uno nuovo. “Nuovo” prepara un preset vuoto; “Elimina” rimuove quello selezionato.</p>
+          <h3>3. Modelli e preset</h3>
+          <p>Scegli un preset dal menu o clicca su <strong>⚙️ Impostazioni</strong> per creare, modificare o eliminare i modelli salvati e i rispettivi ritmi. Puoi inserire i tag <code>[nome]</code> o <code>[cognome]</code> per personalizzare automaticamente il testo.</p>
 
           <h3>4. Foto allegata</h3>
           <p>Con “Seleziona foto” puoi allegare una sola immagine JPG, JPEG o PNG, fino a 16 MB. La foto viene inviata insieme al testo come didascalia. Puoi rimuoverla prima dell’invio.</p>
 
-          <h3>5. Destinatari</h3>
-          <p>Dopo aver caricato il CSV, usa “Tutti” o “Nessuno”, oppure seleziona manualmente i destinatari. Solo quelli spuntati e con numero valido vengono messi in coda.</p>
+          <h3>5. Flusso a passi guidati</h3>
+          <p>L’applicazione ti guida in 3 passi: <strong>1. Destinatari</strong> (caricamento e selezione), <strong>2. Messaggio & Ritmo</strong> (testo, eventuale foto e intervalli) e <strong>3. Riepilogo</strong> (controllo generale e avvio). Puoi sempre tornare indietro o cliccare sugli step per modificare i dati.</p>
 
           <h3>6. Ritmo di invio</h3>
-          <p>Imposta l’intervallo minimo e massimo tra i messaggi, quanti messaggi inviare prima di una pausa e la durata della pausa. Il valore effettivo tra minimo e massimo varia per ogni invio. “Salva ritmo” conserva le impostazioni per gli avvii successivi.</p>
+          <p>Imposta l’intervallo minimo e massimo tra i messaggi, quanti messaggi inviare prima di una pausa e la durata della pausa. Il valore effettivo varia in modo casuale per proteggere il numero.</p>
 
           <h3>7. Avvio e controllo</h3>
-          <p>Controlla l’anteprima, poi premi “Avvia invio”. Durante la coda puoi mettere in pausa, riprendere o fermare l’operazione. Non chiudere WhatsApp Web e non spegnere il computer durante l’invio.</p>
+          <p>Durante l'invio puoi monitorare in tempo reale i messaggi inviati, il donatore in elaborazione, i log e usare i pulsanti Pausa, Riprendi e Ferma.</p>
 
-          <h3>8. Esiti e diagnostica</h3>
-          <p>Al termine, o quando fermi la coda, l’esito viene salvato automaticamente sul Desktop in <code>AVIS WhatsApp Sender\&lt;Preset&gt;_&lt;DataOra&gt;</code>, con i file <code>esito.json</code> ed <code>esito.csv</code>. I log tecnici giornalieri sono conservati nella cartella dati dell’applicazione per 30 giorni.</p>
+          <h3>8. Esiti, cartelle e impostazioni</h3>
+          <p>Al termine, l’esito viene salvato nella cartella configurata (predefinita sul Desktop in <code>AVIS WhatsApp Sender\&lt;Preset&gt;_&lt;DataOra&gt;</code>) con i file <code>esito.json</code> ed <code>esito.csv</code>. Puoi cambiare la cartella degli esiti e dei log in qualunque momento dal menu <strong>⚙️ Impostazioni</strong> in alto.</p>
 
           <h3>9. Nuova sessione</h3>
           <p>Premi “Nuova sessione” per rimuovere lista, foto, messaggio e stato della sessione. Il collegamento WhatsApp, i preset e il ritmo salvato restano disponibili.</p>

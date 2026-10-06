@@ -1,6 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import Guide from './Guide'
+import SettingsModal from './components/SettingsModal'
+import QrModal from './components/QrModal'
+import StepperNav from './components/StepperNav'
+import StepRecipients from './components/StepRecipients'
+import StepComposer from './components/StepComposer'
+import StepSummary from './components/StepSummary'
+import SendingDashboard from './components/SendingDashboard'
 
 const templates = {
   'Promemoria donazione':
@@ -25,25 +32,22 @@ const initialState = {
   progress: { current: 0, total: 0, sent: 0, failed: 0, skipped: 0 },
   logs: [],
   fileName: '',
+  filePath: '',
   imageName: '',
+  imagePath: '',
   imageDataUrl: '',
-  settings: { minDelayMs: 15000, maxDelayMs: 35000, pauseAfter: 40, pauseMinutes: 15 },
+  settings: { minDelayMs: 15000, maxDelayMs: 35000, pauseAfter: 40, pauseMinutes: 15, outputDir: '', logDir: '' },
   presets: fallbackPresets,
-}
-
-function displayName(donor) {
-  return [donor.name, donor.surname].filter(Boolean).join(' ') || 'Senza nome'
-}
-
-function previewMessage(message, donor) {
-  if (!donor) return message
-  return message
-    .replaceAll('[nome]', donor.name || '')
-    .replaceAll('[cognome]', donor.surname || '')
+  defaultOutputDir: '',
+  defaultLogDir: '',
+  userDataDir: '',
+  lastOutcomeDir: '',
 }
 
 function App() {
   const [state, setState] = useState(initialState)
+  const [currentStep, setCurrentStep] = useState(1)
+  const [manualSendingView, setManualSendingView] = useState(false)
   const [message, setMessage] = useState(fallbackPresets[0].message)
   const [selectedPreset, setSelectedPreset] = useState(fallbackPresets[0].name)
   const [presetName, setPresetName] = useState(fallbackPresets[0].name)
@@ -55,48 +59,70 @@ function App() {
   })
   const [error, setError] = useState('')
   const [showGuide, setShowGuide] = useState(false)
-  const messageRef = useRef(null)
+  const [showSettings, setShowSettings] = useState(false)
+  const [showQrModal, setShowQrModal] = useState(false)
+  const [showQrBanner, setShowQrBanner] = useState(true)
+
   const api = window.whatsappSender
 
   useEffect(() => {
     if (!api) return undefined
-    api.getState().then((next) => {
-      setState(next)
-      if (next.settings) setOptions(next.settings)
-      const firstPreset = next.presets?.[0]
-      if (firstPreset) {
-        setSelectedPreset(firstPreset.name)
-        setPresetName(firstPreset.name)
-        setMessage(firstPreset.message)
-        if (firstPreset.settings) setOptions(firstPreset.settings)
-      }
-    }).catch((reason) => setError(reason.message))
+    api
+      .getState()
+      .then((next) => {
+        setState(next)
+        if (next.settings) setOptions(next.settings)
+        const firstPreset = next.presets?.[0]
+        if (firstPreset) {
+          setSelectedPreset(firstPreset.name)
+          setPresetName(firstPreset.name)
+          setMessage(firstPreset.message)
+          if (firstPreset.settings) setOptions(firstPreset.settings)
+        }
+      })
+      .catch((reason) => setError(reason.message))
     return api.onState(setState)
   }, [api])
 
   const counts = useMemo(() => {
-    return state.donors.reduce(
-      (result, donor) => {
-        result[donor.status] = (result[donor.status] || 0) + 1
-        return result
-      },
-      {},
-    )
+    return state.donors.reduce((result, donor) => {
+      result[donor.status] = (result[donor.status] || 0) + 1
+      return result
+    }, {})
   }, [state.donors])
 
-  const currentDonor = state.donors.find((donor) => donor.selected !== false && donor.valid && donor.status === 'pending')
+  const firstSelectedDonor = useMemo(() => {
+    return state.donors.find((d) => d.selected !== false && d.valid)
+  }, [state.donors])
+
   const selectedCount = state.donors.filter((donor) => donor.selected !== false).length
-  const pendingSelectedCount = state.donors.filter((donor) => donor.selected !== false && donor.status === 'pending').length
-  const canStart = state.connection === 'ready' && selectedCount > 0 && message.trim().length > 0
   const isRunning = state.queue === 'running'
   const isPaused = state.queue === 'paused'
+  const isCompleted = state.queue === 'completed'
+  const isStopped = state.queue === 'stopped'
+
+  // Decide if we should show the sending dashboard
+  const isSendingActive = isRunning || isPaused
+  const showDashboard = isSendingActive || manualSendingView || ((isCompleted || isStopped) && state.progress.total > 0)
+
+  const canStart = state.connection === 'ready' && selectedCount > 0 && message.trim().length > 0
+
+  // Calculate highest reachable step
+  const maxStepReached = useMemo(() => {
+    if (selectedCount === 0) return 1
+    if (!message.trim()) return 2
+    return 3
+  }, [selectedCount, message])
 
   async function call(command) {
     setError('')
     try {
-      setState(await command())
+      const next = await command()
+      setState(next)
+      return next
     } catch (reason) {
       setError(reason.message || 'Operazione non riuscita')
+      throw reason
     }
   }
 
@@ -109,79 +135,41 @@ function App() {
       setPresetName(firstPreset.name)
       setMessage(firstPreset.message)
       setOptions(firstPreset.settings)
+      setCurrentStep(1)
+      setManualSendingView(false)
       return next
     })
   }
 
-  function changePreset(name) {
-    const preset = (state.presets?.length ? state.presets : fallbackPresets).find((item) => item.name === name)
-    if (!preset) return
-    setSelectedPreset(preset.name)
-    setPresetName(preset.name)
-    setMessage(preset.message)
-    setOptions(preset.settings)
-  }
-
-  async function saveCurrentPreset() {
-    if (!presetName.trim()) {
-      setError('Inserisci un nome per il preset.')
-      return
+  async function handleStart() {
+    try {
+      setManualSendingView(true)
+      await call(() =>
+        api.start({
+          ...options,
+          pauseMs: options.pauseMinutes * 60 * 1000,
+          message,
+          presetName,
+        })
+      )
+    } catch {
+      // Error is set by call()
     }
-    await call(async () => {
-      const name = presetName.trim()
-      const next = await api.savePreset({ name, message, settings: options })
-      setSelectedPreset(name)
-      setPresetName(name)
-      return next
-    })
   }
 
-  async function deleteCurrentPreset() {
-    if (!presetName.trim() || !window.confirm(`Eliminare il preset "${presetName}"?`)) return
-    await call(async () => {
-      const next = await api.deletePreset(presetName.trim())
-      const firstPreset = (next.presets?.length ? next.presets : fallbackPresets)[0]
-      setSelectedPreset(firstPreset?.name || '')
-      setPresetName(firstPreset?.name || '')
-      setMessage(firstPreset?.message || '')
-      if (firstPreset?.settings) setOptions(firstPreset.settings)
-      return next
-    })
-  }
-
-  function newPreset() {
-    setSelectedPreset('')
-    setPresetName('Nuovo preset')
-    setMessage('')
-  }
-
-  function updateOption(name, value) {
-    setOptions((current) => ({ ...current, [name]: value }))
-  }
-
-  function insertToken(token) {
-    const input = messageRef.current
-    if (!input) return
-    const start = input.selectionStart
-    const end = input.selectionEnd
-    setMessage(`${message.slice(0, start)}${token}${message.slice(end)}`)
-    requestAnimationFrame(() => {
-      input.focus()
-      input.setSelectionRange(start + token.length, start + token.length)
-    })
-  }
-
-  const connectionText = {
-    disconnected: 'Non connesso',
-    connecting: 'Connessione…',
-    qr: 'Scansiona il QR',
-    authenticated: 'Autenticato',
-    ready: 'Pronto',
-    error: 'Errore connessione',
-  }[state.connection] || state.connection
+  const connectionText =
+    {
+      disconnected: 'Non connesso',
+      connecting: 'Connessione…',
+      qr: 'Scansiona il QR',
+      authenticated: 'Autenticato',
+      ready: 'Pronto',
+      error: 'Errore connessione',
+    }[state.connection] || state.connection
 
   return (
     <div className="app-shell">
+      {/* Top Header */}
       <header className="topbar">
         <div className="brand">
           <div className="brand-mark">A</div>
@@ -190,146 +178,192 @@ function App() {
             <span>Comunicazioni WhatsApp</span>
           </div>
         </div>
-        <div className={`connection connection-${state.connection}`}>
-          <span className="status-dot" />
-          {connectionText}
+
+        <div className="topbar-right">
+          <div
+            className={`connection connection-${state.connection}`}
+            title="Stato WhatsApp (clicca per visualizzare il QR o riconnettere)"
+            onClick={() => {
+              if (state.connection === 'disconnected' || state.connection === 'error') {
+                call(() => api.connect())
+                setShowQrModal(true)
+              } else if (state.connection === 'qr' || state.connection === 'connecting') {
+                setShowQrBanner(true)
+                setShowQrModal(true)
+              }
+            }}
+            style={{ cursor: state.connection === 'ready' ? 'default' : 'pointer' }}
+          >
+            <span className="status-dot" />
+            {connectionText}
+            {state.connection !== 'ready' && <span className="connect-link-hint"> (mostra QR)</span>}
+          </div>
+
+          <div className="topbar-actions">
+            <button
+              type="button"
+              className="button button-secondary topbar-btn"
+              onClick={() => setShowSettings(true)}
+              title="Cartelle e Modelli salvati"
+            >
+              ⚙️ Impostazioni
+            </button>
+            <button
+              type="button"
+              className="button button-secondary topbar-btn"
+              onClick={() => setShowGuide(true)}
+            >
+              Guida
+            </button>
+            <button
+              type="button"
+              className="button button-secondary topbar-btn"
+              onClick={resetInterface}
+              disabled={isSendingActive}
+              title="Azzera la sessione mantenendo WhatsApp collegato"
+            >
+              ↺ Nuova sessione
+            </button>
+          </div>
         </div>
       </header>
 
-      <main className="workspace">
-        <aside className="sidebar">
-          <section className="panel file-panel">
-            <div className="eyebrow">01 · Destinatari</div>
-            <h2>Carica una lista</h2>
-            <p className="muted">CSV o Excel con colonne Nome, Cognome e Telefono.</p>
-            <button className="button button-secondary full" onClick={() => call(() => api.selectCsv())}>
-              <span>↥</span> Seleziona file
-            </button>
-            {state.fileName && <div className="file-name">✓ {state.fileName}</div>}
-          </section>
+      {/* Main Container */}
+      <main className="wizard-layout">
+        {error && <div className="alert global-alert">{error}</div>}
 
-          <section className="panel attachment-panel">
-            <div className="eyebrow">01b · Allegato</div>
-            <h2>Foto opzionale</h2>
-            <p className="muted">La stessa foto verrà inviata a tutti, con il testo come didascalia.</p>
-            <button className="button button-secondary full" onClick={() => call(() => api.selectImage())}>
-              <span>▧</span> Seleziona foto
-            </button>
-            {state.imageName && (
-              <div className="attachment-preview">
-                {state.imageDataUrl && <img src={state.imageDataUrl} alt="Anteprima allegato" />}
-                <div className="attachment-details"><strong>{state.imageName}</strong><button className="remove-attachment" onClick={() => call(() => api.clearImage())}>Rimuovi</button></div>
+        {/* Banner QR Code visibile in qualsiasi step se il client è in attesa di scansione */}
+        {state.connection === 'qr' && state.qrDataUrl && showQrBanner && !showDashboard && (
+          <div className="top-qr-banner-card panel">
+            <div className="top-qr-banner-left">
+              <img src={state.qrDataUrl} alt="QR Code WhatsApp" className="top-qr-banner-img" />
+              <div className="top-qr-banner-text">
+                <span className="eyebrow">Azione richiesta • WhatsApp non connesso</span>
+                <h3>Scansiona il codice QR con il tuo telefono</h3>
+                <p className="muted" style={{ margin: '4px 0 0' }}>
+                  Apri <strong>WhatsApp</strong> sul telefono → <strong>Dispositivi collegati</strong> → <strong>Collega un dispositivo</strong>.
+                </p>
               </div>
-            )}
-          </section>
-
-          <section className="panel">
-            <div className="eyebrow">02 · Messaggio</div>
-            <div className="section-heading">
-              <h2>Modello</h2>
-              <select value={selectedPreset} onChange={(event) => changePreset(event.target.value)}>
-                {(state.presets?.length ? state.presets : fallbackPresets).map((preset) => <option key={preset.name} value={preset.name}>{preset.name}</option>)}
-              </select>
             </div>
-            <input className="preset-name" value={presetName} onChange={(event) => setPresetName(event.target.value)} aria-label="Nome preset" placeholder="Nome del preset" />
-            <textarea
-              ref={messageRef}
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              rows="8"
-              aria-label="Messaggio"
-            />
-            <div className="token-row">
-              <button className="token" onClick={() => insertToken('[nome]')}>+ nome</button>
-              <button className="token" onClick={() => insertToken('[cognome]')}>+ cognome</button>
-            </div>
-            <div className="preview">
-              <span className="preview-label">Anteprima</span>
-              <p>{previewMessage(message, currentDonor) || 'Scrivi un messaggio…'}</p>
-            </div>
-            <div className="preset-actions">
-              <button className="button button-secondary" onClick={saveCurrentPreset}>Salva preset</button>
-              <button className="button button-secondary" onClick={newPreset}>Nuovo</button>
-              <button className="button button-danger" onClick={deleteCurrentPreset}>Elimina</button>
-            </div>
-          </section>
-
-          <section className="panel settings-panel">
-            <div className="eyebrow">03 · Ritmo invio</div>
-            <div className="settings-grid">
-              <label>Min. secondi<input type="number" min="0" value={options.minDelayMs / 1000} onChange={(event) => updateOption('minDelayMs', Number(event.target.value) * 1000)} /></label>
-              <label>Max. secondi<input type="number" min="0" value={options.maxDelayMs / 1000} onChange={(event) => updateOption('maxDelayMs', Number(event.target.value) * 1000)} /></label>
-              <label>Dopo messaggi<input type="number" min="0" value={options.pauseAfter} onChange={(event) => updateOption('pauseAfter', Number(event.target.value))} /></label>
-              <label>Pausa minuti<input type="number" min="0" value={options.pauseMinutes} onChange={(event) => updateOption('pauseMinutes', Number(event.target.value))} /></label>
-            </div>
-            <button className="button button-secondary full save-settings" onClick={() => call(() => api.saveSettings(options))}>Salva ritmo</button>
-          </section>
-        </aside>
-
-        <section className="content">
-          <div className="content-heading">
-            <div>
-              <div className="eyebrow">Pannello di controllo</div>
-              <h1>Invio assistito</h1>
-            </div>
-            <div className="heading-actions">
-              <button className="button button-secondary" onClick={() => setShowGuide(true)}>Guida</button>
-              <button className="button button-secondary" onClick={resetInterface} disabled={isRunning || isPaused}>↺ Nuova sessione</button>
-              <button className="button button-secondary" onClick={() => call(() => api.connect())} disabled={state.connection === 'connecting' || state.connection === 'ready'}>
-                {state.connection === 'ready' ? '✓ WhatsApp collegato' : 'Collega WhatsApp'}
+            <div className="top-qr-banner-actions">
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => call(() => (api?.reconnect ? api.reconnect() : api.connect()))}
+                title="Se il QR è scaduto o non risponde, clicca qui per generarne uno nuovo"
+              >
+                <span>🔄</span> Rigenera QR code
+              </button>
+              <button
+                type="button"
+                className="link-btn top-qr-dismiss"
+                onClick={() => setShowQrBanner(false)}
+                title="Nascondi questo riquadro (puoi riaprirlo cliccando su 'Scansiona il QR' in alto)"
+              >
+                ✕ Riduci
               </button>
             </div>
           </div>
+        )}
 
-          {state.qrDataUrl && state.connection === 'qr' && (
-            <div className="qr-card">
-              <img src={state.qrDataUrl} alt="QR code per collegare WhatsApp" />
-              <div><strong>Collega il tuo account</strong><p>Apri WhatsApp → Dispositivi collegati → Collega un dispositivo.</p></div>
+        {showDashboard ? (
+          <SendingDashboard
+            state={state}
+            counts={counts}
+            isRunning={isRunning}
+            isPaused={isPaused}
+            call={call}
+            api={api}
+            onBackToEdit={() => {
+              setManualSendingView(false)
+              setCurrentStep(3)
+            }}
+          />
+        ) : (
+          <>
+            {/* Stepper Navigation */}
+            <StepperNav
+              currentStep={currentStep}
+              onSelectStep={(step) => setCurrentStep(step)}
+              maxStepReached={maxStepReached}
+              disabled={isSendingActive}
+            />
+
+            {/* Wizard Steps */}
+            <div className="step-content-area">
+              {currentStep === 1 && (
+                <StepRecipients
+                  state={state}
+                  api={api}
+                  call={call}
+                  isRunning={isRunning}
+                  isPaused={isPaused}
+                  onNext={() => setCurrentStep(2)}
+                />
+              )}
+
+              {currentStep === 2 && (
+                <StepComposer
+                  state={state}
+                  api={api}
+                  call={call}
+                  message={message}
+                  setMessage={setMessage}
+                  selectedPreset={selectedPreset}
+                  setSelectedPreset={setSelectedPreset}
+                  setPresetName={setPresetName}
+                  options={options}
+                  setOptions={setOptions}
+                  firstSelectedDonor={firstSelectedDonor}
+                  onBack={() => setCurrentStep(1)}
+                  onNext={() => setCurrentStep(3)}
+                  onOpenSettings={() => setShowSettings(true)}
+                />
+              )}
+
+              {currentStep === 3 && (
+                <StepSummary
+                  state={state}
+                  message={message}
+                  selectedPreset={selectedPreset}
+                  options={options}
+                  canStart={canStart}
+                  firstSelectedDonor={firstSelectedDonor}
+                  onBack={() => setCurrentStep(2)}
+                  onGoToStep={(step) => setCurrentStep(step)}
+                  onStart={handleStart}
+                  api={api}
+                  call={call}
+                />
+              )}
             </div>
-          )}
-
-          {error && <div className="alert">{error}</div>}
-
-          <div className="stats-grid">
-            <div className="stat-card"><span>Destinatari</span><strong>{state.donors.length}</strong><small>nel file selezionato</small></div>
-            <div className="stat-card accent"><span>Inviati</span><strong>{counts.sent || 0}</strong><small>messaggi completati</small></div>
-            <div className="stat-card"><span>Da verificare</span><strong>{pendingSelectedCount}</strong><small>selezionati e in attesa</small></div>
-            <div className="stat-card warning"><span>Problemi</span><strong>{(counts.failed || 0) + (counts.skipped || 0)}</strong><small>falliti o scartati</small></div>
-          </div>
-
-          <div className="progress-panel panel">
-            <div className="progress-heading"><div><span className="eyebrow">Stato sessione</span><h2>{state.queue === 'completed' ? 'Sessione completata' : state.queue === 'stopped' ? 'Sessione fermata' : 'Pronto per iniziare'}</h2></div><strong>{state.progress.current}/{state.progress.total || 0}</strong></div>
-            <div className="progress-track"><div style={{ width: `${state.progress.total ? (state.progress.current / state.progress.total) * 100 : 0}%` }} /></div>
-            <div className="controls">
-              <button className="button button-primary" onClick={() => call(() => api.start({ ...options, pauseMs: options.pauseMinutes * 60 * 1000, message, presetName }))} disabled={!canStart || isRunning || isPaused}>▶ Avvia invio</button>
-              {isRunning && <button className="button button-secondary" onClick={() => call(() => api.pause())}>Ⅱ Pausa</button>}
-              {isPaused && <button className="button button-secondary" onClick={() => call(() => api.resume())}>▶ Riprendi</button>}
-              {(isRunning || isPaused) && <button className="button button-danger" onClick={() => call(() => api.stop())}>■ Ferma</button>}
-            </div>
-          </div>
-
-          <div className="lower-grid">
-            <section className="panel recipients-panel">
-              <div className="panel-heading"><div><span className="eyebrow">Lista</span><h2>Destinatari</h2></div><div className="list-actions"><button onClick={() => call(() => api.setAllSelected(true))} disabled={isRunning || isPaused}>Tutti</button><button onClick={() => call(() => api.setAllSelected(false))} disabled={isRunning || isPaused}>Nessuno</button><span className="count-pill">{selectedCount}/{state.donors.length}</span></div></div>
-              <div className="recipient-list">
-                {state.donors.length === 0 && <div className="empty">Carica un CSV o un Excel per vedere i destinatari.</div>}
-                {state.donors.map((donor, index) => (
-                  <div className="recipient" key={`${donor.phone}-${index}`}>
-                    <input className="recipient-checkbox" type="checkbox" checked={donor.selected !== false} disabled={isRunning || isPaused} onChange={(event) => call(() => api.setSelection(index, event.target.checked))} aria-label={`Seleziona ${displayName(donor)}`} />
-                    <div className="avatar">{(donor.name || '?')[0].toUpperCase()}</div>
-                    <div className="recipient-info"><strong>{displayName(donor)}</strong><span>{donor.phone || donor.rawPhone || 'Numero mancante'}</span></div>
-                    <span className={`badge badge-${donor.status}`}>{donor.status === 'pending' ? 'In attesa' : donor.status === 'sent' ? 'Inviato' : donor.status === 'skipped' ? 'Scartato' : 'Fallito'}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-            <section className="panel log-panel">
-              <div className="panel-heading"><div><span className="eyebrow">Attività</span><h2>Log sessione</h2></div></div>
-              <div className="logs">{state.logs.length === 0 ? <div className="empty">Gli eventi della sessione appariranno qui.</div> : state.logs.map((entry, index) => <div className="log-entry" key={`${entry}-${index}`}>{entry}</div>)}</div>
-            </section>
-          </div>
-        </section>
+          </>
+        )}
       </main>
+
+      {/* Modals */}
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        state={state}
+        api={api}
+        call={call}
+        options={options}
+        setOptions={setOptions}
+        selectedPreset={selectedPreset}
+        setSelectedPreset={setSelectedPreset}
+        setPresetName={setPresetName}
+        setMessage={setMessage}
+      />
+
+      <QrModal
+        isOpen={showQrModal}
+        onClose={() => setShowQrModal(false)}
+        state={state}
+        api={api}
+        call={call}
+      />
+
       {showGuide && <Guide onClose={() => setShowGuide(false)} />}
     </div>
   )

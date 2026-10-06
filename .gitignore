@@ -10,6 +10,7 @@ build/
 dist/
 *.exe
 AvisWhatsAppSender.exe
+test
 
 # Sensitive data: real donor lists and desktop log files
 donatori_test*.xlsx

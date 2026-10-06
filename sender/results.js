@@ -20,6 +20,7 @@ function csvCell(value) {
 
 function writeSessionResult({
   desktopDir,
+  outputDir = desktopDir,
   presetName,
   timestamp = new Date(),
   startedAt,
@@ -31,7 +32,11 @@ function writeSessionResult({
   summary,
   donors,
 }) {
-  const folder = path.join(desktopDir, `${safeName(presetName)}_${timestampName(timestamp)}`);
+  const baseDir = outputDir || desktopDir;
+  if (!baseDir) {
+    throw new Error('Cartella di output non specificata.');
+  }
+  const folder = path.join(baseDir, `${safeName(presetName)}_${timestampName(timestamp)}`);
   fs.mkdirSync(folder, { recursive: true });
 
   const json = {

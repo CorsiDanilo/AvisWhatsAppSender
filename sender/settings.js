@@ -6,6 +6,8 @@ const DEFAULT_SETTINGS = Object.freeze({
   maxDelayMs: 35000,
   pauseAfter: 40,
   pauseMinutes: 15,
+  outputDir: '',
+  logDir: '',
 });
 
 const LIMITS = {
@@ -21,11 +23,20 @@ function numberSetting(value, fallback, [minimum, maximum]) {
   return Math.min(maximum, Math.max(minimum, Math.round(number)));
 }
 
+function stringSetting(value, fallback = '') {
+  if (typeof value !== 'string') return fallback;
+  return value.trim();
+}
+
 function normalizeSettings(settings = {}) {
-  const normalized = {};
-  for (const [name, fallback] of Object.entries(DEFAULT_SETTINGS)) {
-    normalized[name] = numberSetting(settings[name], fallback, LIMITS[name]);
-  }
+  const normalized = {
+    minDelayMs: numberSetting(settings.minDelayMs, DEFAULT_SETTINGS.minDelayMs, LIMITS.minDelayMs),
+    maxDelayMs: numberSetting(settings.maxDelayMs, DEFAULT_SETTINGS.maxDelayMs, LIMITS.maxDelayMs),
+    pauseAfter: numberSetting(settings.pauseAfter, DEFAULT_SETTINGS.pauseAfter, LIMITS.pauseAfter),
+    pauseMinutes: numberSetting(settings.pauseMinutes, DEFAULT_SETTINGS.pauseMinutes, LIMITS.pauseMinutes),
+    outputDir: stringSetting(settings.outputDir, DEFAULT_SETTINGS.outputDir),
+    logDir: stringSetting(settings.logDir, DEFAULT_SETTINGS.logDir),
+  };
   normalized.maxDelayMs = Math.max(normalized.minDelayMs, normalized.maxDelayMs);
   return normalized;
 }
