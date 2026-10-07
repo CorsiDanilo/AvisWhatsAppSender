@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import ExcelPreviewModal from './ExcelPreviewModal'
 
 function displayName(donor) {
   return [donor.name, donor.surname].filter(Boolean).join(' ') || 'Senza nome'
@@ -14,6 +15,39 @@ export default function StepRecipients({
 }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [filterType, setFilterType] = useState('all') // 'all' | 'valid' | 'invalid'
+  const [inspectionData, setInspectionData] = useState(null)
+
+  async function handleSelectFile() {
+    try {
+      const data = await api.inspectCsv()
+      if (data) {
+        setInspectionData(data)
+      }
+    } catch (err) {
+      console.error('Errore durante l\'ispezione del file:', err)
+      alert(`Impossibile leggere il file selezionato: ${err.message || err}`)
+    }
+  }
+
+  async function handleConfirmMapping(filePath, sheetName, mapping) {
+    try {
+      await call(() => api.loadCsvMapped(filePath, sheetName, mapping))
+      setInspectionData(null)
+    } catch (err) {
+      console.error('Errore durante l\'importazione dei dati:', err)
+    }
+  }
+
+  async function handleReconfigure() {
+    if (!state.filePath) return
+    try {
+      const data = await api.inspectCsvSheet(state.filePath)
+      if (data) setInspectionData(data)
+    } catch (err) {
+      console.error('Errore durante la riapertura della configurazione:', err)
+      alert(`Impossibile riaprire la configurazione: ${err.message || err}`)
+    }
+  }
 
   const selectedCount = useMemo(
     () => state.donors.filter((d) => d.selected !== false).length,
@@ -66,11 +100,21 @@ export default function StepRecipients({
           <button
             type="button"
             className="button button-primary"
-            onClick={() => call(() => api.selectCsv())}
+            onClick={handleSelectFile}
             disabled={isRunning || isPaused}
           >
             <span>↥</span> {state.fileName ? 'Cambia file' : 'Seleziona file'}
           </button>
+          {state.fileName && (
+            <button
+              type="button"
+              className="button button-secondary"
+              onClick={handleReconfigure}
+              disabled={isRunning || isPaused}
+            >
+              ⚙️ Riconfigura colonne
+            </button>
+          )}
           {state.filePath && (
             <button
               type="button"
@@ -164,7 +208,7 @@ export default function StepRecipients({
               <button
                 type="button"
                 className="button button-secondary"
-                onClick={() => call(() => api.selectCsv())}
+                onClick={handleSelectFile}
               >
                 Seleziona file ora
               </button>
@@ -225,6 +269,15 @@ export default function StepRecipients({
           <span>Avanti: Messaggio & Ritmo</span> →
         </button>
       </div>
+
+      {inspectionData && (
+        <ExcelPreviewModal
+          api={api}
+          inspectionData={inspectionData}
+          onConfirm={handleConfirmMapping}
+          onCancel={() => setInspectionData(null)}
+        />
+      )}
     </div>
   )
 }

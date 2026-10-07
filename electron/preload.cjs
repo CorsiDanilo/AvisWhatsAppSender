@@ -1,7 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('whatsappSender', {
-  selectCsv: () => ipcRenderer.invoke('sender:select-csv'),
+  inspectCsv: () => ipcRenderer.invoke('sender:inspect-csv'),
+  inspectCsvSheet: (filePath, sheetName) => ipcRenderer.invoke('sender:inspect-csv-sheet', filePath, sheetName),
+  loadCsvMapped: (filePath, sheetName, mapping) => ipcRenderer.invoke('sender:load-csv-mapped', filePath, sheetName, mapping),
   selectImage: () => ipcRenderer.invoke('sender:select-image'),
   clearImage: () => ipcRenderer.invoke('sender:clear-image'),
   connect: () => ipcRenderer.invoke('sender:connect'),

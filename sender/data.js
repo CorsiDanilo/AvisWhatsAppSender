@@ -41,6 +41,14 @@ function findColumn(headers, aliases) {
   return headers.find((header) => aliases.includes(normalizeHeader(header)));
 }
 
+function hasValue(value) {
+  return value !== null && value !== undefined && String(value).trim() !== '';
+}
+
+function columnsWithValues(headers, rows) {
+  return headers.filter((header) => rows.some((row) => hasValue(row[header])));
+}
+
 function normalizeDonor(row, columns) {
   const name = String(row[columns.name] ?? '').trim();
   const surname = String(row[columns.surname] ?? '').trim();
@@ -67,35 +75,130 @@ function columnsFor(headers) {
   };
 }
 
-function readExcel(filePath) {
+function inspectExcel(filePath, sheetName) {
   const workbook = XLSX.readFile(filePath, { cellDates: false, raw: false });
-  const sheetName = workbook.SheetNames[0];
-  if (!sheetName) return [];
-  const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '', raw: false });
-  const columns = columnsFor(rows.length ? Object.keys(rows[0]) : []);
-  return rows.map((row) => normalizeDonor(row, columns));
-}
+  const sheets = workbook.SheetNames;
+  if (sheets.length === 0) return { sheets: [], headers: [], sampleRows: [], detectedMapping: {}, currentSheet: '' };
 
-function readDonors(filePath) {
-  if (['.xls', '.xlsx'].includes(path.extname(filePath).toLowerCase())) {
-    return Promise.resolve(readExcel(filePath));
+  const targetSheet = sheetName && sheets.includes(sheetName) ? sheetName : sheets[0];
+  const sheet = workbook.Sheets[targetSheet];
+  if (!sheet) return { sheets, headers: [], sampleRows: [], detectedMapping: {}, currentSheet: targetSheet };
+
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+  let headers = [];
+  if (rows.length > 0) {
+    const candidateHeaders = Object.keys(rows[0]).filter((h) => h && !h.startsWith('__EMPTY'));
+    headers = columnsWithValues(candidateHeaders, rows);
   }
 
+  const detectedMapping = columnsFor(headers);
+  const sampleRows = rows.slice(0, 5);
+
+  return { sheets, headers, sampleRows, detectedMapping, currentSheet: targetSheet };
+}
+
+function inspectCsv(filePath) {
   return new Promise((resolve, reject) => {
-    const donors = [];
-    let columns;
+    let headers = [];
+    const sampleRows = [];
+    const populatedHeaders = new Set();
 
     fs.createReadStream(filePath)
       .on('error', reject)
       .pipe(csv())
-      .on('headers', (headers) => {
-        columns = columnsFor(headers);
+      .on('headers', (h) => {
+        headers = h.map((col) => col.replace(/^\uFEFF/, '').trim()).filter(Boolean);
       })
       .on('data', (row) => {
-        donors.push(normalizeDonor(row, columns || {}));
+        headers.forEach((header) => {
+          if (hasValue(row[header])) populatedHeaders.add(header);
+        });
+        if (sampleRows.length < 5) {
+          sampleRows.push(row);
+        }
       })
-      .on('end', () => resolve(donors));
+      .on('end', () => {
+        const visibleHeaders = headers.filter((header) => populatedHeaders.has(header));
+        resolve({
+          sheets: ['CSV'],
+          headers: visibleHeaders,
+          sampleRows,
+          detectedMapping: columnsFor(visibleHeaders),
+          currentSheet: 'CSV',
+        });
+      });
   });
 }
 
-module.exports = { normalizePhone, readDonors };
+function inspectFile(filePath, sheetName) {
+  if (['.xls', '.xlsx'].includes(path.extname(filePath).toLowerCase())) {
+    return Promise.resolve(inspectExcel(filePath, sheetName));
+  }
+  return inspectCsv(filePath);
+}
+
+function getRowsFromExcel(filePath, sheetName) {
+  const workbook = XLSX.readFile(filePath, { cellDates: false, raw: false });
+  const sheet = sheetName && workbook.Sheets[sheetName] ? workbook.Sheets[sheetName] : workbook.Sheets[workbook.SheetNames[0]];
+  if (!sheet) return [];
+  return XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+}
+
+function getRowsFromCsv(filePath) {
+  return new Promise((resolve, reject) => {
+    const rows = [];
+    fs.createReadStream(filePath)
+      .on('error', reject)
+      .pipe(csv())
+      .on('data', (row) => rows.push(row))
+      .on('end', () => resolve(rows));
+  });
+}
+
+async function parseWithMapping(filePath, sheetName, mapping) {
+  const isExcel = ['.xls', '.xlsx'].includes(path.extname(filePath).toLowerCase());
+  const rows = isExcel ? getRowsFromExcel(filePath, sheetName) : await getRowsFromCsv(filePath);
+  
+  return rows.map(row => {
+    let name = '';
+    let surname = '';
+    
+    if (mapping.nameAndSurnameInOneColumn) {
+       const fullName = String(row[mapping.name] ?? '').trim();
+       const parts = fullName.split(/\s+/);
+       if (parts.length > 1) {
+         surname = parts.pop();
+         name = parts.join(' ');
+       } else {
+         name = fullName;
+       }
+    } else {
+       name = String(row[mapping.name] ?? '').trim();
+       surname = String(row[mapping.surname] ?? '').trim();
+    }
+    
+    const rawPhone = String(row[mapping.phone] ?? '').trim();
+    const normalized = normalizePhone(rawPhone);
+    
+    const customFields = {};
+    if (mapping.customFields && Array.isArray(mapping.customFields)) {
+      for (const field of mapping.customFields) {
+        customFields[field] = String(row[field] ?? '').trim();
+      }
+    }
+
+    return {
+      name,
+      surname,
+      rawPhone,
+      phone: normalized.phone,
+      valid: normalized.valid,
+      reason: normalized.reason,
+      status: 'pending',
+      selected: true,
+      customFields
+    };
+  });
+}
+
+module.exports = { normalizePhone, inspectFile, parseWithMapping };

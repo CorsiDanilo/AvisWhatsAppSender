@@ -4,7 +4,7 @@ const path = require('node:path');
 const QRCode = require('qrcode');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 
-const { readDonors } = require('../sender/data');
+const { inspectFile, parseWithMapping } = require('../sender/data');
 const { createImagePayload, inspectImage } = require('../sender/media');
 const { createLogger } = require('../sender/logger');
 const { deletePreset, loadPresets, upsertPreset } = require('../sender/presets');
@@ -263,22 +263,43 @@ function writeOutcome(reason, summary) {
   }
 }
 
-async function selectCsv() {
+async function inspectCsv() {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Seleziona la lista destinatari',
     properties: ['openFile'],
     filters: [{ name: 'File destinatari', extensions: ['csv', 'xlsx', 'xls'] }],
   });
-  if (result.canceled || !result.filePaths[0]) return snapshot();
+  if (result.canceled || !result.filePaths[0]) return null;
 
-  selectedFile = result.filePaths[0];
-  state.filePath = selectedFile;
-  state.donors = await readDonors(selectedFile);
-  state.fileName = path.basename(selectedFile);
+  const filePath = result.filePaths[0];
+  log(`Apertura file destinatari: ${path.basename(filePath)}...`);
+  audit('info', 'recipients.file_inspecting', { filePath });
+  const inspection = await inspectFile(filePath);
+  log(`File analizzato: fogli [${inspection.sheets.join(', ')}], colonne trovate: [${inspection.headers.join(', ')}]`);
+  audit('info', 'recipients.file_inspected', {
+    filePath,
+    currentSheet: inspection.currentSheet,
+    headers: inspection.headers,
+    detectedMapping: inspection.detectedMapping,
+  });
+  return { filePath, inspection };
+}
+
+async function inspectCsvSheet(filePath, sheetName) {
+  log(`Analisi foglio "${sheetName}" del file ${path.basename(filePath)}...`);
+  const inspection = await inspectFile(filePath, sheetName);
+  log(`Foglio analizzato: ${inspection.headers.length} colonne trovate.`);
+  return { filePath, inspection };
+}
+
+async function loadCsvMapped(filePath, sheetName, mapping) {
+  state.filePath = filePath;
+  state.fileName = path.basename(filePath);
+  state.donors = await parseWithMapping(filePath, sheetName, mapping);
   state.progress = { current: 0, total: state.donors.length, sent: 0, failed: 0, skipped: 0 };
   state.logs = [];
   log(`Caricati ${state.donors.length} destinatari da ${state.fileName}.`);
-  audit('info', 'recipients.loaded', { fileName: state.fileName, count: state.donors.length });
+  audit('info', 'recipients.loaded', { fileName: state.fileName, count: state.donors.length, mapping });
   return snapshot();
 }
 
@@ -539,7 +560,9 @@ function registerHandler(channel, handler) {
   });
 }
 
-registerHandler('sender:select-csv', selectCsv);
+registerHandler('sender:inspect-csv', inspectCsv);
+registerHandler('sender:inspect-csv-sheet', (filePath, sheetName) => inspectCsvSheet(filePath, sheetName));
+registerHandler('sender:load-csv-mapped', (filePath, sheetName, mapping) => loadCsvMapped(filePath, sheetName, mapping));
 registerHandler('sender:select-image', selectImage);
 registerHandler('sender:clear-image', clearImage);
 registerHandler('sender:connect', connectClient);

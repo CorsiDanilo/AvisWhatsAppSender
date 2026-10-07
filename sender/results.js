@@ -53,8 +53,10 @@ function writeSessionResult({
   };
   fs.writeFileSync(path.join(folder, 'esito.json'), `${JSON.stringify(json, null, 2)}\n`, 'utf8');
 
+  const customKeys = Array.from(new Set(donors.flatMap(d => Object.keys(d.customFields || {}))));
+  
   const rows = [
-    ['Nome', 'Cognome', 'Telefono', 'Selezionato', 'Stato', 'Errore'],
+    ['Nome', 'Cognome', 'Telefono', 'Selezionato', 'Stato', 'Errore', ...customKeys],
     ...donors.map((donor) => [
       donor.name,
       donor.surname,
@@ -62,6 +64,7 @@ function writeSessionResult({
       donor.selected !== false ? 'Sì' : 'No',
       donor.status,
       donor.error || donor.reason || '',
+      ...customKeys.map(key => (donor.customFields && donor.customFields[key]) ? donor.customFields[key] : '')
     ]),
   ];
   fs.writeFileSync(path.join(folder, 'esito.csv'), `${rows.map((row) => row.map(csvCell).join(',')).join('\r\n')}\r\n`, 'utf8');

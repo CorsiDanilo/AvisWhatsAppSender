@@ -2,9 +2,15 @@ import { useRef } from 'react'
 
 function previewMessage(message, donor) {
   if (!donor) return message
-  return message
+  let result = message
     .replaceAll('[nome]', donor.name || 'Mario')
     .replaceAll('[cognome]', donor.surname || 'Rossi')
+  if (donor.customFields) {
+    for (const [key, value] of Object.entries(donor.customFields)) {
+      result = result.replaceAll(`[${key}]`, value)
+    }
+  }
+  return result
 }
 
 export default function StepComposer({
@@ -114,6 +120,16 @@ export default function StepComposer({
                 >
                   + [cognome]
                 </button>
+                {firstSelectedDonor?.customFields && Object.keys(firstSelectedDonor.customFields).map(key => (
+                  <button
+                    key={key}
+                    type="button"
+                    className="token"
+                    onClick={() => insertToken(`[${key}]`)}
+                  >
+                    + [{key}]
+                  </button>
+                ))}
               </div>
             </div>
 
