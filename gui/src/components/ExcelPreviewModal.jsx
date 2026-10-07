@@ -1,5 +1,12 @@
 import React, { useState } from 'react';
 
+function columnRole(header, phoneCol, nameCol, surnameCol) {
+  if (header === phoneCol) return 'Telefono';
+  if (header === nameCol) return 'Nome';
+  if (header === surnameCol) return 'Cognome';
+  return 'Campo aggiuntivo';
+}
+
 export default function ExcelPreviewModal({
   api,
   inspectionData,
@@ -8,19 +15,21 @@ export default function ExcelPreviewModal({
 }) {
   const inspection = inspectionData?.inspection || {};
   const sheets = inspection.sheets || [];
+  const detectedMapping = inspection.detectedMapping || {};
   const [currentSheet, setCurrentSheet] = useState(inspection.currentSheet || 'CSV');
   const [headers, setHeaders] = useState(inspection.headers || []);
   const [sampleRows, setSampleRows] = useState(inspection.sampleRows || []);
-  const [nameCol, setNameCol] = useState(inspection.detectedMapping?.name || '');
-  const [surnameCol, setSurnameCol] = useState(inspection.detectedMapping?.surname || '');
-  const [phoneCol, setPhoneCol] = useState(inspection.detectedMapping?.phone || '');
+  const [nameCol, setNameCol] = useState(detectedMapping.name || '');
+  const [surnameCol, setSurnameCol] = useState(detectedMapping.surname || '');
+  const [phoneCol, setPhoneCol] = useState(detectedMapping.phone || '');
   const [oneColumnName, setOneColumnName] = useState(false);
   const [selectedColumns, setSelectedColumns] = useState(() => {
-    const detected = inspection.detectedMapping || {};
-    const detectedColumns = [detected.name, detected.surname, detected.phone].filter(Boolean);
+    const detectedColumns = [detectedMapping.name, detectedMapping.surname, detectedMapping.phone].filter(Boolean);
     return (inspection.headers || []).filter((header) => detectedColumns.includes(header));
   });
   const [isLoadingSheet, setIsLoadingSheet] = useState(false);
+  const [sheetError, setSheetError] = useState('');
+  const [showManualMapping, setShowManualMapping] = useState(() => !detectedMapping.name || !detectedMapping.phone);
 
   const selectedMainColumns = [nameCol, phoneCol, oneColumnName ? '' : surnameCol].filter(Boolean);
   const customFields = selectedColumns.filter((column) => !selectedMainColumns.includes(column));
@@ -34,25 +43,28 @@ export default function ExcelPreviewModal({
 
   async function handleSheetChange(e) {
     const newSheet = e.target.value;
-    setCurrentSheet(newSheet);
     setIsLoadingSheet(true);
+    setSheetError('');
     try {
       const data = await api.inspectCsvSheet(inspectionData.filePath, newSheet);
-      if (data?.inspection) {
-        const nextInspection = data.inspection;
-        const nextMapping = nextInspection.detectedMapping || {};
-        const detectedColumns = [nextMapping.name, nextMapping.surname, nextMapping.phone].filter(Boolean);
+      if (!data?.inspection) throw new Error('Foglio non disponibile');
 
-        setHeaders(nextInspection.headers || []);
-        setSampleRows(nextInspection.sampleRows || []);
-        setNameCol(nextMapping.name || '');
-        setSurnameCol(nextMapping.surname || '');
-        setPhoneCol(nextMapping.phone || '');
-        setSelectedColumns((nextInspection.headers || []).filter((header) => detectedColumns.includes(header)));
-        setOneColumnName(false);
-      }
+      const nextInspection = data.inspection;
+      const nextMapping = nextInspection.detectedMapping || {};
+      const detectedColumns = [nextMapping.name, nextMapping.surname, nextMapping.phone].filter(Boolean);
+
+      setCurrentSheet(newSheet);
+      setHeaders(nextInspection.headers || []);
+      setSampleRows(nextInspection.sampleRows || []);
+      setNameCol(nextMapping.name || '');
+      setSurnameCol(nextMapping.surname || '');
+      setPhoneCol(nextMapping.phone || '');
+      setSelectedColumns((nextInspection.headers || []).filter((header) => detectedColumns.includes(header)));
+      setOneColumnName(false);
+      setShowManualMapping(!nextMapping.name || !nextMapping.phone);
     } catch (err) {
       console.error(err);
+      setSheetError('Impossibile caricare il foglio selezionato. I dati visualizzati non sono stati modificati.');
     } finally {
       setIsLoadingSheet(false);
     }
@@ -62,6 +74,19 @@ export default function ExcelPreviewModal({
     setSelectedColumns((current) => {
       if (isChecked) return current.includes(header) ? current : [...current, header];
       return current.filter((column) => column !== header);
+    });
+  }
+
+  function handleMainColumnChange(field, value) {
+    const currentValues = { name: nameCol, surname: surnameCol, phone: phoneCol };
+    const setters = { name: setNameCol, surname: setSurnameCol, phone: setPhoneCol };
+    const currentValue = currentValues[field];
+
+    setters[field](value);
+    if (field === 'surname' && oneColumnName) setOneColumnName(false);
+    setSelectedColumns((current) => {
+      const withoutPrevious = current.filter((column) => column !== currentValue);
+      return value && !withoutPrevious.includes(value) ? [...withoutPrevious, value] : withoutPrevious;
     });
   }
 
@@ -126,6 +151,7 @@ export default function ExcelPreviewModal({
               </select>
             </div>
           )}
+          {sheetError && <div className="excel-sheet-error" role="alert">{sheetError}</div>}
 
           {isLoadingSheet ? (
             <div className="excel-empty-state">Caricamento e analisi del foglio in corso...</div>
@@ -143,17 +169,53 @@ export default function ExcelPreviewModal({
                 <p className="excel-selection-help">
                   Nome, cognome e telefono sono selezionati automaticamente. Le altre colonne selezionate saranno disponibili come tag nel messaggio.
                 </p>
+                <div className="excel-mapping-tools">
+                  <button type="button" className="link-btn" onClick={() => setShowManualMapping((current) => !current)}>
+                    {showManualMapping ? 'Nascondi associazione colonne' : 'Modifica associazione colonne'}
+                  </button>
+                  {showManualMapping && (
+                    <div className="excel-main-mapping-grid">
+                      <label>
+                        Nome <strong>*</strong>
+                        <select value={nameCol} onChange={(e) => handleMainColumnChange('name', e.target.value)}>
+                          <option value="">Seleziona colonna</option>
+                          {headers.map((header) => (
+                            <option key={header} value={header} disabled={[phoneCol, surnameCol].includes(header) && header !== nameCol}>
+                              {header}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Cognome
+                        <select value={surnameCol} onChange={(e) => handleMainColumnChange('surname', e.target.value)}>
+                          <option value="">Nessuna colonna</option>
+                          {headers.map((header) => (
+                            <option key={header} value={header} disabled={[nameCol, phoneCol].includes(header) && header !== surnameCol}>
+                              {header}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Telefono <strong>*</strong>
+                        <select value={phoneCol} onChange={(e) => handleMainColumnChange('phone', e.target.value)}>
+                          <option value="">Seleziona colonna</option>
+                          {headers.map((header) => (
+                            <option key={header} value={header} disabled={[nameCol, surnameCol].includes(header) && header !== phoneCol}>
+                              {header}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  )}
+                </div>
                 <div className="excel-column-options">
                   {headers.map((header) => {
                     const isSurnameDisabled = oneColumnName && header === surnameCol;
                     const isSelected = selectedColumns.includes(header) && !isSurnameDisabled;
-                    const role = header === phoneCol
-                      ? 'Telefono'
-                      : header === nameCol
-                        ? 'Nome'
-                        : header === surnameCol
-                          ? 'Cognome'
-                          : 'Campo aggiuntivo';
+                    const role = columnRole(header, phoneCol, nameCol, surnameCol);
 
                     return (
                       <label

@@ -35,6 +35,7 @@ const state = {
   logs: [],
   fileName: '',
   filePath: '',
+  sheetName: '',
   imageName: '',
   imagePath: '',
   imageDataUrl: '',
@@ -295,6 +296,7 @@ async function inspectCsvSheet(filePath, sheetName) {
 async function loadCsvMapped(filePath, sheetName, mapping) {
   state.filePath = filePath;
   state.fileName = path.basename(filePath);
+  state.sheetName = sheetName || 'CSV';
   state.donors = await parseWithMapping(filePath, sheetName, mapping);
   state.progress = { current: 0, total: state.donors.length, sent: 0, failed: 0, skipped: 0 };
   state.logs = [];
@@ -385,6 +387,7 @@ function resetSession() {
   state.donors = [];
   state.fileName = '';
   state.filePath = '';
+  state.sheetName = '';
   state.imageName = '';
   state.imagePath = '';
   state.imageDataUrl = '';

@@ -41,7 +41,7 @@ export default function StepRecipients({
   async function handleReconfigure() {
     if (!state.filePath) return
     try {
-      const data = await api.inspectCsvSheet(state.filePath)
+      const data = await api.inspectCsvSheet(state.filePath, state.sheetName)
       if (data) setInspectionData(data)
     } catch (err) {
       console.error('Errore durante la riapertura della configurazione:', err)

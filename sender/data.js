@@ -49,6 +49,14 @@ function columnsWithValues(headers, rows) {
   return headers.filter((header) => rows.some((row) => hasValue(row[header])));
 }
 
+function normalizeCsvHeader(value) {
+  return String(value ?? '').replace(/^\uFEFF/, '').trim();
+}
+
+function createCsvParser() {
+  return csv({ mapHeaders: ({ header }) => normalizeCsvHeader(header) });
+}
+
 function normalizeDonor(row, columns) {
   const name = String(row[columns.name] ?? '').trim();
   const surname = String(row[columns.surname] ?? '').trim();
@@ -105,9 +113,9 @@ function inspectCsv(filePath) {
 
     fs.createReadStream(filePath)
       .on('error', reject)
-      .pipe(csv())
+      .pipe(createCsvParser())
       .on('headers', (h) => {
-        headers = h.map((col) => col.replace(/^\uFEFF/, '').trim()).filter(Boolean);
+        headers = h.filter(Boolean);
       })
       .on('data', (row) => {
         headers.forEach((header) => {
@@ -149,7 +157,7 @@ function getRowsFromCsv(filePath) {
     const rows = [];
     fs.createReadStream(filePath)
       .on('error', reject)
-      .pipe(csv())
+      .pipe(createCsvParser())
       .on('data', (row) => rows.push(row))
       .on('end', () => resolve(rows));
   });

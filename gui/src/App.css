@@ -490,6 +490,47 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
   font-size: 11px;
   line-height: 1.45;
 }
+.excel-mapping-tools {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: white;
+}
+.excel-main-mapping-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+.excel-main-mapping-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+.excel-main-mapping-grid label strong {
+  color: var(--red);
+}
+.excel-main-mapping-grid select {
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: white;
+  font-size: 11px;
+}
+.excel-sheet-error {
+  padding: 10px 12px;
+  color: var(--red);
+  background: #fff1ef;
+  border: 1px solid #f4d0cb;
+  border-radius: 8px;
+  font-size: 11px;
+}
 .excel-column-options {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -678,6 +719,7 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
   .excel-preview-dialog { max-height: calc(100vh - 16px); border-radius: 12px; }
   .excel-modal-header, .excel-modal-body, .excel-modal-footer { padding-left: 16px; padding-right: 16px; }
   .excel-column-options { grid-template-columns: 1fr; }
+  .excel-main-mapping-grid { grid-template-columns: 1fr; }
   .excel-sheet-selector { align-items: stretch; flex-direction: column; gap: 6px; }
   .excel-sheet-selector .excel-select { width: 100%; }
   .excel-modal-footer { align-items: stretch; flex-direction: column; }

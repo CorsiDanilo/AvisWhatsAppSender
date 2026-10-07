@@ -33,6 +33,7 @@ const initialState = {
   logs: [],
   fileName: '',
   filePath: '',
+  sheetName: '',
   imageName: '',
   imagePath: '',
   imageDataUrl: '',
