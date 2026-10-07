@@ -61,6 +61,8 @@ function App() {
   const [error, setError] = useState('')
   const [showGuide, setShowGuide] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [settingsTab, setSettingsTab] = useState('storage')
+  const [dismissedUpdateVersion, setDismissedUpdateVersion] = useState('')
   const [showQrModal, setShowQrModal] = useState(false)
   const [showQrBanner, setShowQrBanner] = useState(true)
 
@@ -119,7 +121,9 @@ function App() {
     setError('')
     try {
       const next = await command()
-      setState(next)
+      if (next && typeof next === 'object' && ('donors' in next || 'connection' in next)) {
+        setState(next)
+      }
       return next
     } catch (reason) {
       setError(reason.message || 'Operazione non riuscita')
@@ -204,10 +208,16 @@ function App() {
             <button
               type="button"
               className="button button-secondary topbar-btn"
-              onClick={() => setShowSettings(true)}
+              onClick={() => {
+                setSettingsTab(state.updater?.status === 'available' ? 'updates' : 'storage')
+                setShowSettings(true)
+              }}
               title="Cartelle e Modelli salvati"
             >
               ⚙️ Impostazioni
+              {state.updater?.status === 'available' && (
+                <span className="topbar-update-dot" title="Nuova versione disponibile" />
+              )}
             </button>
             <button
               type="button"
@@ -232,6 +242,65 @@ function App() {
       {/* Main Container */}
       <main className="wizard-layout">
         {error && <div className="alert global-alert">{error}</div>}
+
+        {/* Banner Notifica Nuovo Aggiornamento Disponibile */}
+        {state.updater?.status === 'available' && dismissedUpdateVersion !== state.updater.availableVersion && (
+          <div className="update-top-banner">
+            <div className="update-banner-info">
+              <span className="update-banner-icon">✨</span>
+              <div>
+                <strong>Nuova versione disponibile: v{state.updater.availableVersion}</strong>
+                <span className="update-banner-sub">
+                  È disponibile una versione aggiornata dell'applicazione.
+                </span>
+              </div>
+            </div>
+            <div className="update-banner-actions">
+              <button
+                type="button"
+                className="button button-primary button-small"
+                onClick={() => {
+                  setSettingsTab('updates')
+                  setShowSettings(true)
+                }}
+              >
+                Visualizza e aggiorna
+              </button>
+              <button
+                type="button"
+                className="link-btn update-banner-dismiss"
+                onClick={() => setDismissedUpdateVersion(state.updater.availableVersion)}
+                title="Ignora questo avviso per ora"
+              >
+                ✕ Chiudi
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Banner Notifica Aggiornamento Scaricato (Pronto) */}
+        {state.updater?.status === 'downloaded' && (
+          <div className="update-top-banner update-banner-ready">
+            <div className="update-banner-info">
+              <span className="update-banner-icon">🚀</span>
+              <div>
+                <strong>Aggiornamento v{state.updater.availableVersion} scaricato con successo!</strong>
+                <span className="update-banner-sub">
+                  Riavvia ora l'applicazione per completare l'installazione.
+                </span>
+              </div>
+            </div>
+            <div className="update-banner-actions">
+              <button
+                type="button"
+                className="button button-primary button-small"
+                onClick={() => api?.installUpdate?.()}
+              >
+                Riavvia e aggiorna ora
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Banner QR Code visibile in qualsiasi step se il client è in attesa di scansione */}
         {state.connection === 'qr' && state.qrDataUrl && showQrBanner && !showDashboard && (
@@ -345,7 +414,7 @@ function App() {
       {/* Modals */}
       <SettingsModal
         isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
+        onClose={() => { setShowSettings(false); setSettingsTab('storage') }}
         state={state}
         api={api}
         call={call}
@@ -355,6 +424,7 @@ function App() {
         setSelectedPreset={setSelectedPreset}
         setPresetName={setPresetName}
         setMessage={setMessage}
+        initialTab={settingsTab}
       />
 
       <QrModal

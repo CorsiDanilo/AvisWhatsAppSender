@@ -29,6 +29,9 @@ contextBridge.exposeInMainWorld('whatsappSender', {
   openUserDataDir: () => ipcRenderer.invoke('sender:open-user-data-dir'),
   openPath: (targetPath) => ipcRenderer.invoke('sender:open-path', targetPath),
   showItemInFolder: (filePath) => ipcRenderer.invoke('sender:show-item', filePath),
+  checkForUpdates: () => ipcRenderer.invoke('sender:check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('sender:download-update'),
+  installUpdate: () => ipcRenderer.invoke('sender:install-update'),
   onState: (listener) => {
     const handler = (_event, state) => listener(state);
     ipcRenderer.on('sender:state', handler);

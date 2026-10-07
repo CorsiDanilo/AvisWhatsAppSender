@@ -12,8 +12,10 @@ export default function SettingsModal({
   setSelectedPreset,
   setPresetName,
   setMessage,
+  initialTab = 'storage',
 }) {
-  const [activeTab, setActiveTab] = useState('storage') // 'storage' | 'presets'
+  const [userTab, setUserTab] = useState(null)
+  const activeTab = userTab ?? initialTab
   const initialPreset = (state.presets || []).find((p) => p.name === selectedPreset) || state.presets?.[0] || null
   const [editingPreset, setEditingPreset] = useState(initialPreset)
   const [presetForm, setPresetForm] = useState({
@@ -112,15 +114,27 @@ export default function SettingsModal({
         <div className="settings-tabs">
           <button
             className={`settings-tab-btn ${activeTab === 'storage' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('storage'); setStatusMsg('') }}
+            onClick={() => { setUserTab('storage'); setStatusMsg('') }}
           >
             📁 Cartelle e Archiviazione
           </button>
           <button
             className={`settings-tab-btn ${activeTab === 'presets' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('presets'); setStatusMsg('') }}
+            onClick={() => { setUserTab('presets'); setStatusMsg('') }}
           >
             📋 Modelli & Preset ({state.presets?.length || 0})
+          </button>
+          <button
+            className={`settings-tab-btn ${activeTab === 'updates' ? 'active' : ''}`}
+            onClick={() => { setUserTab('updates'); setStatusMsg('') }}
+          >
+            🔄 Aggiornamenti
+            {state.updater?.status === 'available' && (
+              <span className="tab-update-badge" title="Nuova versione disponibile">●</span>
+            )}
+            {state.updater?.status === 'downloaded' && (
+              <span className="tab-update-badge ready" title="Pronto da installare">●</span>
+            )}
           </button>
         </div>
 
@@ -368,6 +382,135 @@ export default function SettingsModal({
                     )}
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'updates' && (
+            <div className="settings-updates-section">
+              <p className="muted" style={{ marginTop: 0 }}>
+                Verifica se sono disponibili nuove versioni dell'applicazione rilasciate su GitHub e aggiorna in tutta sicurezza.
+              </p>
+
+              <div className="update-status-card">
+                <div className="update-card-header">
+                  <div>
+                    <span className="eyebrow">Versione Corrente</span>
+                    <h3 style={{ margin: '4px 0 0' }}>v{state.updater?.currentVersion || '1.0.0'}</h3>
+                  </div>
+                  <div className="update-header-actions">
+                    <button
+                      type="button"
+                      className="button button-secondary"
+                      disabled={state.updater?.status === 'checking' || state.updater?.status === 'downloading'}
+                      onClick={() => api?.checkForUpdates?.()}
+                    >
+                      {state.updater?.status === 'checking' ? '⏳ Verifica in corso…' : '🔄 Controlla ora'}
+                    </button>
+                  </div>
+                </div>
+
+                {state.updater?.lastChecked && (
+                  <p className="subtle-note" style={{ marginTop: '8px' }}>
+                    Ultimo controllo: {new Date(state.updater.lastChecked).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </p>
+                )}
+
+                {state.updater?.status === 'not-available' && (
+                  <div className="update-box success-box">
+                    <div className="update-box-icon">✅</div>
+                    <div>
+                      <strong>L'applicazione è aggiornata!</strong>
+                      <p className="muted" style={{ margin: '2px 0 0' }}>
+                        Stai già utilizzando l'ultima versione rilasciata su GitHub.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {state.updater?.status === 'error' && (
+                  <div className="update-box error-box">
+                    <div className="update-box-icon">⚠️</div>
+                    <div>
+                      <strong>Impossibile verificare gli aggiornamenti</strong>
+                      <p className="subtle-note" style={{ margin: '2px 0 0', color: '#b91c1c' }}>
+                        {state.updater?.error || 'Errore di connessione o repository non raggiungibile.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {state.updater?.status === 'available' && (
+                  <div className="update-box available-box">
+                    <div className="update-box-icon">🎉</div>
+                    <div style={{ flex: 1 }}>
+                      <div className="available-header">
+                        <strong>Nuova versione disponibile: v{state.updater.availableVersion}</strong>
+                      </div>
+                      {state.updater.releaseNotes ? (
+                        <div className="release-notes-wrapper">
+                          <span className="eyebrow">Novità del rilascio:</span>
+                          <div className="release-notes-content">
+                            {state.updater.releaseNotes}
+                          </div>
+                        </div>
+                      ) : null}
+                      <div style={{ marginTop: '12px' }}>
+                        <button
+                          type="button"
+                          className="button button-primary"
+                          onClick={() => api?.downloadUpdate?.()}
+                        >
+                          ⬇️ Scarica e aggiorna
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {state.updater?.status === 'downloading' && (
+                  <div className="update-box downloading-box">
+                    <div className="downloading-header">
+                      <strong>Download di v{state.updater.availableVersion} in corso...</strong>
+                      <span className="download-percent">{state.updater.progress}%</span>
+                    </div>
+                    <div className="download-progress-bar-bg">
+                      <div
+                        className="download-progress-bar-fill"
+                        style={{ width: `${Math.max(2, state.updater.progress)}%` }}
+                      />
+                    </div>
+                    <div className="download-meta subtle-note">
+                      {state.updater.transferred > 0 && state.updater.total > 0 && (
+                        <span>
+                          {(state.updater.transferred / (1024 * 1024)).toFixed(1)} MB di {(state.updater.total / (1024 * 1024)).toFixed(1)} MB
+                        </span>
+                      )}
+                      {state.updater.bytesPerSecond > 0 && (
+                        <span> • {(state.updater.bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {state.updater?.status === 'downloaded' && (
+                  <div className="update-box ready-box">
+                    <div className="update-box-icon">🚀</div>
+                    <div style={{ flex: 1 }}>
+                      <strong>Aggiornamento scaricato con successo!</strong>
+                      <p className="muted" style={{ margin: '4px 0 12px' }}>
+                        La versione <strong>v{state.updater.availableVersion}</strong> è pronta. Riavvia l'applicazione per applicarla.
+                      </p>
+                      <button
+                        type="button"
+                        className="button button-primary"
+                        onClick={() => api.installUpdate()}
+                      >
+                        ⚡ Riavvia e aggiorna ora
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

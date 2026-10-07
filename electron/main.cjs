@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const QRCode = require('qrcode');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
+const { autoUpdater } = require('electron-updater');
 
 const { inspectFile, parseWithMapping } = require('../sender/data');
 const { createImagePayload, inspectImage } = require('../sender/media');
@@ -13,6 +14,8 @@ const { writeSessionResult } = require('../sender/results');
 const { DEFAULT_SETTINGS, loadSettings, saveSettings } = require('../sender/settings');
 const { renderTemplate } = require('../sender/template');
 const { SendQueue } = require('../sender/queue');
+const packageInfo = require('../package.json');
+const APP_VERSION = packageInfo.version || app.getVersion();
 
 let mainWindow;
 let client;
@@ -46,6 +49,19 @@ const state = {
   defaultLogDir: '',
   userDataDir: '',
   lastOutcomeDir: '',
+  updater: {
+    status: 'idle',
+    currentVersion: APP_VERSION,
+    availableVersion: '',
+    releaseNotes: '',
+    releaseDate: '',
+    progress: 0,
+    bytesPerSecond: 0,
+    transferred: 0,
+    total: 0,
+    error: '',
+    lastChecked: null,
+  },
 };
 
 function audit(level, event, details) {
@@ -580,6 +596,7 @@ async function startQueue(options = {}) {
 function createWindow() {
   const iconPath = path.join(__dirname, '..', 'build', 'icon.ico');
   mainWindow = new BrowserWindow({
+    title: 'AVIS WhatsApp Sender',
     width: 1180,
     height: 820,
     minWidth: 900,
@@ -593,9 +610,38 @@ function createWindow() {
     },
   });
 
+  mainWindow.once('ready-to-show', () => {
+    audit('info', 'window.ready_to_show');
+    mainWindow.show();
+    mainWindow.focus();
+  });
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    audit('info', 'window.did_finish_load');
+  });
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    audit('error', 'window.did_fail_load', { errorCode, errorDescription, validatedURL });
+  });
+
+  mainWindow.webContents.on('console-message', (event) => {
+    audit('info', 'window.console', {
+      level: event?.level,
+      message: event?.message,
+      line: event?.lineNumber,
+      sourceId: event?.sourceId,
+    });
+  });
+
   const devUrl = process.env.VITE_DEV_SERVER_URL;
-  if (devUrl) mainWindow.loadURL(devUrl);
-  else mainWindow.loadFile(path.join(__dirname, '..', 'gui', 'dist', 'index.html'));
+  if (devUrl) {
+    mainWindow.loadURL(devUrl);
+  } else {
+    const htmlPath = path.join(__dirname, '..', 'gui', 'dist', 'index.html');
+    mainWindow.loadFile(htmlPath).catch((err) => {
+      audit('error', 'window.load_file_failed', { error: err?.message, htmlPath });
+    });
+  }
 }
 
 function registerHandler(channel, handler) {
@@ -649,6 +695,128 @@ registerHandler('sender:open-logs-dir', openLogsDir);
 registerHandler('sender:open-user-data-dir', openUserDataDir);
 registerHandler('sender:open-path', (targetPath) => openPathInExplorer(targetPath));
 registerHandler('sender:show-item', (filePath) => showItemInExplorer(filePath));
+registerHandler('sender:check-for-updates', () => checkForUpdatesManual());
+registerHandler('sender:download-update', () => downloadUpdateManual());
+registerHandler('sender:install-update', () => installUpdateNow());
+
+function initUpdater() {
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.logger = {
+    info(msg) { audit('info', 'updater.info', { msg: String(msg) }); },
+    warn(msg) { audit('warn', 'updater.warn', { msg: String(msg) }); },
+    error(msg) { audit('error', 'updater.error', { msg: String(msg) }); },
+  };
+  if (!app.isPackaged) {
+    autoUpdater.forceDevUpdateConfig = true;
+    autoUpdater.currentVersion = APP_VERSION;
+    const parentDevConfig = path.join(__dirname, '..', 'dev-app-update.yml');
+    const localDevConfig = path.join(__dirname, 'dev-app-update.yml');
+    if (fs.existsSync(localDevConfig)) {
+      autoUpdater.updateConfigPath = localDevConfig;
+    } else if (fs.existsSync(parentDevConfig)) {
+      autoUpdater.updateConfigPath = parentDevConfig;
+    }
+  }
+
+  autoUpdater.on('checking-for-update', () => {
+    state.updater.status = 'checking';
+    state.updater.error = '';
+    publish();
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    state.updater.status = 'available';
+    state.updater.availableVersion = info?.version || '';
+    state.updater.releaseNotes = typeof info?.releaseNotes === 'string'
+      ? info.releaseNotes
+      : (Array.isArray(info?.releaseNotes) ? info.releaseNotes.map((n) => n?.note || '').join('\n') : '');
+    state.updater.releaseDate = info?.releaseDate || '';
+    state.updater.lastChecked = new Date().toISOString();
+    state.updater.error = '';
+    log(`Nuovo aggiornamento disponibile: v${info?.version}`);
+    publish();
+  });
+
+  autoUpdater.on('update-not-available', (info) => {
+    state.updater.status = 'not-available';
+    state.updater.availableVersion = info?.version || state.updater.currentVersion;
+    state.updater.lastChecked = new Date().toISOString();
+    state.updater.error = '';
+    publish();
+  });
+
+  autoUpdater.on('error', (err) => {
+    state.updater.status = 'error';
+    state.updater.error = err?.message || 'Errore durante la verifica o il download dell\'aggiornamento';
+    state.updater.lastChecked = new Date().toISOString();
+    audit('error', 'updater.error', { error: err?.message || String(err) });
+    publish();
+  });
+
+  autoUpdater.on('download-progress', (progressObj) => {
+    state.updater.status = 'downloading';
+    state.updater.progress = Math.round(progressObj.percent || 0);
+    state.updater.bytesPerSecond = Math.round(progressObj.bytesPerSecond || 0);
+    state.updater.transferred = Math.round(progressObj.transferred || 0);
+    state.updater.total = Math.round(progressObj.total || 0);
+    publish();
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    state.updater.status = 'downloaded';
+    state.updater.progress = 100;
+    state.updater.availableVersion = info?.version || state.updater.availableVersion;
+    log(`Aggiornamento v${state.updater.availableVersion} scaricato. Pronto per l'installazione.`);
+    publish();
+  });
+
+  // Avvio controllo automatico silente dopo 3.5s dall'apertura della finestra.
+  // Posizionato qui per garantire che tutti i listener siano già registrati prima del primo evento.
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch((err) => {
+      audit('warn', 'updater.startup_check_failed', { error: err?.message || String(err) });
+    });
+  }, 3500);
+}
+
+async function checkForUpdatesManual() {
+  state.updater.status = 'checking';
+  state.updater.error = '';
+  publish();
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch (err) {
+    state.updater.status = 'error';
+    state.updater.error = err.message || 'Impossibile verificare gli aggiornamenti al momento';
+    publish();
+  }
+  return snapshot();
+}
+
+async function downloadUpdateManual() {
+  if (state.updater.status !== 'available') {
+    audit('warn', 'updater.download_skipped', { reason: 'status not available', status: state.updater.status });
+    return snapshot();
+  }
+  state.updater.status = 'downloading';
+  state.updater.progress = 0;
+  publish();
+  try {
+    await autoUpdater.downloadUpdate();
+  } catch (err) {
+    state.updater.status = 'error';
+    state.updater.error = err.message || 'Errore durante il download dell\'aggiornamento';
+    publish();
+  }
+  return snapshot();
+}
+
+function installUpdateNow() {
+  if (state.updater.status === 'downloaded') {
+    autoUpdater.quitAndInstall(false, true);
+  }
+}
 
 app.whenReady().then(() => {
   killStaleSessionBrowser();
@@ -667,6 +835,7 @@ app.whenReady().then(() => {
     logDir: getEffectiveLogDir(),
   });
   createWindow();
+  initUpdater();
   publish();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
