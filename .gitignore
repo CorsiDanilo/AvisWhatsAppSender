@@ -11,6 +11,7 @@ dist/
 *.exe
 AvisWhatsAppSender.exe
 test
+brag-output
 
 # Sensitive data: real donor lists and desktop log files
 donatori_test*.xlsx
