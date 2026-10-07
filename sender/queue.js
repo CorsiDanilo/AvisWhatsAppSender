@@ -9,9 +9,9 @@ class SendQueue extends EventEmitter {
     render,
     sleep = realSleep,
     random = Math.random,
-    minDelayMs = 15000,
-    maxDelayMs = 35000,
-    pauseAfter = 40,
+    minDelayMs = 20000,
+    maxDelayMs = 40000,
+    pauseAfter = 35,
     pauseMs = 15 * 60 * 1000,
   }) {
     super();

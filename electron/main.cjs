@@ -1,4 +1,5 @@
 const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
+const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const QRCode = require('qrcode');
@@ -87,6 +88,43 @@ function setConnection(connection, qrDataUrl = '') {
   publish();
 }
 
+function killStaleSessionBrowser() {
+  if (process.platform === 'win32') {
+    try {
+      const psScript = 'Get-CimInstance Win32_Process -Filter "Name = \'chrome.exe\'" | Where-Object { $_.CommandLine -like "*whatsapp-session*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }';
+      execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psScript], {
+        windowsHide: true,
+        stdio: 'ignore',
+        timeout: 5000,
+      });
+    } catch (err) {
+      audit('warn', 'whatsapp.kill_stale_warning', errorDetails(err));
+    }
+  }
+
+  try {
+    const sessionDir = path.join(app.getPath('userData'), 'whatsapp-session', 'session');
+    const lockFile = path.join(sessionDir, 'lockfile');
+    if (fs.existsSync(lockFile)) {
+      fs.unlinkSync(lockFile);
+    }
+  } catch {}
+}
+
+async function destroyClient() {
+  if (client) {
+    const toDestroy = client;
+    client = null;
+    clientReady = false;
+    try {
+      await toDestroy.destroy();
+    } catch (err) {
+      audit('warn', 'whatsapp.destroy_warning', errorDetails(err));
+    }
+  }
+  killStaleSessionBrowser();
+}
+
 function createClient() {
   if (client) return client;
 
@@ -101,7 +139,13 @@ function createClient() {
     }),
     puppeteer: {
       executablePath,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+      ],
     },
   });
 
@@ -140,17 +184,24 @@ function createClient() {
 }
 
 async function connectClient() {
+  if (state.connection === 'connecting' || state.connection === 'ready' || state.connection === 'authenticated') {
+    return snapshot();
+  }
   try {
-    const whatsapp = createClient();
-    if (state.connection === 'disconnected' || state.connection === 'error') {
-      setConnection('connecting');
-      audit('info', 'whatsapp.connecting');
-      await whatsapp.initialize();
+    if (client) {
+      await destroyClient();
+    } else {
+      killStaleSessionBrowser();
     }
+    const whatsapp = createClient();
+    setConnection('connecting');
+    audit('info', 'whatsapp.connecting');
+    await whatsapp.initialize();
     return snapshot();
   } catch (error) {
     setConnection('error');
     logError('whatsapp.connect_failed', error);
+    await destroyClient();
     throw error;
   }
 }
@@ -158,23 +209,16 @@ async function connectClient() {
 async function reconnectClient() {
   try {
     log('Rigenerazione del codice QR e riconnessione a WhatsApp…');
-    if (client) {
-      try {
-        await client.destroy();
-      } catch (err) {
-        logError('whatsapp.destroy_warning', err);
-      }
-      client = null;
-      clientReady = false;
-    }
+    await destroyClient();
     setConnection('connecting', '');
-    const whatsapp = createClient();
     audit('info', 'whatsapp.reconnecting');
+    const whatsapp = createClient();
     await whatsapp.initialize();
     return snapshot();
   } catch (error) {
     setConnection('error');
     logError('whatsapp.reconnect_failed', error);
+    await destroyClient();
     throw error;
   }
 }
@@ -521,9 +565,9 @@ async function startQueue(options = {}) {
     items: selectedDonors,
     render: (donor) => renderTemplate(currentMessage, donor),
     send: (donor, text) => sendToDonor(donor, text, imagePath),
-    minDelayMs: optionNumber(options.minDelayMs, 15000, 0, 10 * 60 * 1000),
-    maxDelayMs: optionNumber(options.maxDelayMs, 35000, 0, 10 * 60 * 1000),
-    pauseAfter: optionNumber(options.pauseAfter, 40, 0, 1000),
+    minDelayMs: optionNumber(options.minDelayMs, 20000, 0, 10 * 60 * 1000),
+    maxDelayMs: optionNumber(options.maxDelayMs, 40000, 0, 10 * 60 * 1000),
+    pauseAfter: optionNumber(options.pauseAfter, 35, 0, 1000),
     pauseMs: optionNumber(options.pauseMs, 15 * 60 * 1000, 0, 60 * 60 * 1000),
   });
   state.progress = { current: 0, total: selectedDonors.length, sent: 0, failed: 0, skipped: 0 };
@@ -534,11 +578,13 @@ async function startQueue(options = {}) {
 }
 
 function createWindow() {
+  const iconPath = path.join(__dirname, '..', 'build', 'icon.ico');
   mainWindow = new BrowserWindow({
     width: 1180,
     height: 820,
     minWidth: 900,
     minHeight: 650,
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -605,6 +651,7 @@ registerHandler('sender:open-path', (targetPath) => openPathInExplorer(targetPat
 registerHandler('sender:show-item', (filePath) => showItemInExplorer(filePath));
 
 app.whenReady().then(() => {
+  killStaleSessionBrowser();
   settingsPath = path.join(app.getPath('userData'), 'settings.json');
   presetsPath = path.join(app.getPath('userData'), 'presets.json');
   state.settings = loadSettings(settingsPath);
@@ -647,7 +694,21 @@ process.on('unhandledRejection', (reason) => {
   audit('error', 'process.unhandled_rejection', errorDetails(reason));
 });
 
-app.on('before-quit', async () => {
+let isQuitting = false;
+app.on('before-quit', (e) => {
+  if (isQuitting) return;
   queue?.stop();
-  if (client) await client.destroy().catch(() => {});
+  if (client) {
+    e.preventDefault();
+    isQuitting = true;
+    destroyClient().finally(() => {
+      app.quit();
+    });
+    setTimeout(() => {
+      killStaleSessionBrowser();
+      app.quit();
+    }, 3000);
+  } else {
+    killStaleSessionBrowser();
+  }
 });

@@ -6,17 +6,17 @@ const { DEFAULT_SETTINGS, normalizeSettings } = require('./settings');
 const DEFAULT_PRESETS = [
   {
     name: 'Promemoria donazione',
-    message: 'Ciao [nome],\nti ricordiamo il tuo prossimo appuntamento per la donazione.\nGrazie per il tuo prezioso gesto! 🩸',
+    message: 'Ciao [nome],\nti ricordiamo il tuo prossimo appuntamento per la donazione.\nGrazie per il tuo prezioso gesto! 🩸\n\nTi ricordiamo di salvare questo numero tra i tuoi contatti per ricevere i promemoria delle donazioni.',
     settings: { ...DEFAULT_SETTINGS },
   },
   {
     name: 'Ringraziamento',
-    message: 'Ciao [nome],\nAVIS ti ringrazia di cuore per la tua donazione.\nIl tuo gesto è prezioso! 🩸',
+    message: 'Ciao [nome],\nAVIS ti ringrazia di cuore per la tua donazione.\nIl tuo gesto è prezioso! 🩸\n\nTi ricordiamo di salvare questo numero tra i tuoi contatti per ricevere i promemoria delle donazioni.',
     settings: { ...DEFAULT_SETTINGS },
   },
   {
     name: 'Comunicazione generale',
-    message: 'Gentile donatore,\nti informiamo che domenica si terrà una raccolta straordinaria.\nAVIS Comunale',
+    message: 'Gentile donatore,\nti informiamo che domenica si terrà una raccolta straordinaria.\nAVIS Comunale\n\nTi ricordiamo di salvare questo numero tra i tuoi contatti per ricevere i promemoria delle donazioni.',
     settings: { ...DEFAULT_SETTINGS },
   },
 ];

@@ -11,17 +11,17 @@ import SendingDashboard from './components/SendingDashboard'
 
 const templates = {
   'Promemoria donazione':
-    'Ciao [nome],\nti ricordiamo il tuo prossimo appuntamento per la donazione.\nGrazie per il tuo prezioso gesto! 🩸',
+    'Ciao [nome],\nti ricordiamo il tuo prossimo appuntamento per la donazione.\nGrazie per il tuo prezioso gesto! 🩸\n\nTi ricordiamo di salvare questo numero tra i tuoi contatti per ricevere i promemoria delle donazioni.',
   'Ringraziamento':
-    'Ciao [nome],\nAVIS ti ringrazia di cuore per la tua donazione.\nIl tuo gesto è prezioso! 🩸',
+    'Ciao [nome],\nAVIS ti ringrazia di cuore per la tua donazione.\nIl tuo gesto è prezioso! 🩸\n\nTi ricordiamo di salvare questo numero tra i tuoi contatti per ricevere i promemoria delle donazioni.',
   'Comunicazione generale':
-    'Gentile donatore,\nti informiamo che domenica si terrà una raccolta straordinaria.\nAVIS Comunale',
+    'Gentile donatore,\nti informiamo che domenica si terrà una raccolta straordinaria.\nAVIS Comunale\n\nTi ricordiamo di salvare questo numero tra i tuoi contatti per ricevere i promemoria delle donazioni.',
 }
 
 const fallbackPresets = Object.entries(templates).map(([name, message]) => ({
   name,
   message,
-  settings: { minDelayMs: 15000, maxDelayMs: 35000, pauseAfter: 40, pauseMinutes: 15 },
+  settings: { minDelayMs: 20000, maxDelayMs: 40000, pauseAfter: 35, pauseMinutes: 15 },
 }))
 
 const initialState = {
@@ -37,7 +37,7 @@ const initialState = {
   imageName: '',
   imagePath: '',
   imageDataUrl: '',
-  settings: { minDelayMs: 15000, maxDelayMs: 35000, pauseAfter: 40, pauseMinutes: 15, outputDir: '', logDir: '' },
+  settings: { minDelayMs: 20000, maxDelayMs: 40000, pauseAfter: 35, pauseMinutes: 15, outputDir: '', logDir: '' },
   presets: fallbackPresets,
   defaultOutputDir: '',
   defaultLogDir: '',
@@ -53,9 +53,9 @@ function App() {
   const [selectedPreset, setSelectedPreset] = useState(fallbackPresets[0].name)
   const [presetName, setPresetName] = useState(fallbackPresets[0].name)
   const [options, setOptions] = useState({
-    minDelayMs: 15000,
-    maxDelayMs: 35000,
-    pauseAfter: 40,
+    minDelayMs: 20000,
+    maxDelayMs: 40000,
+    pauseAfter: 35,
     pauseMinutes: 15,
   })
   const [error, setError] = useState('')

@@ -2,9 +2,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const DEFAULT_SETTINGS = Object.freeze({
-  minDelayMs: 15000,
-  maxDelayMs: 35000,
-  pauseAfter: 40,
+  minDelayMs: 20000,
+  maxDelayMs: 40000,
+  pauseAfter: 35,
   pauseMinutes: 15,
   outputDir: '',
   logDir: '',

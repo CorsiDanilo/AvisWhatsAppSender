@@ -22,6 +22,7 @@
       "electron/**/*",
       "sender/**/*",
       "gui/dist/**/*",
+      "build/icon.ico",
       "package.json",
       "node_modules/**/*"
     ],
@@ -42,14 +43,17 @@
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "AVIS WhatsApp Sender"
+      "shortcutName": "AVIS WhatsApp Sender",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
     }
   },
   "repository": {

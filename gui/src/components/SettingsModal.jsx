@@ -43,8 +43,8 @@ export default function SettingsModal({
     setEditingPreset(null)
     setPresetForm({
       name: 'Nuovo Modello',
-      message: 'Gentile [nome],\n\nAVIS Comunale',
-      settings: { minDelayMs: 15000, maxDelayMs: 35000, pauseAfter: 40, pauseMinutes: 15 },
+      message: 'Gentile [nome],\n\nAVIS Comunale\n\nTi ricordiamo di salvare questo numero tra i tuoi contatti per ricevere i promemoria delle donazioni.',
+      settings: { minDelayMs: 20000, maxDelayMs: 40000, pauseAfter: 35, pauseMinutes: 15 },
     })
   }
 
@@ -300,7 +300,7 @@ export default function SettingsModal({
                         <input
                           type="number"
                           min="1"
-                          value={(presetForm.settings?.minDelayMs || 15000) / 1000}
+                          value={(presetForm.settings?.minDelayMs || 20000) / 1000}
                           onChange={(e) =>
                             setPresetForm({
                               ...presetForm,
@@ -314,7 +314,7 @@ export default function SettingsModal({
                         <input
                           type="number"
                           min="1"
-                          value={(presetForm.settings?.maxDelayMs || 35000) / 1000}
+                          value={(presetForm.settings?.maxDelayMs || 40000) / 1000}
                           onChange={(e) =>
                             setPresetForm({
                               ...presetForm,
@@ -328,7 +328,7 @@ export default function SettingsModal({
                         <input
                           type="number"
                           min="1"
-                          value={presetForm.settings?.pauseAfter || 40}
+                          value={presetForm.settings?.pauseAfter || 35}
                           onChange={(e) =>
                             setPresetForm({
                               ...presetForm,

@@ -6,7 +6,8 @@ __pycache__/
 .pytest_cache/
 
 # Executables & Build artifacts
-build/
+build/*
+!build/icon.ico
 dist/
 *.exe
 AvisWhatsAppSender.exe
