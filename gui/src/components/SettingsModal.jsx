@@ -1,5 +1,5 @@
 import { useState } from 'react'
-
+import ReactMarkdown from 'react-markdown'
 export default function SettingsModal({
   isOpen,
   onClose,
@@ -459,7 +459,7 @@ export default function SettingsModal({
                         <div className="release-notes-wrapper">
                           <span className="eyebrow">Novità del rilascio:</span>
                           <div className="release-notes-content">
-                            {state.updater.releaseNotes}
+                            <ReactMarkdown>{state.updater.releaseNotes}</ReactMarkdown>
                           </div>
                         </div>
                       ) : null}

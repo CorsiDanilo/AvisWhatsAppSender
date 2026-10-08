@@ -71,6 +71,7 @@ function App() {
   const [dismissedUpdateVersion, setDismissedUpdateVersion] = useState('')
   const [showQrModal, setShowQrModal] = useState(false)
   const [showQrBanner, setShowQrBanner] = useState(true)
+  const [hasAutoOpenedUpdate, setHasAutoOpenedUpdate] = useState(false)
 
   // Tutorial & Simulation states
   const [showWelcomeModal, setShowWelcomeModal] = useState(() => {
@@ -107,6 +108,14 @@ function App() {
       .catch((reason) => setError(reason.message))
     return api.onState(setState)
   }, [api])
+
+  useEffect(() => {
+    if (state.updater?.status === 'available' && !hasAutoOpenedUpdate && !isTutorialActive) {
+      setSettingsTab('updates')
+      setShowSettings(true)
+      setHasAutoOpenedUpdate(true)
+    }
+  }, [state.updater?.status, hasAutoOpenedUpdate, isTutorialActive])
 
   const counts = useMemo(() => {
     return state.donors.reduce((result, donor) => {
