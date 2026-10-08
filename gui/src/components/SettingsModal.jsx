@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { toUserError } from '../errorMessage'
-
+import ReactMarkdown from 'react-markdown'
 export default function SettingsModal({
   isOpen,
   onClose,
@@ -183,7 +183,7 @@ export default function SettingsModal({
             <h2 id="settings-title">Impostazioni & Modelli</h2>
           </div>
           <button className="guide-close" onClick={onClose} aria-label="Chiudi impostazioni">
-            ×
+            �
           </button>
         </div>
 
@@ -192,37 +192,37 @@ export default function SettingsModal({
             className={`settings-tab-btn ${activeTab === 'storage' ? 'active' : ''}`}
             onClick={() => { setUserTab('storage'); setStatusMsg('') }}
           >
-            📁 Cartelle e Archiviazione
+            ?? Cartelle e Archiviazione
           </button>
           <button
             className={`settings-tab-btn ${activeTab === 'presets' ? 'active' : ''}`}
             onClick={() => { setUserTab('presets'); setStatusMsg('') }}
           >
-            📋 Modelli & Preset
+            ?? Modelli & Preset
           </button>
           <button
             className={`settings-tab-btn settings-tab-updates ${activeTab === 'updates' ? 'active' : ''}`}
             onClick={() => { setUserTab('updates'); setStatusMsg('') }}
           >
-            🔄 Aggiornamenti
+            ?? Aggiornamenti
             {state.updater?.status === 'available' && (
-              <span className="tab-update-badge" title="Nuova versione disponibile">●</span>
+              <span className="tab-update-badge" title="Nuova versione disponibile">?</span>
             )}
             {state.updater?.status === 'downloaded' && (
-              <span className="tab-update-badge ready" title="Pronto da installare">●</span>
+              <span className="tab-update-badge ready" title="Pronto da installare">?</span>
             )}
           </button>
           <button
             className={`settings-tab-btn settings-tab-birthdays ${activeTab === 'birthdays' ? 'active' : ''}`}
             onClick={() => { setUserTab('birthdays'); setStatusMsg('') }}
           >
-            🎂 Compleanni
+            ?? Compleanni
           </button>
           <button
             className={`settings-tab-btn settings-tab-tutorial ${activeTab === 'tutorial' ? 'active' : ''}`}
             onClick={() => { setUserTab('tutorial'); setStatusMsg('') }}
           >
-            🎓 Guida & Tutorial
+            ?? Guida & Tutorial
           </button>
         </div>
 
@@ -257,14 +257,14 @@ export default function SettingsModal({
                 </div>
                 <div className="storage-actions">
                   <button className="button button-secondary" onClick={() => call(() => api.selectOutputDir())}>
-                    Sfoglia cartella…
+                    Sfoglia cartella�
                   </button>
                   <button
                     className="button button-secondary"
                     title="Apri cartella esiti in Esplora Risorse"
                     onClick={() => api?.openOutputDir?.()}
                   >
-                    📁 Apri in Esplora Risorse
+                    ?? Apri in Esplora Risorse
                   </button>
                 </div>
               </div>
@@ -291,14 +291,14 @@ export default function SettingsModal({
                 </div>
                 <div className="storage-actions">
                   <button className="button button-secondary" onClick={() => call(() => api.selectLogsDir())}>
-                    Sfoglia cartella…
+                    Sfoglia cartella�
                   </button>
                   <button
                     className="button button-secondary"
                     title="Apri cartella log in Esplora Risorse"
                     onClick={() => api?.openLogsDir?.()}
                   >
-                    📁 Apri cartella log
+                    ?? Apri cartella log
                   </button>
                 </div>
               </div>
@@ -336,7 +336,7 @@ export default function SettingsModal({
                     className="button button-secondary"
                     onClick={() => api?.openUserDataDir?.()}
                   >
-                    📁 Apri cartella dati app
+                    ?? Apri cartella dati app
                   </button>
                 </div>
               </div>
@@ -346,7 +346,7 @@ export default function SettingsModal({
           {activeTab === 'birthdays' && (
             <div className="settings-birthdays-section">
               <section className="birthday-settings-hero">
-                <span className="birthday-settings-hero-icon" aria-hidden="true">🎂</span>
+                <span className="birthday-settings-hero-icon" aria-hidden="true">??</span>
                 <div className="birthday-settings-hero-copy">
                   <span className="eyebrow">Promemoria donatori</span>
                   <h3>Auguri di compleanno</h3>
@@ -361,7 +361,7 @@ export default function SettingsModal({
               <div className="birthday-settings-grid">
                 <section className="storage-card birthday-settings-card">
                   <div className="birthday-card-heading">
-                    <span className="birthday-card-icon" aria-hidden="true">🔔</span>
+                    <span className="birthday-card-icon" aria-hidden="true">??</span>
                     <div>
                       <h3>Controllo automatico</h3>
                       <p className="subtle-note">Viene eseguito all'avvio dell'applicazione.</p>
@@ -391,7 +391,7 @@ export default function SettingsModal({
 
                 <section className="storage-card birthday-settings-card">
                   <div className="birthday-card-heading">
-                    <span className="birthday-card-icon" aria-hidden="true">💬</span>
+                    <span className="birthday-card-icon" aria-hidden="true">??</span>
                     <div>
                       <h3>Preset auguri</h3>
                       <p className="subtle-note">Il messaggio viene caricato quando prepari la sessione.</p>
@@ -413,7 +413,7 @@ export default function SettingsModal({
 
                 <section className="storage-card birthday-settings-card birthday-source-card">
                   <div className="birthday-card-heading">
-                    <span className="birthday-card-icon" aria-hidden="true">📁</span>
+                    <span className="birthday-card-icon" aria-hidden="true">??</span>
                     <div>
                       <h3>File sorgente</h3>
                       <p className="subtle-note">Scegli il file CSV o Excel da controllare ogni giorno.</p>
@@ -425,7 +425,7 @@ export default function SettingsModal({
                   </div>
                   <div className="storage-actions">
                     <button type="button" className="button button-secondary" onClick={handleBirthdaySource}>
-                      Seleziona file…
+                      Seleziona file�
                     </button>
                     {state.settings?.birthdaySourceFilePath && (
                       <button
@@ -487,7 +487,7 @@ export default function SettingsModal({
                               handleDeletePreset(preset.name)
                             }}
                           >
-                            🗑
+                            ??
                           </button>
                         </div>
                       )
@@ -593,17 +593,17 @@ export default function SettingsModal({
                   <div className="field-group preset-attachment-field">
                     <div className="field-label-row">
                       <label htmlFor="preset-attachment">Allegato del modello</label>
-                      <span className="subtle-note">Opzionale · JPG, JPEG o PNG</span>
+                      <span className="subtle-note">Opzionale � JPG, JPEG o PNG</span>
                     </div>
                     <div className={`preset-attachment-box ${presetForm.attachmentFileName ? 'has-attachment' : ''}`}>
                       <div className="preset-attachment-copy">
-                        <span className="preset-attachment-icon" aria-hidden="true">📎</span>
+                        <span className="preset-attachment-icon" aria-hidden="true">??</span>
                         <div>
                           <strong>{presetForm.attachmentFileName || 'Nessun allegato salvato'}</strong>
                           <span>
                             {presetForm.attachmentSourcePath
                               ? 'Pronto per il salvataggio nel modello.'
-                              : 'L’allegato verrà copiato nella cartella dati dell’app.'}
+                              : 'L�allegato verr� copiato nella cartella dati dell�app.'}
                           </span>
                         </div>
                       </div>
@@ -622,7 +622,7 @@ export default function SettingsModal({
 
                   <div className="presets-edit-actions">
                     <button className="button button-primary" onClick={handleSavePreset}>
-                      💾 Salva Modello
+                      ?? Salva Modello
                     </button>
                     {editingPreset && (
                       <button
@@ -657,7 +657,7 @@ export default function SettingsModal({
                       disabled={state.updater?.status === 'checking' || state.updater?.status === 'downloading'}
                       onClick={() => api?.checkForUpdates?.()}
                     >
-                      {state.updater?.status === 'checking' ? '⏳ Verifica in corso…' : '🔄 Controlla ora'}
+                      {state.updater?.status === 'checking' ? '? Verifica in corso�' : '?? Controlla ora'}
                     </button>
                   </div>
                 </div>
@@ -670,11 +670,11 @@ export default function SettingsModal({
 
                 {state.updater?.status === 'not-available' && (
                   <div className="update-box success-box">
-                    <div className="update-box-icon">✅</div>
+                    <div className="update-box-icon">?</div>
                     <div>
-                      <strong>L'applicazione è aggiornata!</strong>
+                      <strong>L'applicazione � aggiornata!</strong>
                       <p className="muted" style={{ margin: '2px 0 0' }}>
-                        Stai già utilizzando l'ultima versione.
+                        Stai gi� utilizzando l'ultima versione.
                       </p>
                     </div>
                   </div>
@@ -682,7 +682,7 @@ export default function SettingsModal({
 
                 {state.updater?.status === 'error' && (
                   <div className="update-box error-box">
-                    <div className="update-box-icon">⚠️</div>
+                    <div className="update-box-icon">??</div>
                     <div>
                       <strong>Impossibile verificare gli aggiornamenti</strong>
                       <p className="subtle-note" style={{ margin: '2px 0 0', color: '#b91c1c' }}>
@@ -694,16 +694,16 @@ export default function SettingsModal({
 
                 {state.updater?.status === 'available' && (
                   <div className="update-box available-box">
-                    <div className="update-box-icon">🎉</div>
+                    <div className="update-box-icon">??</div>
                     <div style={{ flex: 1 }}>
                       <div className="available-header">
                         <strong>Nuova versione disponibile: v{state.updater.availableVersion}</strong>
                       </div>
                       {state.updater.releaseNotes ? (
                         <div className="release-notes-wrapper">
-                          <span className="eyebrow">Novità del rilascio:</span>
+                          <span className="eyebrow">Novit� del rilascio:</span>
                           <div className="release-notes-content">
-                            {state.updater.releaseNotes}
+                            <ReactMarkdown>{state.updater.releaseNotes}</ReactMarkdown>
                           </div>
                         </div>
                       ) : null}
@@ -713,7 +713,7 @@ export default function SettingsModal({
                           className="button button-primary"
                           onClick={() => api?.downloadUpdate?.()}
                         >
-                          ⬇️ Scarica e aggiorna
+                          ?? Scarica e aggiorna
                         </button>
                       </div>
                     </div>
@@ -739,7 +739,7 @@ export default function SettingsModal({
                         </span>
                       )}
                       {state.updater.bytesPerSecond > 0 && (
-                        <span> • {(state.updater.bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s</span>
+                        <span> � {(state.updater.bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s</span>
                       )}
                     </div>
                   </div>
@@ -747,18 +747,18 @@ export default function SettingsModal({
 
                 {state.updater?.status === 'downloaded' && (
                   <div className="update-box ready-box">
-                    <div className="update-box-icon">🚀</div>
+                    <div className="update-box-icon">??</div>
                     <div style={{ flex: 1 }}>
                       <strong>Aggiornamento scaricato con successo!</strong>
                       <p className="muted" style={{ margin: '4px 0 12px' }}>
-                        La versione <strong>v{state.updater.availableVersion}</strong> è pronta. Riavvia l'applicazione per applicarla.
+                        La versione <strong>v{state.updater.availableVersion}</strong> � pronta. Riavvia l'applicazione per applicarla.
                       </p>
                       <button
                         type="button"
                         className="button button-primary"
                         onClick={() => api.installUpdate()}
                       >
-                        ⚡ Riavvia e aggiorna ora
+                        ? Riavvia e aggiorna ora
                       </button>
                     </div>
                   </div>
@@ -792,7 +792,7 @@ export default function SettingsModal({
                       onStartTutorial?.()
                     }}
                   >
-                    🚀 Avvia Tutorial Interattivo
+                    ?? Avvia Tutorial Interattivo
                   </button>
                 </div>
               </div>
@@ -816,7 +816,7 @@ export default function SettingsModal({
                       onOpenGuide?.()
                     }}
                   >
-                    📖 Leggi il Manuale Operativo
+                    ?? Leggi il Manuale Operativo
                   </button>
                 </div>
               </div>
@@ -834,3 +834,5 @@ export default function SettingsModal({
     </div>
   )
 }
+
+
