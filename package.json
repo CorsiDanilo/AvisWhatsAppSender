@@ -1,6 +1,6 @@
 {
   "name": "aviswhatsappsender",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Applicazione desktop AVIS per inviare messaggi personalizzati tramite WhatsApp Web.",
   "main": "electron/main.cjs",
   "scripts": {
@@ -90,3 +90,4 @@
     "png-to-ico": "3.0.2"
   }
 }
+
