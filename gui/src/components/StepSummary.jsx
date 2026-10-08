@@ -188,14 +188,6 @@ export default function StepSummary({
                   >
                     {isConnecting ? 'Connessione in corso…' : 'Collega WhatsApp'}
                   </button>
-                  <button
-                    type="button"
-                    className="button button-secondary"
-                    onClick={() => call(() => (api.reconnect ? api.reconnect() : api.connect()))}
-                    title="Rigenera sessione e nuovo codice QR"
-                  >
-                    <span>🔄</span> Rigenera QR code
-                  </button>
                 </div>
 
                 {isQr && state.qrDataUrl && (

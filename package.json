@@ -4,7 +4,7 @@
   "description": "Applicazione desktop AVIS per inviare messaggi personalizzati tramite WhatsApp Web.",
   "main": "electron/main.cjs",
   "scripts": {
-    "test": "node --test test/data.test.js test/queue.test.js test/media.test.js test/settings.test.js test/logger.test.js test/gui-config.test.js test/whatsapp-media-regression.test.js test/presets.test.js test/results.test.js",
+    "test": "node --test",
     "build:gui": "npm --prefix gui run build",
     "lint:gui": "npm --prefix gui run lint",
     "prestart": "npm run build:gui",

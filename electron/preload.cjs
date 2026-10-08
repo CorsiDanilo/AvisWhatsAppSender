@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('whatsappSender', {
   stop: () => ipcRenderer.invoke('sender:stop'),
   setSelection: (index, selected) => ipcRenderer.invoke('sender:set-selection', index, selected),
   setAllSelected: (selected) => ipcRenderer.invoke('sender:set-all-selected', selected),
+  updateDonor: (index, patch) => ipcRenderer.invoke('sender:update-donor', index, patch),
+  addDonor: (input, customFieldKeys) => ipcRenderer.invoke('sender:add-donor', input, customFieldKeys),
   saveSettings: (settings) => ipcRenderer.invoke('sender:save-settings', settings),
   savePreset: (preset) => ipcRenderer.invoke('sender:save-preset', preset),
   deletePreset: (name) => ipcRenderer.invoke('sender:delete-preset', name),

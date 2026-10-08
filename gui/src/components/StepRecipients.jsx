@@ -1,8 +1,92 @@
 import { useState, useMemo } from 'react'
 import ExcelPreviewModal from './ExcelPreviewModal'
+import {
+  createEmptyRecipientDraft,
+  createRecipientDraft,
+  getCustomFieldKeys,
+} from './recipientEditor'
+import { toUserError } from '../errorMessage'
 
 function displayName(donor) {
   return [donor.name, donor.surname].filter(Boolean).join(' ') || 'Senza nome'
+}
+
+function RecipientEditor({
+  draft,
+  setDraft,
+  customFieldKeys,
+  isAdding,
+  isSaving,
+  error,
+  onSave,
+  onCancel,
+}) {
+  function setField(field, value) {
+    setDraft((current) => ({
+      ...current,
+      [field]: value,
+      ...(field === 'name' ? { givenNames: value } : {}),
+    }))
+  }
+
+  function setCustomField(field, value) {
+    setDraft((current) => ({
+      ...current,
+      customFields: { ...current.customFields, [field]: value },
+    }))
+  }
+
+  return (
+    <div className="recipient-editor">
+      <div className="recipient-editor-grid">
+        <label>
+          Nome
+          <input
+            type="text"
+            value={draft.name}
+            onChange={(event) => setField('name', event.target.value)}
+            autoFocus={isAdding}
+          />
+        </label>
+        <label>
+          Cognome
+          <input
+            type="text"
+            value={draft.surname}
+            onChange={(event) => setField('surname', event.target.value)}
+          />
+        </label>
+        <label>
+          Telefono
+          <input
+            type="text"
+            inputMode="tel"
+            value={draft.phone}
+            onChange={(event) => setField('phone', event.target.value)}
+          />
+        </label>
+        {customFieldKeys.map((field) => (
+          <label key={field}>
+            {field}
+            <input
+              type="text"
+              value={draft.customFields[field] || ''}
+              onChange={(event) => setCustomField(field, event.target.value)}
+            />
+          </label>
+        ))}
+      </div>
+      {error && <div className="recipient-editor-error" role="alert">{error}</div>}
+      <div className="recipient-editor-actions">
+        <button type="button" className="button button-primary button-small" onClick={onSave} disabled={isSaving}>
+          {isSaving ? 'Salvataggio…' : isAdding ? 'Aggiungi riga' : 'Salva modifiche'}
+        </button>
+        <button type="button" className="button button-secondary button-small" onClick={onCancel} disabled={isSaving}>
+          Annulla
+        </button>
+      </div>
+    </div>
+  )
 }
 
 export default function StepRecipients({
@@ -16,6 +100,11 @@ export default function StepRecipients({
   const [searchQuery, setSearchQuery] = useState('')
   const [filterType, setFilterType] = useState('all') // 'all' | 'valid' | 'invalid'
   const [inspectionData, setInspectionData] = useState(null)
+  const [editingIndex, setEditingIndex] = useState(null)
+  const [isAdding, setIsAdding] = useState(false)
+  const [editingDraft, setEditingDraft] = useState(null)
+  const [editorError, setEditorError] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
 
   async function handleSelectFile() {
     try {
@@ -25,7 +114,7 @@ export default function StepRecipients({
       }
     } catch (err) {
       console.error('Errore durante l\'ispezione del file:', err)
-      alert(`Impossibile leggere il file selezionato: ${err.message || err}`)
+      alert(toUserError(err, 'import'))
     }
   }
 
@@ -45,12 +134,17 @@ export default function StepRecipients({
       if (data) setInspectionData(data)
     } catch (err) {
       console.error('Errore durante la riapertura della configurazione:', err)
-      alert(`Impossibile riaprire la configurazione: ${err.message || err}`)
+      alert(toUserError(err, 'import'))
     }
   }
 
   const selectedCount = useMemo(
     () => state.donors.filter((d) => d.selected !== false).length,
+    [state.donors]
+  )
+
+  const customFieldKeys = useMemo(
+    () => getCustomFieldKeys(state.donors),
     [state.donors]
   )
 
@@ -68,6 +162,45 @@ export default function StepRecipients({
         return fullName.includes(query) || phone.includes(query)
       })
   }, [state.donors, searchQuery, filterType])
+
+  function openEditor(index) {
+    setEditingIndex(index)
+    setIsAdding(false)
+    setEditorError('')
+    setEditingDraft(createRecipientDraft(state.donors[index], customFieldKeys))
+  }
+
+  function openAddEditor() {
+    setEditingIndex(null)
+    setIsAdding(true)
+    setEditorError('')
+    setEditingDraft(createEmptyRecipientDraft(customFieldKeys))
+  }
+
+  function closeEditor() {
+    setEditingIndex(null)
+    setIsAdding(false)
+    setEditingDraft(null)
+    setEditorError('')
+  }
+
+  async function saveEditor() {
+    if (!editingDraft) return
+    setIsSaving(true)
+    setEditorError('')
+    try {
+      if (isAdding) {
+        await call(() => api.addDonor(editingDraft, customFieldKeys))
+      } else {
+        await call(() => api.updateDonor(editingIndex, editingDraft))
+      }
+      closeEditor()
+    } catch (err) {
+      setEditorError(toUserError(err))
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   return (
     <div className="step-container">
@@ -196,12 +329,38 @@ export default function StepRecipients({
             <span className="count-pill">
               {selectedCount} di {state.donors.length} selezionati
             </span>
+            <button
+              type="button"
+              className="button button-secondary button-small"
+              onClick={openAddEditor}
+              disabled={isRunning || isPaused || isAdding || editingIndex !== null}
+            >
+              + Aggiungi destinatario
+            </button>
           </div>
         </div>
 
         {/* List Content */}
         <div className="step-recipient-list">
-          {state.donors.length === 0 ? (
+          {isAdding && editingDraft && (
+            <div className="recipient-add-card">
+              <div className="recipient-add-heading">
+                <strong>Nuovo destinatario</strong>
+                <span>I dati vengono salvati solo nella sessione corrente.</span>
+              </div>
+              <RecipientEditor
+                draft={editingDraft}
+                setDraft={setEditingDraft}
+                customFieldKeys={customFieldKeys}
+                isAdding
+                isSaving={isSaving}
+                error={editorError}
+                onSave={saveEditor}
+                onCancel={closeEditor}
+              />
+            </div>
+          )}
+          {!isAdding && state.donors.length === 0 ? (
             <div className="empty-state-box">
               <span className="empty-icon">📋</span>
               <p>Carica un file Excel o CSV per visualizzare l'elenco dei donatori.</p>
@@ -213,13 +372,14 @@ export default function StepRecipients({
                 Seleziona file ora
               </button>
             </div>
-          ) : filteredDonors.length === 0 ? (
+          ) : !isAdding && filteredDonors.length === 0 ? (
             <div className="empty-state-box">
               <p>Nessun donatore corrisponde alla ricerca impostata.</p>
             </div>
-          ) : (
+          ) : !isAdding && (
             filteredDonors.map((donor) => {
               const isSelected = donor.selected !== false
+              const isEditing = editingIndex === donor.originalIndex && editingDraft
               return (
                 <div
                   key={`${donor.phone || donor.rawPhone}-${donor.originalIndex}`}
@@ -233,23 +393,46 @@ export default function StepRecipients({
                     onChange={(e) => call(() => api.setSelection(donor.originalIndex, e.target.checked))}
                     aria-label={`Seleziona ${displayName(donor)}`}
                   />
-                  <div className="avatar">{(donor.name || '?')[0].toUpperCase()}</div>
-                  <div className="recipient-info">
-                    <strong>{displayName(donor)}</strong>
-                    <span>
-                      {donor.phone || donor.rawPhone || 'Numero mancante'}
-                      {!donor.valid && <em className="invalid-tag"> • Numero non valido</em>}
-                    </span>
-                  </div>
-                  <span className={`badge badge-${donor.status}`}>
-                    {donor.status === 'pending'
-                      ? 'In attesa'
-                      : donor.status === 'sent'
-                      ? 'Inviato'
-                      : donor.status === 'skipped'
-                      ? 'Scartato'
-                      : 'Fallito'}
-                  </span>
+                  {isEditing ? (
+                    <RecipientEditor
+                      draft={editingDraft}
+                      setDraft={setEditingDraft}
+                      customFieldKeys={customFieldKeys}
+                      isAdding={false}
+                      isSaving={isSaving}
+                      error={editorError}
+                      onSave={saveEditor}
+                      onCancel={closeEditor}
+                    />
+                  ) : (
+                    <>
+                      <div className="avatar">{(donor.name || '?')[0].toUpperCase()}</div>
+                      <div className="recipient-info">
+                        <strong>{displayName(donor)}</strong>
+                        <span>
+                          {donor.phone || donor.rawPhone || 'Numero mancante'}
+                          {!donor.valid && <em className="invalid-tag"> • Numero non valido</em>}
+                        </span>
+                      </div>
+                      <span className={`badge badge-${donor.status}`}>
+                        {donor.status === 'pending'
+                          ? 'In attesa'
+                          : donor.status === 'sent'
+                          ? 'Inviato'
+                          : donor.status === 'skipped'
+                          ? 'Scartato'
+                          : 'Fallito'}
+                      </span>
+                      <button
+                        type="button"
+                        className="link-action-btn recipient-edit-button"
+                        onClick={() => openEditor(donor.originalIndex)}
+                        disabled={isRunning || isPaused || isAdding || editingIndex !== null}
+                      >
+                        Modifica
+                      </button>
+                    </>
+                  )}
                 </div>
               )
             })

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { toUserError } from '../errorMessage'
 
 export default function SettingsModal({
   isOpen,
@@ -442,7 +443,7 @@ export default function SettingsModal({
                     <div>
                       <strong>Impossibile verificare gli aggiornamenti</strong>
                       <p className="subtle-note" style={{ margin: '2px 0 0', color: '#b91c1c' }}>
-                        {state.updater?.error || 'Errore di connessione o repository non raggiungibile.'}
+                        {toUserError(state.updater?.error || 'update', 'update')}
                       </p>
                     </div>
                   </div>

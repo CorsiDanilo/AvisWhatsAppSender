@@ -144,6 +144,18 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
 .badge-pending { color: var(--muted); background: #f0f3f1; }
 .badge-sent { color: var(--green); background: var(--green-soft); }
 .badge-failed, .badge-skipped { color: var(--red); background: #fff0ee; }
+.recipient-edit-button { flex: 0 0 auto; }
+.recipient-add-card { margin-bottom: 10px; padding: 14px; background: #f8fcf9; border: 1px solid #b7dec6; border-radius: 10px; }
+.recipient-add-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.recipient-add-heading strong { color: var(--green-dark); font-size: 13px; }
+.recipient-add-heading span { color: var(--muted); font-size: 11px; }
+.recipient-editor { min-width: 0; flex: 1; }
+.recipient-editor-grid { display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 8px; }
+.recipient-editor-grid label { display: flex; flex-direction: column; gap: 4px; color: var(--ink); font-size: 10px; font-weight: 750; }
+.recipient-editor-grid input { width: 100%; min-height: 34px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: white; color: var(--ink); font-size: 12px; }
+.recipient-editor-grid input:focus-visible { outline: 3px solid rgba(17, 132, 91, 0.2); outline-offset: 1px; border-color: var(--green); }
+.recipient-editor-error { margin-top: 8px; padding: 7px 9px; color: var(--red); background: #fff1ef; border: 1px solid #f4d0cb; border-radius: 7px; font-size: 11px; }
+.recipient-editor-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
 
 .empty-state-box { padding: 50px 20px; text-align: center; color: var(--muted); font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .empty-icon { font-size: 32px; }
@@ -503,6 +515,9 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
   gap: 10px;
   margin-top: 10px;
 }
+.excel-main-mapping-grid.full-name {
+  grid-template-columns: repeat(2, 1fr);
+}
 .excel-main-mapping-grid label {
   display: flex;
   flex-direction: column;
@@ -585,12 +600,23 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
   white-space: nowrap;
 }
 .excel-one-column-option {
-  margin-top: 14px;
+  margin-top: 10px;
+  padding: 9px 10px;
+  border: 1px solid #cfe9da;
+  border-radius: 8px;
+  background: var(--green-subtle);
   color: var(--muted);
   font-size: 11px;
   font-weight: 700;
 }
 .excel-one-column-option label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.excel-one-column-option input:focus-visible,
+.excel-column-option input:focus-visible,
+.excel-main-mapping-grid select:focus-visible,
+.excel-select:focus-visible {
+  outline: 3px solid rgba(17, 132, 91, 0.24);
+  outline-offset: 2px;
+}
 .excel-select {
   width: 100%;
   min-height: 40px;
@@ -630,6 +656,20 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
   color: var(--muted);
   font-size: 11px;
   font-weight: 500;
+}
+.excel-preview-warning {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  color: #805016;
+  background: #fff8ec;
+  border: 1px solid #f1dfbd;
+  border-radius: 8px;
+  font-size: 11px;
+}
+.excel-preview-warning-cell {
+  color: #805016 !important;
+  background: #fffaf1;
+  font-weight: 700;
 }
 .excel-table-empty {
   padding: 16px;
@@ -1160,6 +1200,9 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
   .stepper-connector { margin: 0 6px; }
   .recipients-toolbar { flex-direction: column; align-items: stretch; }
   .toolbar-search { width: 100%; }
+  .toolbar-mass-actions { flex-wrap: wrap; }
+  .recipient-editor-grid { grid-template-columns: 1fr; }
+  .recipient-add-heading { align-items: flex-start; flex-direction: column; }
   .presets-master-detail { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: 1fr; }
   .excel-preview-dialog { max-height: calc(100vh - 16px); border-radius: 12px; }

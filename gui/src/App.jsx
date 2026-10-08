@@ -8,6 +8,7 @@ import StepRecipients from './components/StepRecipients'
 import StepComposer from './components/StepComposer'
 import StepSummary from './components/StepSummary'
 import SendingDashboard from './components/SendingDashboard'
+import { toUserError } from './errorMessage'
 import { WelcomeModal, TutorialDock } from './components/InteractiveTutorial'
 import {
   TUTORIAL_STEPS,
@@ -104,7 +105,7 @@ function App() {
           if (firstPreset.settings) setOptions(firstPreset.settings)
         }
       })
-      .catch((reason) => setError(reason.message))
+      .catch((reason) => setError(toUserError(reason)))
     return api.onState(setState)
   }, [api])
 
@@ -147,7 +148,7 @@ function App() {
       }
       return next
     } catch (reason) {
-      setError(reason.message || 'Operazione non riuscita')
+      setError(toUserError(reason))
       throw reason
     }
   }
@@ -411,6 +412,49 @@ function App() {
           return { ...p, donors: nextDonors }
         })
       },
+      updateDonor: async (index, patch) => {
+        setState((p) => {
+          const nextDonors = [...p.donors]
+          if (!nextDonors[index]) return p
+          const donor = nextDonors[index]
+          const givenNames = String(patch.givenNames || patch.name || donor.givenNames || donor.name || '').trim().replace(/\s+/g, ' ')
+          nextDonors[index] = {
+            ...donor,
+            name: givenNames.split(' ')[0] || '',
+            givenNames,
+            surname: String(patch.surname ?? donor.surname ?? '').trim(),
+            rawPhone: String(patch.phone ?? donor.rawPhone ?? donor.phone ?? '').trim(),
+            phone: String(patch.phone ?? donor.rawPhone ?? donor.phone ?? '').trim(),
+            customFields: { ...(donor.customFields || {}), ...(patch.customFields || {}) },
+          }
+          return { ...p, donors: nextDonors }
+        })
+      },
+      addDonor: async (input, customFieldKeys = []) => {
+        setState((p) => {
+          const customFields = {}
+          customFieldKeys.forEach((key) => { customFields[key] = input.customFields?.[key] || '' })
+          const givenNames = String(input.name || '').trim().replace(/\s+/g, ' ')
+          const phone = String(input.phone || '').trim()
+          return {
+            ...p,
+            donors: [...p.donors, {
+              name: givenNames.split(' ')[0] || '',
+              givenNames,
+              surname: String(input.surname || '').trim(),
+              rawPhone: phone,
+              phone,
+              valid: Boolean(phone),
+              reason: phone ? '' : 'Numero di telefono mancante',
+              warning: givenNames && !input.surname ? 'Cognome non rilevato' : '',
+              status: 'pending',
+              selected: true,
+              customFields,
+            }],
+            progress: { ...p.progress, total: p.donors.length + 1 },
+          }
+        })
+      },
       setAllSelected: async (selected) => {
         setState((p) => ({
           ...p,
@@ -502,7 +546,7 @@ function App() {
 
       {/* Main Container */}
       <main className="wizard-layout">
-        {error && <div className="alert global-alert">{error}</div>}
+        {error && <div className="alert global-alert" role="alert">{error}</div>}
 
         {/* Banner Tutorial Attivo */}
         {isTutorialActive && (

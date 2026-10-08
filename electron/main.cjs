@@ -7,7 +7,12 @@ const semver = require('semver');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const { autoUpdater } = require('electron-updater');
 
-const { inspectFile, parseWithMapping } = require('../sender/data');
+const {
+  createManualDonor,
+  inspectFile,
+  parseWithMapping,
+  updateDonor,
+} = require('../sender/data');
 const { createImagePayload, inspectImage } = require('../sender/media');
 const { createLogger } = require('../sender/logger');
 const { deletePreset, loadPresets, upsertPreset } = require('../sender/presets');
@@ -15,12 +20,14 @@ const { writeSessionResult } = require('../sender/results');
 const { DEFAULT_SETTINGS, loadSettings, saveSettings } = require('../sender/settings');
 const { renderTemplate } = require('../sender/template');
 const { SendQueue } = require('../sender/queue');
+const { retryAsync } = require('../sender/retry');
 const packageInfo = require('../package.json');
 const APP_VERSION = packageInfo.version || app.getVersion();
 
 let mainWindow;
 let client;
 let clientReady = false;
+let connectionPromise = null;
 let queue;
 let selectedFile = '';
 let selectedImagePath = '';
@@ -154,6 +161,8 @@ function createClient() {
     authStrategy: new LocalAuth({
       dataPath: path.join(app.getPath('userData'), 'whatsapp-session'),
     }),
+    authTimeoutMs: 60000,
+    qrMaxRetries: 3,
     puppeteer: {
       executablePath,
       headless: true,
@@ -204,40 +213,48 @@ async function connectClient() {
   if (state.connection === 'connecting' || state.connection === 'ready' || state.connection === 'authenticated') {
     return snapshot();
   }
-  try {
-    if (client) {
-      await destroyClient();
-    } else {
-      killStaleSessionBrowser();
-    }
-    const whatsapp = createClient();
-    setConnection('connecting');
-    audit('info', 'whatsapp.connecting');
-    await whatsapp.initialize();
-    return snapshot();
-  } catch (error) {
-    setConnection('error');
-    logError('whatsapp.connect_failed', error);
-    await destroyClient();
-    throw error;
-  }
+  if (connectionPromise) return connectionPromise;
+  return startClientConnection('whatsapp.connecting', 'whatsapp.connect_failed');
 }
 
 async function reconnectClient() {
-  try {
-    log('Rigenerazione del codice QR e riconnessione a WhatsApp…');
+  if (connectionPromise) return connectionPromise;
+  log('Rigenerazione del codice QR e riconnessione a WhatsApp...');
+  return startClientConnection('whatsapp.reconnecting', 'whatsapp.reconnect_failed');
+}
+
+function startClientConnection(startEvent, failureEvent) {
+  if (connectionPromise) return connectionPromise;
+
+  connectionPromise = retryAsync(async (attempt) => {
     await destroyClient();
     setConnection('connecting', '');
-    audit('info', 'whatsapp.reconnecting');
+    audit('info', startEvent, { attempt });
     const whatsapp = createClient();
     await whatsapp.initialize();
     return snapshot();
-  } catch (error) {
-    setConnection('error');
-    logError('whatsapp.reconnect_failed', error);
-    await destroyClient();
-    throw error;
-  }
+  }, {
+    attempts: 3,
+    delayMs: 1500,
+    onRetry: async (error, nextAttempt) => {
+      log(`Connessione WhatsApp: nuovo tentativo ${nextAttempt}/3...`);
+      audit('warn', 'whatsapp.retry', {
+        attempt: nextAttempt,
+        error: errorDetails(error),
+      });
+    },
+  })
+    .catch(async (error) => {
+      setConnection('error');
+      logError(failureEvent, error);
+      await destroyClient();
+      throw error;
+    })
+    .finally(() => {
+      connectionPromise = null;
+    });
+
+  return connectionPromise;
 }
 
 function optionNumber(value, fallback, minimum, maximum) {
@@ -409,6 +426,34 @@ function setAllDonorsSelected(selected) {
   const value = Boolean(selected);
   state.donors = state.donors.map((donor) => ({ ...donor, selected: value }));
   audit('info', 'donor.selection_all_changed', { selected: value, count: state.donors.length });
+  publish();
+  return snapshot();
+}
+
+function ensureRecipientEditingAllowed() {
+  if (state.queue === 'running' || state.queue === 'paused') {
+    throw new Error('Non puoi modificare i destinatari durante l’invio.');
+  }
+}
+
+function updateDonorAt(index, patch) {
+  ensureRecipientEditingAllowed();
+  if (!Number.isInteger(index) || !state.donors[index]) {
+    throw new Error('Destinatario non trovato.');
+  }
+
+  state.donors[index] = updateDonor(state.donors[index], patch);
+  audit('info', 'donor.updated', { index, fields: Object.keys(patch || {}) });
+  publish();
+  return snapshot();
+}
+
+function addDonor(input, customFieldKeys = []) {
+  ensureRecipientEditingAllowed();
+  const donor = createManualDonor(input, customFieldKeys);
+  state.donors = [...state.donors, donor];
+  state.progress.total = state.donors.length;
+  audit('info', 'donor.added', { index: state.donors.length - 1 });
   publish();
   return snapshot();
 }
@@ -667,6 +712,8 @@ registerHandler('sender:get-state', () => snapshot());
 registerHandler('sender:start', (options) => startQueue(options));
 registerHandler('sender:set-selection', (index, selected) => setDonorSelection(index, selected));
 registerHandler('sender:set-all-selected', (selected) => setAllDonorsSelected(selected));
+registerHandler('sender:update-donor', (index, patch) => updateDonorAt(index, patch));
+registerHandler('sender:add-donor', (input, customFieldKeys) => addDonor(input, customFieldKeys));
 registerHandler('sender:save-settings', (options) => saveRhythm(options));
 registerHandler('sender:save-preset', (preset) => savePreset(preset));
 registerHandler('sender:delete-preset', (name) => removePreset(name));

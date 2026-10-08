@@ -4,9 +4,11 @@ const csv = require('csv-parser');
 const XLSX = require('xlsx');
 
 const HEADER_ALIASES = {
-  name: ['nome', 'name', 'nominativo'],
+  fullName: ['nomeecognome', 'cognomeenome', 'nominativo', 'fullname', 'nomecognome'],
+  name: ['nome', 'name'],
   surname: ['cognome', 'surname'],
   phone: ['telefono', 'cellulare', 'tel', 'cell', 'mobile', 'phone'],
+  birthDate: ['datadinascita', 'nascita', 'birthdate', 'dob'],
 };
 
 function normalizeHeader(value) {
@@ -16,6 +18,37 @@ function normalizeHeader(value) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]/g, '');
+}
+
+function normalizeNamePart(value) {
+  return String(value ?? '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/\p{L}[\p{L}\p{M}]*/gu, (part) => `${part[0].toUpperCase()}${part.slice(1).toLowerCase()}`);
+}
+
+function splitFullName(value) {
+  const normalized = String(value ?? '').trim().replace(/\s+/g, ' ');
+  const parts = normalized ? normalized.split(' ') : [];
+
+  if (parts.length <= 1) {
+    const name = normalizeNamePart(parts[0] || '');
+    return {
+      name,
+      givenNames: name,
+      surname: '',
+      warning: name ? 'Cognome non rilevato' : '',
+    };
+  }
+
+  const surname = normalizeNamePart(parts.pop());
+  const givenNames = normalizeNamePart(parts.join(' '));
+  return {
+    name: givenNames.split(' ')[0] || '',
+    givenNames,
+    surname,
+    warning: '',
+  };
 }
 
 function normalizePhone(raw, countryCode = '39') {
@@ -34,7 +67,48 @@ function normalizePhone(raw, countryCode = '39') {
     return { phone: '', valid: false, reason: 'Numero di telefono non valido' };
   }
 
-  return { phone: digits, valid: true };
+  return { phone: digits, valid: true, reason: '' };
+}
+
+function updateDonor(donor = {}, patch = {}) {
+  const explicitGivenNames = String(patch.givenNames ?? '').trim();
+  const givenNamesInput = explicitGivenNames || patch.name || donor.givenNames || donor.name;
+  const givenNames = normalizeNamePart(givenNamesInput);
+  const name = givenNames.split(' ')[0] || '';
+  const surname = normalizeNamePart(patch.surname ?? donor.surname);
+  const rawPhone = String(patch.phone ?? donor.rawPhone ?? donor.phone ?? '').trim();
+  const normalizedPhone = normalizePhone(rawPhone);
+  const customFields = { ...(donor.customFields || {}) };
+
+  if (patch.customFields && typeof patch.customFields === 'object') {
+    for (const [key, value] of Object.entries(patch.customFields)) {
+      customFields[key] = String(value ?? '').trim();
+    }
+  }
+
+  return {
+    ...donor,
+    name,
+    givenNames,
+    surname,
+    warning: name && !surname ? 'Cognome non rilevato' : '',
+    rawPhone,
+    phone: normalizedPhone.phone,
+    valid: normalizedPhone.valid,
+    reason: normalizedPhone.reason,
+    customFields,
+  };
+}
+
+function createManualDonor(input = {}, customFieldKeys = []) {
+  const customFields = {};
+  for (const key of customFieldKeys) customFields[key] = '';
+
+  return updateDonor({
+    status: 'pending',
+    selected: true,
+    customFields,
+  }, input);
 }
 
 function findColumn(headers, aliases) {
@@ -76,10 +150,14 @@ function normalizeDonor(row, columns) {
 }
 
 function columnsFor(headers) {
+  const fullName = findColumn(headers, HEADER_ALIASES.fullName);
+  const name = fullName || findColumn(headers, HEADER_ALIASES.name);
   return {
-    name: findColumn(headers, HEADER_ALIASES.name),
+    name,
     surname: findColumn(headers, HEADER_ALIASES.surname),
     phone: findColumn(headers, HEADER_ALIASES.phone),
+    nameAndSurnameInOneColumn: Boolean(fullName),
+    customFields: headers.filter((header) => HEADER_ALIASES.birthDate.includes(normalizeHeader(header))),
   };
 }
 
@@ -168,21 +246,18 @@ async function parseWithMapping(filePath, sheetName, mapping) {
   const rows = isExcel ? getRowsFromExcel(filePath, sheetName) : await getRowsFromCsv(filePath);
   
   return rows.map(row => {
-    let name = '';
-    let surname = '';
+    let parsedName;
     
     if (mapping.nameAndSurnameInOneColumn) {
-       const fullName = String(row[mapping.name] ?? '').trim();
-       const parts = fullName.split(/\s+/);
-       if (parts.length > 1) {
-         surname = parts.pop();
-         name = parts.join(' ');
-       } else {
-         name = fullName;
-       }
+       parsedName = splitFullName(row[mapping.name]);
     } else {
-       name = String(row[mapping.name] ?? '').trim();
-       surname = String(row[mapping.surname] ?? '').trim();
+       const givenNames = normalizeNamePart(row[mapping.name]);
+       parsedName = {
+         name: givenNames.split(' ')[0] || '',
+         givenNames,
+         surname: normalizeNamePart(row[mapping.surname]),
+         warning: '',
+       };
     }
     
     const rawPhone = String(row[mapping.phone] ?? '').trim();
@@ -196,8 +271,7 @@ async function parseWithMapping(filePath, sheetName, mapping) {
     }
 
     return {
-      name,
-      surname,
+      ...parsedName,
       rawPhone,
       phone: normalized.phone,
       valid: normalized.valid,
@@ -209,4 +283,13 @@ async function parseWithMapping(filePath, sheetName, mapping) {
   });
 }
 
-module.exports = { normalizePhone, inspectFile, parseWithMapping };
+module.exports = {
+  normalizeHeader,
+  normalizeNamePart,
+  normalizePhone,
+  createManualDonor,
+  inspectFile,
+  parseWithMapping,
+  splitFullName,
+  updateDonor,
+};
