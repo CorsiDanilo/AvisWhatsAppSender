@@ -13,6 +13,8 @@ export default function SettingsModal({
   setPresetName,
   setMessage,
   initialTab = 'storage',
+  onStartTutorial,
+  onOpenGuide,
 }) {
   const [userTab, setUserTab] = useState(null)
   const activeTab = userTab ?? initialTab
@@ -135,6 +137,12 @@ export default function SettingsModal({
             {state.updater?.status === 'downloaded' && (
               <span className="tab-update-badge ready" title="Pronto da installare">●</span>
             )}
+          </button>
+          <button
+            className={`settings-tab-btn ${activeTab === 'tutorial' ? 'active' : ''}`}
+            onClick={() => { setUserTab('tutorial'); setStatusMsg('') }}
+          >
+            🎓 Guida & Tutorial
           </button>
         </div>
 
@@ -422,7 +430,7 @@ export default function SettingsModal({
                     <div>
                       <strong>L'applicazione è aggiornata!</strong>
                       <p className="muted" style={{ margin: '2px 0 0' }}>
-                        Stai già utilizzando l'ultima versione rilasciata su GitHub.
+                        Stai già utilizzando l'ultima versione.
                       </p>
                     </div>
                   </div>
@@ -514,9 +522,76 @@ export default function SettingsModal({
               </div>
             </div>
           )}
+
+          {activeTab === 'tutorial' && (
+            <div className="settings-tutorial-section">
+              <p className="muted" style={{ marginTop: 0 }}>
+                Strumenti di supporto e simulazione per imparare a usare tutte le funzioni di AVIS WhatsApp Sender in totale sicurezza.
+              </p>
+
+              <div className="storage-card highlight-card">
+                <div className="storage-card-header">
+                  <div>
+                    <span className="eyebrow">Simulazione Interattiva Protetta</span>
+                    <h3 style={{ margin: '4px 0 2px' }}>Tutorial Passo-Passo</h3>
+                    <p className="subtle-note">
+                      Esplora tutte le schermate, prova la gestione dei destinatari e visualizza la simulazione d'invio in tempo reale a rischio zero: <strong>nessun messaggio viene realmente inviato</strong> a WhatsApp.
+                    </p>
+                  </div>
+                </div>
+                <div style={{ marginTop: '14px' }}>
+                  <button
+                    type="button"
+                    className="button button-primary"
+                    onClick={() => {
+                      onClose()
+                      onStartTutorial?.()
+                    }}
+                  >
+                    🚀 Avvia Tutorial Interattivo
+                  </button>
+                </div>
+              </div>
+
+              <div className="storage-card">
+                <div className="storage-card-header">
+                  <div>
+                    <span className="eyebrow">Documentazione & Regole</span>
+                    <h3 style={{ margin: '4px 0 2px' }}>Manuale Operativo Completo</h3>
+                    <p className="subtle-note">
+                      Consulta la guida scritta con tutte le istruzioni dettagliate su formati Excel, normalizzazione dei numeri, tag dinamici, ritmi anti-ban e aggiornamenti GitHub.
+                    </p>
+                  </div>
+                </div>
+                <div style={{ marginTop: '14px' }}>
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    onClick={() => {
+                      onClose()
+                      onOpenGuide?.()
+                    }}
+                  >
+                    📖 Leggi il Manuale Operativo
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="settings-footer">
+          <button
+            type="button"
+            className="link-btn"
+            style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}
+            onClick={() => {
+              onClose()
+              onStartTutorial?.()
+            }}
+          >
+            🎓 Avvia Tutorial Interattivo
+          </button>
           <button className="button button-secondary" onClick={onClose}>
             Chiudi
           </button>

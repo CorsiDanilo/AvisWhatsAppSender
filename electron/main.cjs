@@ -3,6 +3,7 @@ const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const QRCode = require('qrcode');
+const semver = require('semver');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const { autoUpdater } = require('electron-updater');
 
@@ -709,7 +710,10 @@ function initUpdater() {
   };
   if (!app.isPackaged) {
     autoUpdater.forceDevUpdateConfig = true;
-    autoUpdater.currentVersion = APP_VERSION;
+    if (autoUpdater.currentVersion && autoUpdater.currentVersion.constructor) {
+      const InternalSemVer = autoUpdater.currentVersion.constructor;
+      autoUpdater.currentVersion = new InternalSemVer(APP_VERSION);
+    }
     const parentDevConfig = path.join(__dirname, '..', 'dev-app-update.yml');
     const localDevConfig = path.join(__dirname, 'dev-app-update.yml');
     if (fs.existsSync(localDevConfig)) {

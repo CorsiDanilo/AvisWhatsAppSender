@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import Guide from './Guide'
 import SettingsModal from './components/SettingsModal'
@@ -8,6 +8,12 @@ import StepRecipients from './components/StepRecipients'
 import StepComposer from './components/StepComposer'
 import StepSummary from './components/StepSummary'
 import SendingDashboard from './components/SendingDashboard'
+import { WelcomeModal, TutorialDock } from './components/InteractiveTutorial'
+import {
+  TUTORIAL_STEPS,
+  TUTORIAL_DONORS,
+  TUTORIAL_MESSAGE,
+} from './components/tutorialData'
 
 const templates = {
   'Promemoria donazione':
@@ -66,6 +72,21 @@ function App() {
   const [showQrModal, setShowQrModal] = useState(false)
   const [showQrBanner, setShowQrBanner] = useState(true)
 
+  // Tutorial & Simulation states
+  const [showWelcomeModal, setShowWelcomeModal] = useState(() => {
+    try {
+      return !localStorage.getItem('avis_tutorial_seen')
+    } catch {
+      return false
+    }
+  })
+  const [isTutorialActive, setIsTutorialActive] = useState(false)
+  const [tutorialStepIndex, setTutorialStepIndex] = useState(1)
+  const [isSimulating, setIsSimulating] = useState(false)
+  const [simulationDone, setSimulationDone] = useState(false)
+  const realStateBackupRef = useRef(null)
+  const simulationTimersRef = useRef([])
+
   const api = window.whatsappSender
 
   useEffect(() => {
@@ -105,7 +126,7 @@ function App() {
   const isStopped = state.queue === 'stopped'
 
   // Decide if we should show the sending dashboard
-  const isSendingActive = isRunning || isPaused
+  const isSendingActive = isRunning || isPaused || isSimulating
   const showDashboard = isSendingActive || manualSendingView || ((isCompleted || isStopped) && state.progress.total > 0)
 
   const canStart = state.connection === 'ready' && selectedCount > 0 && message.trim().length > 0
@@ -146,7 +167,192 @@ function App() {
     })
   }
 
+  function clearSimulationTimers() {
+    simulationTimersRef.current.forEach((id) => clearTimeout(id))
+    simulationTimersRef.current = []
+  }
+
+  function startTutorial() {
+    clearSimulationTimers()
+    realStateBackupRef.current = {
+      state,
+      currentStep,
+      manualSendingView,
+      message,
+      options,
+      selectedPreset,
+      presetName,
+    }
+
+    setIsTutorialActive(true)
+    setTutorialStepIndex(1)
+    setCurrentStep(1)
+    setManualSendingView(false)
+    setIsSimulating(false)
+    setSimulationDone(false)
+
+    setState((prev) => ({
+      ...prev,
+      connection: 'ready',
+      qrDataUrl: '',
+      donors: TUTORIAL_DONORS.map((d) => ({ ...d })),
+      queue: 'idle',
+      progress: { current: 0, total: 4, sent: 0, failed: 0, skipped: 1 },
+      logs: ['[TUTORIAL] Dati di esempio caricati con successo.'],
+      fileName: 'Donatori_AVIS_Ottobre.xlsx',
+      filePath: 'C:\\Users\\AVIS\\Desktop\\Donatori_AVIS_Ottobre.xlsx',
+      sheetName: 'Donatori Attivi',
+      imageName: '',
+      imagePath: '',
+      imageDataUrl: '',
+      lastOutcomeDir: '',
+    }))
+
+    setMessage(TUTORIAL_MESSAGE)
+  }
+
+  function exitTutorial() {
+    clearSimulationTimers()
+    setIsTutorialActive(false)
+    setIsSimulating(false)
+    setSimulationDone(false)
+    setTutorialStepIndex(1)
+
+    if (realStateBackupRef.current) {
+      const backup = realStateBackupRef.current
+      setState(backup.state)
+      setCurrentStep(backup.currentStep)
+      setManualSendingView(backup.manualSendingView)
+      setMessage(backup.message)
+      setOptions(backup.options)
+      setSelectedPreset(backup.selectedPreset)
+      setPresetName(backup.presetName)
+      realStateBackupRef.current = null
+    } else {
+      if (api) {
+        api.getState().then(setState).catch(console.error)
+      }
+      setCurrentStep(1)
+      setManualSendingView(false)
+    }
+  }
+
+  function startSimulation() {
+    clearSimulationTimers()
+    setIsSimulating(true)
+    setSimulationDone(false)
+
+    setState((prev) => ({
+      ...prev,
+      queue: 'running',
+      progress: { current: 0, total: 4, sent: 0, failed: 0, skipped: 1 },
+      logs: ['[SIMULAZIONE] Inizio sessione demo in modalità protetta. Nessun messaggio reale inviato a WhatsApp.'],
+      donors: TUTORIAL_DONORS.map((d) => ({
+        ...d,
+        status: d.valid ? 'pending' : 'skipped',
+      })),
+    }))
+
+    const validDonors = TUTORIAL_DONORS.filter((d) => d.valid)
+    validDonors.forEach((donor, idx) => {
+      const t = setTimeout(() => {
+        setState((prev) => {
+          const nextDonors = prev.donors.map((d) =>
+            d.phone === donor.phone ? { ...d, status: 'sent' } : d
+          )
+          const sentCount = idx + 1
+          const nowTime = new Date().toLocaleTimeString('it-IT')
+          return {
+            ...prev,
+            progress: {
+              ...prev.progress,
+              current: sentCount,
+              sent: sentCount,
+            },
+            logs: [
+              ...prev.logs,
+              `[${nowTime}] ✓ Messaggio inviato a ${donor.name} ${donor.surname} (${donor.phone}) [SIMULATO]`,
+            ],
+            donors: nextDonors,
+          }
+        })
+
+        if (idx === validDonors.length - 1) {
+          const finishTimer = setTimeout(() => {
+            setState((prev) => ({
+              ...prev,
+              queue: 'completed',
+              lastOutcomeDir: 'Desktop / AVIS WhatsApp Sender / Demo_Simulazione_Esito',
+              logs: [
+                ...prev.logs,
+                '========================================',
+                '🎉 Sessione simulata completata con successo!',
+                'Report generati (fittizi): esito.csv, esito.json',
+              ],
+            }))
+            setIsSimulating(false)
+            setSimulationDone(true)
+          }, 1000)
+          simulationTimersRef.current.push(finishTimer)
+        }
+      }, (idx + 1) * 1400)
+
+      simulationTimersRef.current.push(t)
+    })
+  }
+
+  function handleTutorialNext() {
+    if (tutorialStepIndex === 1) {
+      setTutorialStepIndex(2)
+      setCurrentStep(1)
+      setManualSendingView(false)
+    } else if (tutorialStepIndex === 2) {
+      setTutorialStepIndex(3)
+      setCurrentStep(2)
+      setManualSendingView(false)
+    } else if (tutorialStepIndex === 3) {
+      setTutorialStepIndex(4)
+      setCurrentStep(3)
+      setManualSendingView(false)
+    } else if (tutorialStepIndex === 4) {
+      setTutorialStepIndex(5)
+      setManualSendingView(true)
+      startSimulation()
+    } else if (tutorialStepIndex === 5) {
+      exitTutorial()
+    }
+  }
+
+  function handleTutorialPrev() {
+    if (tutorialStepIndex === 2) {
+      setTutorialStepIndex(1)
+      setCurrentStep(1)
+      setManualSendingView(false)
+    } else if (tutorialStepIndex === 3) {
+      setTutorialStepIndex(2)
+      setCurrentStep(1)
+      setManualSendingView(false)
+    } else if (tutorialStepIndex === 4) {
+      setTutorialStepIndex(3)
+      setCurrentStep(2)
+      setManualSendingView(false)
+    } else if (tutorialStepIndex === 5) {
+      clearSimulationTimers()
+      setIsSimulating(false)
+      setTutorialStepIndex(4)
+      setCurrentStep(3)
+      setManualSendingView(false)
+    }
+  }
+
   async function handleStart() {
+    if (isTutorialActive) {
+      setManualSendingView(true)
+      setTutorialStepIndex(5)
+      startSimulation()
+      return
+    }
+
     try {
       setManualSendingView(true)
       await call(() =>
@@ -161,6 +367,61 @@ function App() {
       // Error is set by call()
     }
   }
+
+  const effectiveApi = useMemo(() => {
+    if (!isTutorialActive) return api
+    return {
+      ...api,
+      connect: async () => {
+        setState((p) => ({ ...p, connection: 'ready' }))
+      },
+      reconnect: async () => {
+        setState((p) => ({ ...p, connection: 'ready' }))
+      },
+      start: async () => {
+        startSimulation()
+      },
+      pause: async () => {
+        setState((p) => ({
+          ...p,
+          queue: 'paused',
+          logs: [...p.logs, "[SIMULAZIONE] Sessione messa in pausa dall'operatore."],
+        }))
+      },
+      resume: async () => {
+        setState((p) => ({
+          ...p,
+          queue: 'running',
+          logs: [...p.logs, '[SIMULAZIONE] Sessione ripresa.'],
+        }))
+      },
+      stop: async () => {
+        clearSimulationTimers()
+        setIsSimulating(false)
+        setState((p) => ({
+          ...p,
+          queue: 'stopped',
+          logs: [...p.logs, "[SIMULAZIONE] Sessione interrotta dall'operatore."],
+        }))
+      },
+      setSelection: async (index, selected) => {
+        setState((p) => {
+          const nextDonors = [...p.donors]
+          if (nextDonors[index]) nextDonors[index] = { ...nextDonors[index], selected }
+          return { ...p, donors: nextDonors }
+        })
+      },
+      setAllSelected: async (selected) => {
+        setState((p) => ({
+          ...p,
+          donors: p.donors.map((d) => ({ ...d, selected })),
+        }))
+      },
+      openLastOutcome: async () => {
+        alert('Modalità tutorial: nella versione reale questa azione apre la cartella degli esiti archiviata sul tuo PC.')
+      },
+    }
+  }, [isTutorialActive, api])
 
   const connectionText =
     {
@@ -243,8 +504,30 @@ function App() {
       <main className="wizard-layout">
         {error && <div className="alert global-alert">{error}</div>}
 
+        {/* Banner Tutorial Attivo */}
+        {isTutorialActive && (
+          <div className="tutorial-top-banner">
+            <div className="tutorial-banner-content">
+              <span className="tutorial-banner-icon">🎓</span>
+              <div>
+                <strong>Modalità Tutorial Interattivo Attiva</strong>
+                <span className="tutorial-banner-sub">
+                  Ambiente di simulazione protetto: nessun messaggio WhatsApp viene inviato.
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="button button-secondary button-small"
+              onClick={exitTutorial}
+            >
+              ✕ Esci dal Tutorial
+            </button>
+          </div>
+        )}
+
         {/* Banner Notifica Nuovo Aggiornamento Disponibile */}
-        {state.updater?.status === 'available' && dismissedUpdateVersion !== state.updater.availableVersion && (
+        {!isTutorialActive && state.updater?.status === 'available' && dismissedUpdateVersion !== state.updater.availableVersion && (
           <div className="update-top-banner">
             <div className="update-banner-info">
               <span className="update-banner-icon">✨</span>
@@ -343,7 +626,7 @@ function App() {
             isRunning={isRunning}
             isPaused={isPaused}
             call={call}
-            api={api}
+            api={effectiveApi}
             onBackToEdit={() => {
               setManualSendingView(false)
               setCurrentStep(3)
@@ -364,7 +647,7 @@ function App() {
               {currentStep === 1 && (
                 <StepRecipients
                   state={state}
-                  api={api}
+                  api={effectiveApi}
                   call={call}
                   isRunning={isRunning}
                   isPaused={isPaused}
@@ -375,7 +658,7 @@ function App() {
               {currentStep === 2 && (
                 <StepComposer
                   state={state}
-                  api={api}
+                  api={effectiveApi}
                   call={call}
                   message={message}
                   setMessage={setMessage}
@@ -402,7 +685,7 @@ function App() {
                   onBack={() => setCurrentStep(2)}
                   onGoToStep={(step) => setCurrentStep(step)}
                   onStart={handleStart}
-                  api={api}
+                  api={effectiveApi}
                   call={call}
                 />
               )}
@@ -425,6 +708,14 @@ function App() {
         setPresetName={setPresetName}
         setMessage={setMessage}
         initialTab={settingsTab}
+        onStartTutorial={() => {
+          setShowSettings(false)
+          startTutorial()
+        }}
+        onOpenGuide={() => {
+          setShowSettings(false)
+          setShowGuide(true)
+        }}
       />
 
       <QrModal
@@ -435,7 +726,45 @@ function App() {
         call={call}
       />
 
-      {showGuide && <Guide onClose={() => setShowGuide(false)} />}
+      {showGuide && (
+        <Guide
+          onClose={() => setShowGuide(false)}
+          onStartTutorial={() => {
+            setShowGuide(false)
+            startTutorial()
+          }}
+        />
+      )}
+
+      {/* Welcome Modal al primo avvio */}
+      {showWelcomeModal && (
+        <WelcomeModal
+          onStartTour={() => {
+            try { localStorage.setItem('avis_tutorial_seen', 'true') } catch {}
+            setShowWelcomeModal(false)
+            startTutorial()
+          }}
+          onSkip={() => {
+            try { localStorage.setItem('avis_tutorial_seen', 'true') } catch {}
+            setShowWelcomeModal(false)
+          }}
+        />
+      )}
+
+      {/* Floating Tutorial Dock */}
+      {isTutorialActive && (
+        <TutorialDock
+          currentStepIndex={tutorialStepIndex}
+          totalSteps={TUTORIAL_STEPS.length}
+          stepData={TUTORIAL_STEPS[tutorialStepIndex - 1]}
+          onNext={handleTutorialNext}
+          onPrev={handleTutorialPrev}
+          onExit={exitTutorial}
+          isSimulating={isSimulating}
+          onStartSimulation={startSimulation}
+          simulationDone={simulationDone}
+        />
+      )}
     </div>
   )
 }

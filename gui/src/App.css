@@ -872,6 +872,278 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
   }
 }
 
+/* Interactive Tutorial & Sandbox UI */
+.tutorial-top-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #eef9f2 0%, #e3f5eb 100%);
+  border: 1.5px solid #28a745;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 14px rgba(17, 132, 91, 0.12);
+  animation: slideDown 0.25s ease-out;
+}
+.tutorial-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.tutorial-banner-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+.tutorial-banner-sub {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* Tutorial Dock Floating Bar */
+.tutorial-dock-container {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(840px, calc(100% - 32px));
+  z-index: 1050;
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.tutorial-dock-card {
+  background: rgba(18, 28, 22, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #f3f7f4;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  padding: 16px 22px;
+}
+.tutorial-dock-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.tutorial-dock-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #72e3ad;
+}
+.tutorial-sparkle {
+  font-size: 14px;
+}
+.tutorial-dock-close {
+  background: rgba(255, 255, 255, 0.1);
+  border: 0;
+  color: #cad8cf;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: 0.15s ease;
+}
+.tutorial-dock-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+.tutorial-dock-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.tutorial-dock-text {
+  flex: 1;
+}
+.tutorial-dock-text h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: white;
+  margin: 0 0 4px;
+}
+.tutorial-dock-text p {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #bac8bf;
+  margin: 0;
+}
+.tutorial-dock-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.tutorial-nav-btn {
+  padding: 10px 16px;
+  font-size: 12px;
+}
+.simulating-pulse {
+  animation: pulseGlow 1.4s infinite alternate;
+}
+.complete-btn {
+  background: #11845b;
+  box-shadow: 0 0 16px rgba(17, 132, 91, 0.6);
+}
+
+/* Welcome Modal */
+.welcome-backdrop {
+  z-index: 1200;
+}
+.welcome-card {
+  width: min(540px, 100%);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: 0 28px 80px rgba(18, 28, 22, 0.3);
+  padding: 32px 30px 24px;
+  text-align: center;
+  position: relative;
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.welcome-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  background: var(--green-soft);
+  color: var(--green-dark);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-radius: 20px;
+  margin-bottom: 12px;
+}
+.welcome-icon {
+  font-size: 42px;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+.welcome-card h2 {
+  font-size: 24px;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+.welcome-description {
+  font-size: 13px;
+  color: #495d52;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+.welcome-features-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+  background: #f8faf8;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 22px;
+}
+.welcome-feature-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.welcome-feature-item span {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.welcome-feature-item strong {
+  display: block;
+  font-size: 12px;
+  color: var(--ink);
+}
+.welcome-feature-item small {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+.welcome-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.welcome-btn-primary {
+  padding: 13px 20px;
+  font-size: 13px;
+}
+.welcome-btn-skip {
+  padding: 10px 16px;
+  font-size: 12px;
+}
+.welcome-note {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 14px;
+  line-height: 1.4;
+}
+
+/* Guide CTA Box */
+.guide-tutorial-cta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #edf7f1 0%, #e1f3e9 100%);
+  border: 1.5px solid #84d2a8;
+  border-radius: 12px;
+  margin-bottom: 22px;
+  box-shadow: 0 4px 12px rgba(17, 132, 91, 0.08);
+}
+.guide-tutorial-cta-icon {
+  font-size: 32px;
+  flex-shrink: 0;
+}
+.guide-tutorial-cta-body strong {
+  display: block;
+  font-size: 13px;
+  color: var(--green-dark);
+}
+.guide-tutorial-cta-body p {
+  font-size: 11px;
+  color: #3b5043;
+  margin: 3px 0 10px;
+  line-height: 1.45;
+}
+
+/* Highlight Card in Settings */
+.storage-card.highlight-card {
+  background: #f1f9f4;
+  border-color: #8ed3ad;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseGlow {
+  0% {
+    box-shadow: 0 0 0 rgba(17, 132, 91, 0.4);
+  }
+  100% {
+    box-shadow: 0 0 16px rgba(17, 132, 91, 0.85);
+  }
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .wizard-layout { padding: 20px; }
