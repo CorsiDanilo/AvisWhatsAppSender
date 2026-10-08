@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Plus, Gift, HelpCircle, Settings, Bell, Info, Download, CheckCircle, RefreshCw, X, ChevronDown, GraduationCap, ChevronRight } from 'lucide-react'
 import './App.css'
 import Guide from './Guide'
 import SettingsModal from './components/SettingsModal'
@@ -21,11 +22,11 @@ import {
 
 const templates = {
   'Promemoria donazione':
-    'Ciao [nome],\nti ricordiamo il tuo prossimo appuntamento per la donazione.\nGrazie per il tuo prezioso gesto! ??\n\nTi ricordiamo di salvare questo numero tra i tuoi contatti per ricevere i promemoria delle donazioni.',
+    'Ciao [nome],\nti ricordiamo il tuo prossimo appuntamento per la donazione.\nGrazie per il tuo prezioso gesto! ❤️\n\nTi ricordiamo di salvare questo numero tra i tuoi contatti per ricevere i promemoria delle donazioni.',
   'Ringraziamento':
-    'Ciao [nome],\nAVIS ti ringrazia di cuore per la tua donazione.\nIl tuo gesto � prezioso! ??\n\nTi ricordiamo di salvare questo numero tra i tuoi contatti per ricevere i promemoria delle donazioni.',
+    'Ciao [nome],\nAVIS ti ringrazia di cuore per la tua donazione.\nIl tuo gesto è prezioso! ❤️\n\nTi ricordiamo di salvare questo numero tra i tuoi contatti per ricevere i promemoria delle donazioni.',
   'Comunicazione generale':
-    'Gentile donatore,\nti informiamo che domenica si terr� una raccolta straordinaria.\nAVIS Comunale\n\nTi ricordiamo di salvare questo numero tra i tuoi contatti per ricevere i promemoria delle donazioni.',
+    'Gentile donatore,\nti informiamo che domenica si terrà una raccolta straordinaria.\nAVIS Comunale\n\nTi ricordiamo di salvare questo numero tra i tuoi contatti per ricevere i promemoria delle donazioni.',
   'Auguri di compleanno':
     'Ciao [nome],\n\nAVIS ti augura buon compleanno!\nTi auguriamo una splendida giornata.\n\nGrazie per il tuo prezioso gesto.',
 }
@@ -213,7 +214,7 @@ if (!api?.onOpenBirthdays) return undefined
   }
 
   async function resetInterface() {
-    if (!window.confirm('Resettare lista, messaggio, foto e stato della sessione? WhatsApp rester� collegato.')) return
+    if (!window.confirm('Resettare lista, messaggio, foto e stato della sessione? WhatsApp resterà collegato.')) return
     await call(async () => {
       const next = await api.reset()
       const firstPreset = (next.presets?.length ? next.presets : fallbackPresets)[0]
@@ -308,7 +309,7 @@ if (!api?.onOpenBirthdays) return undefined
       ...prev,
       queue: 'running',
       progress: { current: 0, total: 4, sent: 0, failed: 0, skipped: 1 },
-      logs: ['[SIMULAZIONE] Inizio sessione demo in modalit� protetta. Nessun messaggio reale inviato a WhatsApp.'],
+      logs: ['[SIMULAZIONE] Inizio sessione demo in modalità protetta. Nessun messaggio reale inviato a WhatsApp.'],
       donors: TUTORIAL_DONORS.map((d) => ({
         ...d,
         status: d.valid ? 'pending' : 'skipped',
@@ -333,7 +334,7 @@ if (!api?.onOpenBirthdays) return undefined
             },
             logs: [
               ...prev.logs,
-              `[${nowTime}] ? Messaggio inviato a ${donor.name} ${donor.surname} (${donor.phone}) [SIMULATO]`,
+              `[${nowTime}] ✅ Messaggio inviato a ${donor.name} ${donor.surname} (${donor.phone}) [SIMULATO]`,
             ],
             donors: nextDonors,
           }
@@ -348,7 +349,7 @@ if (!api?.onOpenBirthdays) return undefined
               logs: [
                 ...prev.logs,
                 '========================================',
-                '?? Sessione simulata completata con successo!',
+                '✅ Sessione simulata completata con successo!',
                 'Report generati (fittizi): esito.csv, esito.json',
               ],
             }))
@@ -541,7 +542,7 @@ if (!api?.onOpenBirthdays) return undefined
         }))
       },
       openLastOutcome: async () => {
-        alert('Modalit� tutorial: nella versione reale questa azione apre la cartella degli esiti archiviata sul tuo PC.')
+        alert('Modalità tutorial: nella versione reale questa azione apre la cartella degli esiti archiviata sul tuo PC.')
       },
     }
   }, [isTutorialActive, api])
@@ -549,7 +550,7 @@ if (!api?.onOpenBirthdays) return undefined
   const connectionText =
     {
       disconnected: 'Non connesso',
-      connecting: 'Connessione�',
+      connecting: 'Connessione...',
       qr: 'Scansiona il QR',
       authenticated: 'Autenticato',
       ready: 'Pronto',
@@ -597,7 +598,7 @@ if (!api?.onOpenBirthdays) return undefined
               title="Azzera la sessione mantenendo WhatsApp collegato"
               aria-label="Nuova sessione"
             >
-              ? <span className="new-session-label">Nuova sessione</span>
+              <Plus className="topbar-icon" size={18} /> <span className="new-session-label">Nuova sessione</span>
             </button>
             <button
               type="button"
@@ -606,7 +607,7 @@ if (!api?.onOpenBirthdays) return undefined
               title="Controlla i compleanni dei donatori"
               aria-label="Apri compleanni dei donatori"
             >
-              ?? <span>Compleanni</span>
+              <Gift className="topbar-icon" size={18} /> <span>Compleanni</span>
               {state.birthdays?.pendingCount > 0 && !state.birthdays?.sessionPrepared && (
                 <span className="topbar-attention-dot" aria-hidden="true" />
               )}
@@ -618,7 +619,7 @@ if (!api?.onOpenBirthdays) return undefined
               title="Apri la guida"
               aria-label="Apri la guida"
             >
-              ?? <span>Guida</span>
+              <HelpCircle className="topbar-icon" size={18} /> <span>Guida</span>
             </button>
             <span className="topbar-divider" role="separator" aria-hidden="true" />
             <button
@@ -630,8 +631,8 @@ if (!api?.onOpenBirthdays) return undefined
               }}
               title="Apri impostazioni"
               aria-label="Apri impostazioni"
-            >
-              ??
+            >
+              <Settings className="topbar-icon" size={18} />
               {state.updater?.status === 'available' && (
                 <span className="topbar-update-dot" title="Nuova versione disponibile" />
               )}
@@ -642,8 +643,8 @@ if (!api?.onOpenBirthdays) return undefined
               onClick={() => setShowNotificationCenter(true)}
               title="Apri il centro notifiche"
               aria-label={`Apri notifiche${state.notifications?.unreadCount ? `, ${state.notifications.unreadCount} non lette` : ''}`}
-            >
-              ??
+            >
+              <Bell className="topbar-icon" size={18} />
               {state.notifications?.unreadCount > 0 && (
                 <span className="topbar-attention-dot" aria-hidden="true" />
               )}
@@ -672,9 +673,9 @@ if (!api?.onOpenBirthdays) return undefined
         {isTutorialActive && (
           <div className="tutorial-top-banner">
             <div className="tutorial-banner-content">
-              <span className="tutorial-banner-icon">??</span>
+              <span className="tutorial-banner-icon"><GraduationCap size={24} /></span>
               <div>
-                <strong>Modalit� Tutorial Interattivo Attiva</strong>
+                <strong>Modalità Tutorial Interattivo Attiva</strong>
                 <span className="tutorial-banner-sub">
                   Ambiente di simulazione protetto: nessun messaggio WhatsApp viene inviato.
                 </span>
@@ -685,7 +686,7 @@ if (!api?.onOpenBirthdays) return undefined
               className="button button-secondary button-small"
               onClick={exitTutorial}
             >
-              ? Esci dal Tutorial
+              <X size={16} /> Esci dal Tutorial
             </button>
           </div>
         )}
@@ -694,11 +695,11 @@ if (!api?.onOpenBirthdays) return undefined
         {!isTutorialActive && state.updater?.status === 'available' && dismissedUpdateVersion !== state.updater.availableVersion && (
           <div className="update-top-banner">
             <div className="update-banner-info">
-              <span className="update-banner-icon">?</span>
+              <span className="update-banner-icon"><Download size={24} /></span>
               <div>
                 <strong>Nuova versione disponibile: v{state.updater.availableVersion}</strong>
                 <span className="update-banner-sub">
-                  � disponibile una versione aggiornata dell'applicazione.
+                  È disponibile una versione aggiornata dell'applicazione.
                 </span>
               </div>
             </div>
@@ -719,7 +720,7 @@ if (!api?.onOpenBirthdays) return undefined
                 onClick={() => setDismissedUpdateVersion(state.updater.availableVersion)}
                 title="Ignora questo avviso per ora"
               >
-                ? Chiudi
+                <X size={16} /> Chiudi
               </button>
             </div>
           </div>
@@ -729,7 +730,7 @@ if (!api?.onOpenBirthdays) return undefined
         {state.updater?.status === 'downloaded' && (
           <div className="update-top-banner update-banner-ready">
             <div className="update-banner-info">
-              <span className="update-banner-icon">??</span>
+              <span className="update-banner-icon"><CheckCircle size={24} /></span>
               <div>
                 <strong>Aggiornamento v{state.updater.availableVersion} scaricato con successo!</strong>
                 <span className="update-banner-sub">
@@ -749,16 +750,16 @@ if (!api?.onOpenBirthdays) return undefined
           </div>
         )}
 
-        {/* Banner QR Code visibile in qualsiasi step se il client � in attesa di scansione */}
+        {/* Banner QR Code visibile in qualsiasi step se il client è in attesa di scansione */}
         {state.connection === 'qr' && state.qrDataUrl && showQrBanner && !showDashboard && (
           <div className="top-qr-banner-card panel">
             <div className="top-qr-banner-left">
               <img src={state.qrDataUrl} alt="QR Code WhatsApp" className="top-qr-banner-img" />
               <div className="top-qr-banner-text">
-                <span className="eyebrow">Azione richiesta � WhatsApp non connesso</span>
+                <span className="eyebrow">Azione richiesta — WhatsApp non connesso</span>
                 <h3>Scansiona il codice QR con il tuo telefono</h3>
                 <p className="muted" style={{ margin: '4px 0 0' }}>
-                  Apri <strong>WhatsApp</strong> sul telefono ? <strong>Dispositivi collegati</strong> ? <strong>Collega un dispositivo</strong>.
+                  Apri <strong>WhatsApp</strong> sul telefono &rarr; <strong>Dispositivi collegati</strong> &rarr; <strong>Collega un dispositivo</strong>.
                 </p>
               </div>
             </div>
@@ -767,9 +768,9 @@ if (!api?.onOpenBirthdays) return undefined
                 type="button"
                 className="button button-secondary"
                 onClick={() => call(() => (api?.reconnect ? api.reconnect() : api.connect()))}
-                title="Se il QR � scaduto o non risponde, clicca qui per generarne uno nuovo"
+                title="Se il QR è scaduto o non risponde, clicca qui per generarne uno nuovo"
               >
-                <span>??</span> Rigenera QR code
+                <span><RefreshCw size={16} /></span> Rigenera QR code
               </button>
               <button
                 type="button"
@@ -777,7 +778,7 @@ if (!api?.onOpenBirthdays) return undefined
                 onClick={() => setShowQrBanner(false)}
                 title="Nascondi questo riquadro (puoi riaprirlo cliccando su 'Scansiona il QR' in alto)"
               >
-                ? Riduci
+                <ChevronDown size={16} /> Riduci
               </button>
             </div>
           </div>

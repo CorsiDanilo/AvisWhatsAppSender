@@ -17,6 +17,9 @@ const semver = require('semver');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const { autoUpdater } = require('electron-updater');
 
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
+app.disableHardwareAcceleration();
+
 const {
   createManualDonor,
   inspectFile,
@@ -1599,6 +1602,7 @@ app.whenReady().then(() => {
   createTray();
   configureAutoStart(state.settings.startWithWindows);
   initUpdater();
+  connectClient().catch((err) => audit('error', 'whatsapp.startup_connect_failed', errorDetails(err)));
   publish();
   checkBirthdays({ notify: true }).catch((error) => {
     audit('error', 'birthday.startup_check_failed', errorDetails(error));
