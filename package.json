@@ -9,7 +9,7 @@
     "lint:gui": "npm --prefix gui run lint",
     "prestart": "npm run build:gui",
     "start": "electron electron/main.cjs",
-    "prebuild:win": "node scripts/copy-browser.js",
+    "prebuild:win": "node scripts/make-icon.js gui/src/assets/avis-logo.png && node scripts/copy-browser.js",
     "build:win": "npm run build:gui && electron-builder --win nsis"
   },
   "build": {
@@ -28,6 +28,8 @@
       "sender/**/*",
       "gui/dist/**/*",
       "build/icon.ico",
+      "build/icon-notification.ico",
+      
       "package.json",
       "node_modules/**/*"
     ],

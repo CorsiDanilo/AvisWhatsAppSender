@@ -9,6 +9,10 @@ const DEFAULT_SETTINGS = Object.freeze({
   outputDir: '',
   logDir: '',
   notificationsEnabled: true,
+  startWithWindows: true,
+  birthdayEnabled: true,
+  birthdaySourceFilePath: '',
+  birthdayPresetName: 'Auguri di compleanno',
 });
 
 const LIMITS = {
@@ -42,6 +46,10 @@ function normalizeSettings(settings = {}) {
     outputDir: stringSetting(settings.outputDir, DEFAULT_SETTINGS.outputDir),
     logDir: stringSetting(settings.logDir, DEFAULT_SETTINGS.logDir),
     notificationsEnabled: booleanSetting(settings.notificationsEnabled, DEFAULT_SETTINGS.notificationsEnabled),
+    startWithWindows: booleanSetting(settings.startWithWindows, DEFAULT_SETTINGS.startWithWindows),
+    birthdayEnabled: booleanSetting(settings.birthdayEnabled, DEFAULT_SETTINGS.birthdayEnabled),
+    birthdaySourceFilePath: stringSetting(settings.birthdaySourceFilePath, DEFAULT_SETTINGS.birthdaySourceFilePath),
+    birthdayPresetName: stringSetting(settings.birthdayPresetName, DEFAULT_SETTINGS.birthdayPresetName),
   };
   normalized.maxDelayMs = Math.max(normalized.minDelayMs, normalized.maxDelayMs);
   return normalized;

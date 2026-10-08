@@ -8,7 +8,10 @@ import StepRecipients from './components/StepRecipients'
 import StepComposer from './components/StepComposer'
 import StepSummary from './components/StepSummary'
 import SendingDashboard from './components/SendingDashboard'
+import BirthdayCenter from './components/BirthdayCenter'
+import NotificationCenter from './components/NotificationCenter'
 import { toUserError } from './errorMessage'
+import avisLogo from './assets/avis-logo.png'
 import { WelcomeModal, TutorialDock } from './components/InteractiveTutorial'
 import {
   TUTORIAL_STEPS,
@@ -23,6 +26,8 @@ const templates = {
     'Ciao [nome],\nAVIS ti ringrazia di cuore per la tua donazione.\nIl tuo gesto è prezioso! 🩸\n\nTi ricordiamo di salvare questo numero tra i tuoi contatti per ricevere i promemoria delle donazioni.',
   'Comunicazione generale':
     'Gentile donatore,\nti informiamo che domenica si terrà una raccolta straordinaria.\nAVIS Comunale\n\nTi ricordiamo di salvare questo numero tra i tuoi contatti per ricevere i promemoria delle donazioni.',
+  'Auguri di compleanno':
+    'Ciao [nome],\n\nAVIS ti augura buon compleanno!\nTi auguriamo una splendida giornata.\n\nGrazie per il tuo prezioso gesto.',
 }
 
 const fallbackPresets = Object.entries(templates).map(([name, message]) => ({
@@ -44,12 +49,42 @@ const initialState = {
   imageName: '',
   imagePath: '',
   imageDataUrl: '',
-  settings: { minDelayMs: 20000, maxDelayMs: 40000, pauseAfter: 35, pauseMinutes: 15, outputDir: '', logDir: '' },
+  settings: {
+    minDelayMs: 20000,
+    maxDelayMs: 40000,
+    pauseAfter: 35,
+    pauseMinutes: 15,
+    outputDir: '',
+    logDir: '',
+    notificationsEnabled: true,
+    startWithWindows: true,
+    birthdayEnabled: true,
+    birthdaySourceFilePath: '',
+    birthdayPresetName: 'Auguri di compleanno',
+  },
   presets: fallbackPresets,
   defaultOutputDir: '',
   defaultLogDir: '',
   userDataDir: '',
   lastOutcomeDir: '',
+  notifications: {
+    items: [],
+    unreadCount: 0,
+  },
+  birthdays: {
+    status: 'not-configured',
+    dateKey: '',
+    sourcePath: '',
+    sourceFileName: '',
+    sourceModifiedAt: null,
+    lastCheckedAt: null,
+    matches: [],
+    invalidRows: [],
+    pendingCount: 0,
+    notificationPending: false,
+    sessionPrepared: false,
+    error: '',
+  },
 }
 
 function App() {
@@ -72,6 +107,8 @@ function App() {
   const [dismissedUpdateVersion, setDismissedUpdateVersion] = useState('')
   const [showQrModal, setShowQrModal] = useState(false)
   const [showQrBanner, setShowQrBanner] = useState(true)
+  const [showBirthdayCenter, setShowBirthdayCenter] = useState(false)
+  const [showNotificationCenter, setShowNotificationCenter] = useState(false)
 
   // Tutorial & Simulation states
   const [showWelcomeModal, setShowWelcomeModal] = useState(() => {
@@ -103,11 +140,25 @@ function App() {
           setPresetName(firstPreset.name)
           setMessage(firstPreset.message)
           if (firstPreset.settings) setOptions(firstPreset.settings)
+          if (api.loadPresetAttachment) {
+            api.loadPresetAttachment(firstPreset.attachment || null)
+              .then(setState)
+              .catch((reason) => setError(toUserError(reason)))
+          }
         }
       })
       .catch((reason) => setError(toUserError(reason)))
     return api.onState(setState)
   }, [api])
+
+  useEffect(() => {
+    if (!api?.onOpenBirthdays) return undefined
+    return api.onOpenBirthdays(() => setShowBirthdayCenter(true))
+  }, [api])
+
+  useEffect(() => {
+    if (state.birthdays?.notificationPending) setShowBirthdayCenter(true)
+  }, [state.birthdays?.notificationPending])
 
   const counts = useMemo(() => {
     return state.donors.reduce((result, donor) => {
@@ -164,7 +215,9 @@ function App() {
       setOptions(firstPreset.settings)
       setCurrentStep(1)
       setManualSendingView(false)
-      return next
+      return api.loadPresetAttachment
+        ? api.loadPresetAttachment(firstPreset.attachment || null)
+        : next
     })
   }
 
@@ -369,6 +422,24 @@ function App() {
     }
   }
 
+  function handleBirthdayPrepared(next) {
+    const presetName = next.settings?.birthdayPresetName || 'Auguri di compleanno'
+    const preset = (next.presets || []).find((item) => item.name === presetName)
+      || (next.presets || []).find((item) => item.name === 'Auguri di compleanno')
+      || (next.presets || [])[0]
+    if (preset) {
+      setSelectedPreset(preset.name)
+      setPresetName(preset.name)
+      setMessage(preset.message)
+      if (preset.settings) setOptions(preset.settings)
+      if (api.loadPresetAttachment) {
+        call(() => api.loadPresetAttachment(preset.attachment || null))
+      }
+    }
+    setCurrentStep(1)
+    setManualSendingView(false)
+  }
+
   const effectiveApi = useMemo(() => {
     if (!isTutorialActive) return api
     return {
@@ -482,9 +553,9 @@ function App() {
       {/* Top Header */}
       <header className="topbar">
         <div className="brand">
-          <div className="brand-mark">A</div>
+          <img className="brand-logo" src={avisLogo} alt="AVIS" />
           <div>
-            <strong>AVIS Sender</strong>
+            <strong>Sender</strong>
             <span>Comunicazioni WhatsApp</span>
           </div>
         </div>
@@ -512,33 +583,62 @@ function App() {
           <div className="topbar-actions">
             <button
               type="button"
-              className="button button-secondary topbar-btn"
+              className="button button-secondary topbar-btn topbar-icon-btn topbar-session-btn"
+              onClick={resetInterface}
+              disabled={isSendingActive}
+              title="Azzera la sessione mantenendo WhatsApp collegato"
+              aria-label="Nuova sessione"
+            >
+              ↺ <span className="new-session-label">Nuova sessione</span>
+            </button>
+            <button
+              type="button"
+              className="button button-secondary topbar-btn topbar-icon-btn topbar-labeled-btn topbar-attention-btn"
+              onClick={() => setShowBirthdayCenter(true)}
+              title="Controlla i compleanni dei donatori"
+              aria-label="Apri compleanni dei donatori"
+            >
+              🎂 <span>Compleanni</span>
+              {state.birthdays?.pendingCount > 0 && !state.birthdays?.sessionPrepared && (
+                <span className="topbar-attention-dot" aria-hidden="true" />
+              )}
+            </button>
+            <button
+              type="button"
+              className="button button-secondary topbar-btn topbar-icon-btn topbar-labeled-btn"
+              onClick={() => setShowGuide(true)}
+              title="Apri la guida"
+              aria-label="Apri la guida"
+            >
+              📄 <span>Guida</span>
+            </button>
+            <span className="topbar-divider" role="separator" aria-hidden="true" />
+            <button
+              type="button"
+              className="button button-secondary topbar-btn topbar-icon-btn"
               onClick={() => {
                 setSettingsTab(state.updater?.status === 'available' ? 'updates' : 'storage')
                 setShowSettings(true)
               }}
-              title="Cartelle e Modelli salvati"
+              title="Apri impostazioni"
+              aria-label="Apri impostazioni"
             >
-              ⚙️ Impostazioni
+              ⚙️
               {state.updater?.status === 'available' && (
                 <span className="topbar-update-dot" title="Nuova versione disponibile" />
               )}
             </button>
             <button
               type="button"
-              className="button button-secondary topbar-btn"
-              onClick={() => setShowGuide(true)}
+              className="button button-secondary topbar-btn topbar-icon-btn topbar-attention-btn"
+              onClick={() => setShowNotificationCenter(true)}
+              title="Apri il centro notifiche"
+              aria-label={`Apri notifiche${state.notifications?.unreadCount ? `, ${state.notifications.unreadCount} non lette` : ''}`}
             >
-              Guida
-            </button>
-            <button
-              type="button"
-              className="button button-secondary topbar-btn"
-              onClick={resetInterface}
-              disabled={isSendingActive}
-              title="Azzera la sessione mantenendo WhatsApp collegato"
-            >
-              ↺ Nuova sessione
+              🔔
+              {state.notifications?.unreadCount > 0 && (
+                <span className="topbar-attention-dot" aria-hidden="true" />
+              )}
             </button>
           </div>
         </div>
@@ -547,6 +647,18 @@ function App() {
       {/* Main Container */}
       <main className="wizard-layout">
         {error && <div className="alert global-alert" role="alert">{error}</div>}
+
+        {state.birthdays?.sessionPrepared && !isSendingActive && state.donors.length > 0 && (
+          <div className="birthday-session-banner" role="status">
+            <div>
+              <strong>Sessione auguri di compleanno pronta</strong>
+              <span>Controlla i destinatari, il messaggio e il riepilogo prima di inviare.</span>
+            </div>
+            <button type="button" className="link-btn" onClick={() => setShowBirthdayCenter(true)}>
+              Rivedi compleanni
+            </button>
+          </div>
+        )}
 
         {/* Banner Tutorial Attivo */}
         {isTutorialActive && (
@@ -768,6 +880,27 @@ function App() {
         state={state}
         api={api}
         call={call}
+      />
+
+      <BirthdayCenter
+        isOpen={showBirthdayCenter}
+        state={state}
+        api={api}
+        call={call}
+        onClose={() => setShowBirthdayCenter(false)}
+        onPrepared={handleBirthdayPrepared}
+        onConfigure={() => {
+          setSettingsTab('birthdays')
+          setShowSettings(true)
+        }}
+      />
+
+      <NotificationCenter
+        isOpen={showNotificationCenter}
+        state={state}
+        api={api}
+        call={call}
+        onClose={() => setShowNotificationCenter(false)}
       />
 
       {showGuide && (

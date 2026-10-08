@@ -1,4 +1,14 @@
-const { app, BrowserWindow, Notification, dialog, ipcMain, shell } = require('electron');
+const {
+  app,
+  BrowserWindow,
+  Menu,
+  Notification,
+  Tray,
+  dialog,
+  ipcMain,
+  nativeImage,
+  shell,
+} = require('electron');
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -18,18 +28,59 @@ const { createLogger } = require('../sender/logger');
 const { deletePreset, loadPresets, upsertPreset } = require('../sender/presets');
 const { writeSessionResult } = require('../sender/results');
 const { DEFAULT_SETTINGS, loadSettings, saveSettings } = require('../sender/settings');
+const {
+  appendNotification,
+  loadNotificationState,
+  markAllNotificationsRead,
+  markNotificationRead,
+  notificationUnreadCount,
+  saveNotificationState,
+  shouldShowAttentionIndicator,
+} = require('../sender/notifications');
 const { renderTemplate } = require('../sender/template');
 const { SendQueue } = require('../sender/queue');
 const { retryAsync } = require('../sender/retry');
 const {
+  copyPresetAttachment,
+  deletePresetAttachment,
+  resolvePresetAttachment,
+} = require('../sender/preset-attachments');
+const {
+  findBirthdays,
+  formatLocalDateKey,
+} = require('../sender/birthdays');
+const {
+  inspectBirthdaySource,
+  loadBirthdaySource,
+  resolveBirthdaySource,
+} = require('../sender/birthday-source');
+const {
+  loadBirthdayState,
+  markBirthdayPrompted,
+  saveBirthdayState,
+  shouldPromptBirthday,
+} = require('../sender/birthday-state');
+const {
   summarizePageSnapshot,
   truncateDiagnosticText,
 } = require('../sender/whatsappDiagnostics');
+const { handleWindowClose, showWindow } = require('../sender/window-lifecycle');
 const packageInfo = require('../package.json');
 const APP_VERSION = packageInfo.version || app.getVersion();
 const MAX_CONNECTION_ATTEMPTS = 2;
+const APP_ICON_PATH = app.isPackaged
+  ? path.join(process.resourcesPath, 'icon.ico')
+  : path.join(__dirname, '..', 'build', 'icon.ico');
+const APP_NOTIFICATION_ICON_PATH = app.isPackaged
+  ? path.join(process.resourcesPath, 'icon-notification.ico')
+  : path.join(__dirname, '..', 'build', 'icon-notification.ico');
+const APP_DISPLAY_NAME = 'AVIS WhatsApp Sender';
+
+app.setName(APP_DISPLAY_NAME);
+app.setPath('userData', path.join(app.getPath('appData'), 'aviswhatsappsender'));
 
 let mainWindow;
+let tray;
 let client;
 let clientReady = false;
 let connectionPromise = null;
@@ -40,9 +91,15 @@ let selectedImagePath = '';
 let currentMessage = '';
 let settingsPath = '';
 let presetsPath = '';
+let notificationsPath = '';
+let notificationState = { items: [] };
+let birthdayStatePath = '';
+let birthdayState = {};
 let logger = { info() {}, warn() {}, error() {} };
 let activeSession;
 let resultWritten = false;
+let baseTrayImage;
+let notificationTrayImage;
 
 const state = {
   connection: 'disconnected',
@@ -63,6 +120,24 @@ const state = {
   defaultLogDir: '',
   userDataDir: '',
   lastOutcomeDir: '',
+  notifications: {
+    items: [],
+    unreadCount: 0,
+  },
+  birthdays: {
+    status: 'not-configured',
+    dateKey: '',
+    sourcePath: '',
+    sourceFileName: '',
+    sourceModifiedAt: null,
+    lastCheckedAt: null,
+    matches: [],
+    invalidRows: [],
+    pendingCount: 0,
+    notificationPending: false,
+    sessionPrepared: false,
+    error: '',
+  },
   updater: {
     status: 'idle',
     currentVersion: APP_VERSION,
@@ -216,7 +291,30 @@ function notificationErrorBody(error, context = 'generic') {
   return 'Si è verificato un errore. Controlla l’applicazione e riprova.';
 }
 
-function notifyUser(title, body) {
+function showMainWindow() {
+  return showWindow(mainWindow, () => {
+    checkBirthdays({ force: true, notify: false }).catch((error) => {
+      audit('error', 'birthday.window_open_check_failed', errorDetails(error));
+    });
+  });
+}
+
+function sendBirthdayOpenEvent() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const send = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('sender:open-birthdays');
+    }
+  };
+  if (mainWindow.webContents.isLoading()) {
+    mainWindow.webContents.once('did-finish-load', send);
+  } else {
+    send();
+  }
+}
+
+function notifyUser(title, body, options = {}) {
+  const notificationRecord = recordNotification(title, body, options);
   if (state.settings.notificationsEnabled !== true) return false;
   if (process.platform !== 'win32' || typeof Notification !== 'function' || !Notification.isSupported()) {
     audit('warn', 'notification.unsupported', { platform: process.platform });
@@ -224,24 +322,360 @@ function notifyUser(title, body) {
   }
 
   try {
-    const notification = new Notification({
+    const nativeNotification = new Notification({
       title: `AVIS WhatsApp Sender — ${title}`,
       body,
       silent: false,
     });
-    notification.on('click', () => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.show();
-        mainWindow.focus();
-      }
+    nativeNotification.on('click', () => {
+      markStoredNotificationRead(notificationRecord.id);
+      showMainWindow();
+      if (options.clickAction === 'open-birthdays') sendBirthdayOpenEvent();
     });
-    notification.show();
+    nativeNotification.show();
     audit('info', 'notification.shown', { title, body });
     return true;
   } catch (error) {
     audit('warn', 'notification.failed', { title, error: errorDetails(error) });
     return false;
   }
+}
+
+function syncNotificationState() {
+  state.notifications = {
+    items: notificationState.items,
+    unreadCount: notificationUnreadCount(notificationState),
+  };
+  updateNotificationIndicators();
+}
+
+function getBaseTrayImage() {
+  if (!baseTrayImage && fs.existsSync(APP_ICON_PATH)) {
+    baseTrayImage = nativeImage.createFromPath(APP_ICON_PATH);
+  }
+  return baseTrayImage;
+}
+
+function getNotificationTrayImage() {
+  if (!notificationTrayImage && fs.existsSync(APP_NOTIFICATION_ICON_PATH)) {
+    notificationTrayImage = nativeImage.createFromPath(APP_NOTIFICATION_ICON_PATH);
+  }
+  return notificationTrayImage;
+}
+
+function updateNotificationIndicators() {
+  if (process.platform !== 'win32') return;
+  const hasUnreadNotifications = shouldShowAttentionIndicator(notificationState, state.birthdays);
+
+  if (mainWindow && !mainWindow.isDestroyed() && typeof mainWindow.setIcon === 'function') {
+    if (hasUnreadNotifications) {
+      const badgeImage = getNotificationTrayImage();
+      if (badgeImage && !badgeImage.isEmpty()) mainWindow.setIcon(badgeImage);
+    } else {
+      const defaultImage = getBaseTrayImage();
+      if (defaultImage && !defaultImage.isEmpty()) mainWindow.setIcon(defaultImage);
+    }
+  }
+
+  if (!tray) return;
+  if (hasUnreadNotifications) {
+    const badgeImage = getNotificationTrayImage();
+    if (badgeImage && !badgeImage.isEmpty()) tray.setImage(badgeImage);
+  } else {
+    const defaultImage = getBaseTrayImage();
+    if (defaultImage && !defaultImage.isEmpty()) tray.setImage(defaultImage);
+  }
+}
+
+function persistNotificationState() {
+  if (notificationsPath) notificationState = saveNotificationState(notificationsPath, notificationState);
+  syncNotificationState();
+}
+
+function recordNotification(title, body, options = {}) {
+  const notificationId = options.id || undefined;
+  notificationState = appendNotification(notificationState, {
+    id: notificationId,
+    title,
+    body,
+    category: options.category || 'general',
+    action: options.clickAction || '',
+  });
+  persistNotificationState();
+  publish();
+  return notificationState.items[0];
+}
+
+function markStoredNotificationRead(id, read = true) {
+  const notification = notificationState.items.find((item) => item.id === id);
+  notificationState = markNotificationRead(
+    notificationState,
+    id,
+    read ? new Date().toISOString() : null
+  );
+  if (notification?.category === 'birthdays') {
+    state.birthdays.notificationPending = notificationState.items.some(
+      (item) => item.category === 'birthdays' && !item.readAt
+    );
+  }
+  persistNotificationState();
+  publish();
+  return snapshot();
+}
+
+function markAllStoredNotificationsRead() {
+  notificationState = markAllNotificationsRead(notificationState);
+  state.birthdays.notificationPending = false;
+  persistNotificationState();
+  publish();
+  return snapshot();
+}
+
+function persistBirthdayState(nextState) {
+  birthdayState = nextState;
+  if (birthdayStatePath) saveBirthdayState(birthdayStatePath, birthdayState);
+  return birthdayState;
+}
+
+function birthdayStateError(status, dateKey, sourcePath, error) {
+  state.birthdays = {
+    ...state.birthdays,
+    status,
+    dateKey,
+    sourcePath: sourcePath || '',
+    sourceFileName: sourcePath ? path.basename(sourcePath) : '',
+    lastCheckedAt: new Date().toISOString(),
+    matches: [],
+    invalidRows: [],
+    pendingCount: 0,
+    notificationPending: false,
+    sessionPrepared: false,
+    error: error?.message || String(error),
+  };
+  updateNotificationIndicators();
+  publish();
+  return snapshot();
+}
+
+async function checkBirthdays({ force = false, notify = false } = {}) {
+  const dateKey = formatLocalDateKey(new Date());
+  if (!state.settings.birthdayEnabled) {
+    state.birthdays = {
+      ...state.birthdays,
+      status: 'disabled',
+      dateKey,
+      notificationPending: false,
+      error: '',
+    };
+    updateNotificationIndicators();
+    publish();
+    return snapshot();
+  }
+
+  if (!force && birthdayState.lastCheckDate === dateKey && state.birthdays.dateKey === dateKey) {
+    return snapshot();
+  }
+
+  const resolved = resolveBirthdaySource(state.settings.birthdaySourceFilePath);
+  if (resolved.errorCode) {
+    persistBirthdayState({ ...birthdayState, lastCheckDate: dateKey });
+    audit('warn', `birthday.source_${resolved.errorCode}`, { message: resolved.message });
+    const status = resolved.errorCode === 'not-configured' ? 'not-configured' : 'error';
+    return birthdayStateError(status, dateKey, '', new Error(resolved.message));
+  }
+
+  const inspection = await inspectBirthdaySource(resolved.filePath);
+  if (inspection.errorCode) {
+    persistBirthdayState({ ...birthdayState, lastCheckDate: dateKey });
+    audit('warn', 'birthday.source_invalid', { filePath: resolved.filePath, message: inspection.message });
+    return birthdayStateError('error', dateKey, resolved.filePath, new Error(inspection.message));
+  }
+
+  try {
+    const loaded = await loadBirthdaySource(
+      resolved.filePath,
+      inspection.currentSheet,
+      inspection.detectedMapping
+    );
+    const { matches, invalid } = findBirthdays(loaded.donors, new Date());
+    const shouldNotify = notify && matches.length > 0 && shouldPromptBirthday(birthdayState, dateKey);
+    const nextState = {
+      ...birthdayState,
+      lastCheckDate: dateKey,
+    };
+    if (shouldNotify) Object.assign(nextState, markBirthdayPrompted(nextState, dateKey));
+    persistBirthdayState(nextState);
+
+    state.birthdays = {
+      status: matches.length > 0 ? 'ready' : 'empty',
+      dateKey,
+      sourcePath: resolved.filePath,
+      sourceFileName: resolved.fileName,
+      sourceModifiedAt: loaded.sourceMtimeMs,
+      lastCheckedAt: new Date().toISOString(),
+      matches,
+      invalidRows: [...loaded.invalidRows, ...invalid.filter((donor) => !loaded.invalidRows.includes(donor))],
+      pendingCount: matches.length,
+      notificationPending: shouldNotify,
+      sessionPrepared: birthdayState.lastPreparedDate === dateKey,
+      error: '',
+    };
+    updateNotificationIndicators();
+    audit('info', 'birthday.checked', {
+      fileName: resolved.fileName,
+      matches: matches.length,
+      invalidRows: state.birthdays.invalidRows.length,
+      dateKey,
+    });
+    publish();
+
+    if (shouldNotify) {
+      notifyUser(
+        'Compleanni AVIS',
+        `Oggi ci sono ${matches.length} ${matches.length === 1 ? 'donatore' : 'donatori'} da avvisare.`,
+        { clickAction: 'open-birthdays', category: 'birthdays' }
+      );
+    }
+    return snapshot();
+  } catch (error) {
+    persistBirthdayState({ ...birthdayState, lastCheckDate: dateKey });
+    audit('error', 'birthday.check_failed', { filePath: resolved.filePath, error: errorDetails(error) });
+    return birthdayStateError('error', dateKey, resolved.filePath, error);
+  }
+}
+
+function dismissBirthdayReminder() {
+  state.birthdays.notificationPending = false;
+  updateNotificationIndicators();
+  publish();
+  return snapshot();
+}
+
+function toggleBirthdayInhibition() {
+  const dateKey = formatLocalDateKey(new Date());
+  if (birthdayState.lastPreparedDate === dateKey) {
+    // Re-enable
+    persistBirthdayState({ ...birthdayState, lastPreparedDate: null });
+    state.birthdays.sessionPrepared = false;
+  } else {
+    // Inhibit
+    persistBirthdayState({ ...birthdayState, lastPreparedDate: dateKey });
+    state.birthdays.sessionPrepared = true;
+    state.birthdays.notificationPending = false;
+  }
+  updateNotificationIndicators();
+  publish();
+  return snapshot();
+}
+
+async function prepareBirthdaySession() {
+  if (state.queue === 'running' || state.queue === 'paused') {
+    throw new Error('Non puoi preparare gli auguri durante un invio in corso.');
+  }
+
+  const resolved = resolveBirthdaySource(state.settings.birthdaySourceFilePath);
+  if (resolved.errorCode) throw new Error(resolved.message);
+
+  const inspection = await inspectBirthdaySource(resolved.filePath);
+  if (inspection.errorCode) throw new Error(inspection.message);
+  const loaded = await loadBirthdaySource(resolved.filePath, inspection.currentSheet, inspection.detectedMapping);
+  const { matches, invalid } = findBirthdays(loaded.donors, new Date());
+  if (!matches.length) throw new Error('Non ci sono compleanni da preparare per oggi.');
+
+  selectedFile = resolved.filePath;
+  selectedImagePath = '';
+  currentMessage = '';
+  activeSession = undefined;
+  resultWritten = false;
+  state.donors = matches;
+  state.fileName = resolved.fileName;
+  state.filePath = resolved.filePath;
+  state.sheetName = inspection.currentSheet || 'CSV';
+  state.imageName = '';
+  state.imagePath = '';
+  state.imageDataUrl = '';
+  state.queue = 'idle';
+  state.progress = { current: 0, total: matches.length, sent: 0, failed: 0, skipped: 0 };
+  state.logs = [];
+  state.birthdays = {
+    ...state.birthdays,
+    status: 'ready',
+    dateKey: formatLocalDateKey(new Date()),
+    sourcePath: resolved.filePath,
+    sourceFileName: resolved.fileName,
+    sourceModifiedAt: loaded.sourceMtimeMs,
+    matches,
+    invalidRows: [...loaded.invalidRows, ...invalid.filter((donor) => !loaded.invalidRows.includes(donor))],
+    pendingCount: matches.length,
+    notificationPending: false,
+    sessionPrepared: true,
+    error: '',
+  };
+  updateNotificationIndicators();
+  persistBirthdayState({
+    ...birthdayState,
+    lastPreparedDate: state.birthdays.dateKey,
+  });
+  audit('info', 'birthday.session_prepared', { fileName: resolved.fileName, count: matches.length });
+  log(`Preparata sessione auguri per ${matches.length} destinatari.`);
+  return snapshot();
+}
+
+async function selectBirthdaySource() {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Seleziona il file della lista compleanni',
+    defaultPath: state.settings.birthdaySourceFilePath || app.getPath('documents'),
+    properties: ['openFile'],
+    filters: [{ name: 'Liste donatori', extensions: ['csv', 'xlsx', 'xls'] }],
+  });
+  if (result.canceled || !result.filePaths[0]) return snapshot();
+  state.settings = saveSettings(settingsPath, {
+    ...state.settings,
+    birthdaySourceFilePath: result.filePaths[0],
+  });
+  state.birthdays = {
+    ...state.birthdays,
+    status: 'not-checked',
+    sourcePath: result.filePaths[0],
+    sourceFileName: path.basename(result.filePaths[0]),
+    error: '',
+  };
+  audit('info', 'birthday.source_changed', { sourceFilePath: result.filePaths[0] });
+  publish();
+  return snapshot();
+}
+
+function setStartWithWindows(enabled) {
+  const value = Boolean(enabled);
+  state.settings = saveSettings(settingsPath, { ...state.settings, startWithWindows: value });
+  configureAutoStart(value);
+  publish();
+  return snapshot();
+}
+
+function configureAutoStart(enabled) {
+  if (process.platform !== 'win32') return;
+  try {
+    app.setLoginItemSettings({
+      openAtLogin: Boolean(enabled),
+      args: ['--avis-background'],
+    });
+    audit('info', 'app.autostart_configured', { enabled: Boolean(enabled) });
+  } catch (error) {
+    audit('warn', 'app.autostart_failed', errorDetails(error));
+  }
+}
+
+function openBirthdayCenter() {
+  showMainWindow();
+  sendBirthdayOpenEvent();
+  return snapshot();
+}
+
+function setStoredNotificationRead(id, read) {
+  const notification = notificationState.items.find((item) => item.id === id);
+  if (!notification) return snapshot();
+  return markStoredNotificationRead(id, read !== false);
 }
 
 function notificationContextForChannel(channel) {
@@ -557,6 +991,10 @@ async function selectImage() {
   if (result.canceled || !result.filePaths[0]) return snapshot();
 
   const imagePath = result.filePaths[0];
+  return loadImageFromPath(imagePath);
+}
+
+function loadImageFromPath(imagePath) {
   const inspection = inspectImage(imagePath);
   if (!inspection.valid) throw new Error(inspection.reason);
 
@@ -567,6 +1005,29 @@ async function selectImage() {
   log(`Immagine allegata: ${state.imageName}.`);
   audit('info', 'image.selected', { fileName: state.imageName, size: inspection.size });
   return snapshot();
+}
+
+async function selectPresetAttachment() {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Seleziona l’allegato del preset',
+    properties: ['openFile'],
+    filters: [{ name: 'Immagini', extensions: ['jpg', 'jpeg', 'png'] }],
+  });
+  if (result.canceled || !result.filePaths[0]) return null;
+
+  const imagePath = result.filePaths[0];
+  const inspection = inspectImage(imagePath);
+  if (!inspection.valid) throw new Error(inspection.reason);
+  return { sourcePath: imagePath, fileName: path.basename(imagePath) };
+}
+
+function loadPresetAttachment(attachment) {
+  if (!attachment) return clearImage();
+  const imagePath = resolvePresetAttachment(app.getPath('userData'), attachment);
+  if (!imagePath || !fs.existsSync(imagePath)) {
+    throw new Error(`L’allegato del preset "${attachment.fileName || 'senza nome'}" non è disponibile.`);
+  }
+  return loadImageFromPath(imagePath);
 }
 
 function clearImage() {
@@ -633,7 +1094,17 @@ function saveRhythm(options = {}) {
 
 function savePreset(preset = {}) {
   if (!presetsPath) throw new Error('Percorso preset non disponibile.');
-  state.presets = upsertPreset(presetsPath, preset);
+  const previousPreset = state.presets.find((item) => item.name === preset.name);
+  const sourcePath = String(preset.attachmentSourcePath || '').trim();
+  const payload = { ...preset };
+  delete payload.attachmentSourcePath;
+  if (sourcePath) payload.attachment = copyPresetAttachment(sourcePath, app.getPath('userData'));
+  const nextPresets = upsertPreset(presetsPath, payload);
+  const savedPreset = nextPresets.find((item) => item.name === payload.name);
+  if (previousPreset?.attachment && previousPreset.attachment.relativePath !== savedPreset?.attachment?.relativePath) {
+    deletePresetAttachment(app.getPath('userData'), previousPreset.attachment);
+  }
+  state.presets = nextPresets;
   audit('info', 'preset.saved', { name: preset.name });
   publish();
   return snapshot();
@@ -641,7 +1112,9 @@ function savePreset(preset = {}) {
 
 function removePreset(name) {
   if (!presetsPath) throw new Error('Percorso preset non disponibile.');
+  const removedPreset = state.presets.find((item) => item.name === name);
   state.presets = deletePreset(presetsPath, name);
+  if (removedPreset?.attachment) deletePresetAttachment(app.getPath('userData'), removedPreset.attachment);
   audit('info', 'preset.deleted', { name });
   publish();
   return snapshot();
@@ -805,15 +1278,48 @@ async function startQueue(options = {}) {
   return snapshot();
 }
 
+function createTray() {
+  if (tray) return tray;
+  if (!fs.existsSync(APP_ICON_PATH)) {
+    audit('warn', 'tray.icon_missing', { iconPath: APP_ICON_PATH });
+    return null;
+  }
+
+  tray = new Tray(getBaseTrayImage());
+  tray.setToolTip('AVIS WhatsApp Sender');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    {
+      label: 'Apri AVIS Sender',
+      click: () => {
+        audit('info', 'tray.open_clicked');
+        showMainWindow();
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Esci',
+      click: () => {
+        audit('info', 'tray.quit_clicked');
+        requestQuit();
+      },
+    },
+  ]));
+  tray.on('click', () => {
+    audit('info', 'tray.icon_clicked');
+    showMainWindow();
+  });
+  updateNotificationIndicators();
+  return tray;
+}
+
 function createWindow() {
-  const iconPath = path.join(__dirname, '..', 'build', 'icon.ico');
   mainWindow = new BrowserWindow({
     title: 'AVIS WhatsApp Sender',
     width: 1180,
     height: 820,
     minWidth: 900,
     minHeight: 650,
-    icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    icon: fs.existsSync(APP_ICON_PATH) ? APP_ICON_PATH : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -821,11 +1327,26 @@ function createWindow() {
       sandbox: true,
     },
   });
+  if (fs.existsSync(APP_ICON_PATH) && typeof mainWindow.setIcon === 'function') {
+    mainWindow.setIcon(APP_ICON_PATH);
+  }
+  updateNotificationIndicators();
 
   mainWindow.once('ready-to-show', () => {
     audit('info', 'window.ready_to_show');
-    mainWindow.show();
-    mainWindow.focus();
+    if (process.argv.includes('--avis-background')) {
+      mainWindow.hide();
+    } else {
+      showMainWindow();
+    }
+  });
+
+  mainWindow.on('close', (event) => {
+    handleWindowClose(event, {
+      isQuitting,
+      hideWindow: () => mainWindow.hide(),
+      audit: (eventName) => audit('info', eventName),
+    });
   });
 
   mainWindow.webContents.on('did-finish-load', () => {
@@ -873,6 +1394,8 @@ registerHandler('sender:inspect-csv-sheet', (filePath, sheetName) => inspectCsvS
 registerHandler('sender:load-csv-mapped', (filePath, sheetName, mapping) => loadCsvMapped(filePath, sheetName, mapping));
 registerHandler('sender:select-image', selectImage);
 registerHandler('sender:clear-image', clearImage);
+registerHandler('sender:select-preset-attachment', selectPresetAttachment);
+registerHandler('sender:load-preset-attachment', (attachment) => loadPresetAttachment(attachment));
 registerHandler('sender:connect', connectClient);
 registerHandler('sender:reconnect', reconnectClient);
 registerHandler('sender:get-state', () => snapshot());
@@ -913,6 +1436,15 @@ registerHandler('sender:show-item', (filePath) => showItemInExplorer(filePath));
 registerHandler('sender:check-for-updates', () => checkForUpdatesManual());
 registerHandler('sender:download-update', () => downloadUpdateManual());
 registerHandler('sender:install-update', () => installUpdateNow());
+registerHandler('sender:check-birthdays', (options) => checkBirthdays(options));
+registerHandler('sender:dismiss-birthday-reminder', () => dismissBirthdayReminder());
+registerHandler('sender:toggle-birthday-inhibition', () => toggleBirthdayInhibition());
+registerHandler('sender:prepare-birthday-session', () => prepareBirthdaySession());
+registerHandler('sender:select-birthday-source', () => selectBirthdaySource());
+registerHandler('sender:open-birthdays', () => openBirthdayCenter());
+registerHandler('sender:set-start-with-windows', (enabled) => setStartWithWindows(enabled));
+registerHandler('sender:set-notification-read', (id, read) => setStoredNotificationRead(id, read));
+registerHandler('sender:mark-all-notifications-read', () => markAllStoredNotificationsRead());
 
 function initUpdater() {
   autoUpdater.autoDownload = false;
@@ -1040,9 +1572,17 @@ function installUpdateNow() {
 }
 
 app.whenReady().then(() => {
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('it.avis.whatsappsender');
+  }
   killStaleSessionBrowser();
   settingsPath = path.join(app.getPath('userData'), 'settings.json');
   presetsPath = path.join(app.getPath('userData'), 'presets.json');
+  notificationsPath = path.join(app.getPath('userData'), 'notifications.json');
+  notificationState = loadNotificationState(notificationsPath);
+  syncNotificationState();
+  birthdayStatePath = path.join(app.getPath('userData'), 'birthday-state.json');
+  birthdayState = loadBirthdayState(birthdayStatePath);
   state.settings = loadSettings(settingsPath);
   state.presets = loadPresets(presetsPath);
   state.defaultOutputDir = path.join(app.getPath('desktop'), 'AVIS WhatsApp Sender');
@@ -1056,8 +1596,13 @@ app.whenReady().then(() => {
     logDir: getEffectiveLogDir(),
   });
   createWindow();
+  createTray();
+  configureAutoStart(state.settings.startWithWindows);
   initUpdater();
   publish();
+  checkBirthdays({ notify: true }).catch((error) => {
+    audit('error', 'birthday.startup_check_failed', errorDetails(error));
+  });
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -1065,7 +1610,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   audit('info', 'app.windows_closed');
-  if (process.platform !== 'darwin') app.quit();
+  if (process.platform !== 'darwin' && !tray) app.quit();
 });
 
 app.on('render-process-gone', (_event, _webContents, details) => {
@@ -1085,20 +1630,27 @@ process.on('unhandledRejection', (reason) => {
 });
 
 let isQuitting = false;
+
+function requestQuit() {
+  if (isQuitting) return;
+  isQuitting = true;
+  audit('info', 'app.quit_requested');
+  queue?.stop();
+  const forceQuitTimer = setTimeout(() => {
+    audit('warn', 'app.quit_forced_after_timeout');
+    killStaleSessionBrowser();
+    app.exit(0);
+  }, 3000);
+
+  destroyClient().finally(() => {
+    clearTimeout(forceQuitTimer);
+    audit('info', 'app.quit_completed');
+    app.quit();
+  });
+}
+
 app.on('before-quit', (e) => {
   if (isQuitting) return;
-  queue?.stop();
-  if (client) {
-    e.preventDefault();
-    isQuitting = true;
-    destroyClient().finally(() => {
-      app.quit();
-    });
-    setTimeout(() => {
-      killStaleSessionBrowser();
-      app.quit();
-    }, 3000);
-  } else {
-    killStaleSessionBrowser();
-  }
+  e.preventDefault();
+  requestQuit();
 });

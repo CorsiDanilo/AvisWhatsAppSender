@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('whatsappSender', {
   loadCsvMapped: (filePath, sheetName, mapping) => ipcRenderer.invoke('sender:load-csv-mapped', filePath, sheetName, mapping),
   selectImage: () => ipcRenderer.invoke('sender:select-image'),
   clearImage: () => ipcRenderer.invoke('sender:clear-image'),
+  selectPresetAttachment: () => ipcRenderer.invoke('sender:select-preset-attachment'),
+  loadPresetAttachment: (attachment) => ipcRenderer.invoke('sender:load-preset-attachment', attachment),
   connect: () => ipcRenderer.invoke('sender:connect'),
   reconnect: () => ipcRenderer.invoke('sender:reconnect'),
   start: (options) => ipcRenderer.invoke('sender:start', options),
@@ -34,9 +36,23 @@ contextBridge.exposeInMainWorld('whatsappSender', {
   checkForUpdates: () => ipcRenderer.invoke('sender:check-for-updates'),
   downloadUpdate: () => ipcRenderer.invoke('sender:download-update'),
   installUpdate: () => ipcRenderer.invoke('sender:install-update'),
+  checkBirthdays: (options = {}) => ipcRenderer.invoke('sender:check-birthdays', options),
+  dismissBirthdayReminder: () => ipcRenderer.invoke('sender:dismiss-birthday-reminder'),
+  toggleBirthdayInhibition: () => ipcRenderer.invoke('sender:toggle-birthday-inhibition'),
+  prepareBirthdaySession: () => ipcRenderer.invoke('sender:prepare-birthday-session'),
+  selectBirthdaySource: () => ipcRenderer.invoke('sender:select-birthday-source'),
+  openBirthdays: () => ipcRenderer.invoke('sender:open-birthdays'),
+  setStartWithWindows: (enabled) => ipcRenderer.invoke('sender:set-start-with-windows', enabled),
+  setNotificationRead: (id, read) => ipcRenderer.invoke('sender:set-notification-read', id, read),
+  markAllNotificationsRead: () => ipcRenderer.invoke('sender:mark-all-notifications-read'),
   onState: (listener) => {
     const handler = (_event, state) => listener(state);
     ipcRenderer.on('sender:state', handler);
     return () => ipcRenderer.removeListener('sender:state', handler);
+  },
+  onOpenBirthdays: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on('sender:open-birthdays', handler);
+    return () => ipcRenderer.removeListener('sender:open-birthdays', handler);
   },
 });

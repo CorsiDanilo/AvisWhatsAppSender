@@ -68,6 +68,23 @@ function writeSessionResult({
     ]),
   ];
   fs.writeFileSync(path.join(folder, 'esito.csv'), `${rows.map((row) => row.map(csvCell).join(',')).join('\r\n')}\r\n`, 'utf8');
+
+  const failedDonors = donors.filter(d => d.status === 'failed' || d.status === 'skipped');
+  if (failedDonors.length > 0) {
+    const failedRows = [
+      ['Nome', 'Cognome', 'Telefono', 'Stato', 'Errore', ...customKeys],
+      ...failedDonors.map((donor) => [
+        donor.name,
+        donor.surname,
+        donor.phone || donor.rawPhone,
+        donor.status,
+        donor.error || donor.reason || '',
+        ...customKeys.map(key => (donor.customFields && donor.customFields[key]) ? donor.customFields[key] : '')
+      ]),
+    ];
+    fs.writeFileSync(path.join(folder, 'esito_falliti.csv'), `${failedRows.map((row) => row.map(csvCell).join(',')).join('\r\n')}\r\n`, 'utf8');
+  }
+
   return folder;
 }
 

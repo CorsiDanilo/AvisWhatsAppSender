@@ -25,9 +25,11 @@ export default function SettingsModal({
     name: initialPreset?.name || 'Nuovo preset',
     message: initialPreset?.message || '',
     settings: { ...(initialPreset?.settings || options) },
+    attachment: initialPreset?.attachment || null,
+    attachmentSourcePath: '',
+    attachmentFileName: initialPreset?.attachment?.fileName || '',
   })
   const [statusMsg, setStatusMsg] = useState('')
-
   const effectiveOutputDir = state.settings?.outputDir || state.defaultOutputDir || 'Desktop / AVIS WhatsApp Sender'
   const effectiveLogDir = state.settings?.logDir || state.defaultLogDir || 'Cartella log predefinita'
 
@@ -40,6 +42,9 @@ export default function SettingsModal({
       name: preset.name,
       message: preset.message,
       settings: { ...(preset.settings || options) },
+      attachment: preset.attachment || null,
+      attachmentSourcePath: '',
+      attachmentFileName: preset.attachment?.fileName || '',
     })
   }
 
@@ -50,12 +55,67 @@ export default function SettingsModal({
       name: 'Nuovo Modello',
       message: 'Gentile [nome],\n\nAVIS Comunale\n\nTi ricordiamo di salvare questo numero tra i tuoi contatti per ricevere i promemoria delle donazioni.',
       settings: { minDelayMs: 20000, maxDelayMs: 40000, pauseAfter: 35, pauseMinutes: 15 },
+      attachment: null,
+      attachmentSourcePath: '',
+      attachmentFileName: '',
     })
+  }
+
+  async function handlePresetAttachment() {
+    try {
+      const selected = await call(() => api.selectPresetAttachment())
+      if (!selected) return
+      setPresetForm((current) => ({
+        ...current,
+        attachmentSourcePath: selected.sourcePath,
+        attachmentFileName: selected.fileName,
+      }))
+      setStatusMsg('Allegato selezionato. Salva il modello per conservarlo.')
+    } catch {
+      // L'errore viene mostrato dal gestore centrale dell'applicazione.
+    }
+  }
+
+  function handleRemovePresetAttachment() {
+    setPresetForm((current) => ({
+      ...current,
+      attachment: null,
+      attachmentSourcePath: '',
+      attachmentFileName: '',
+    }))
+    setStatusMsg('Allegato rimosso dal modello. Salva il modello per confermare.')
   }
 
   async function handleNotificationsChange(enabled) {
     try {
       await call(() => api.saveSettings({ notificationsEnabled: enabled }))
+    } catch {
+      // L'errore viene mostrato dal gestore centrale dell'applicazione.
+    }
+  }
+
+  async function saveBirthdaySettings(patch) {
+    try {
+      await call(() => api.saveSettings(patch))
+      setStatusMsg('Impostazioni compleanni salvate.')
+    } catch {
+      // L'errore viene mostrato dal gestore centrale dell'applicazione.
+    }
+  }
+
+  async function handleBirthdaySource() {
+    try {
+      await call(() => api.selectBirthdaySource())
+      setStatusMsg('File compleanni aggiornato.')
+    } catch {
+      // L'errore viene mostrato dal gestore centrale dell'applicazione.
+    }
+  }
+
+  async function handleBirthdayCheck() {
+    try {
+      await call(() => api.checkBirthdays({ force: true, notify: false }))
+      setStatusMsg('Controllo compleanni completato.')
     } catch {
       // L'errore viene mostrato dal gestore centrale dell'applicazione.
     }
@@ -71,14 +131,18 @@ export default function SettingsModal({
         name: presetForm.name.trim(),
         message: presetForm.message,
         settings: presetForm.settings,
+        attachment: presetForm.attachment,
+        attachmentSourcePath: presetForm.attachmentSourcePath,
       }
       const next = await api.savePreset(payload)
+      const savedPreset = next.presets?.find((preset) => preset.name === payload.name)
+      const withAttachment = await api.loadPresetAttachment(savedPreset?.attachment || null)
       setSelectedPreset(payload.name)
       setPresetName(payload.name)
       setMessage(payload.message)
       if (payload.settings) setOptions(payload.settings)
       setStatusMsg(`Preset "${payload.name}" salvato con successo!`)
-      return next
+      return withAttachment
     })
   }
 
@@ -87,6 +151,7 @@ export default function SettingsModal({
     await call(async () => {
       const next = await api.deletePreset(name)
       const first = next.presets?.[0]
+      const withAttachment = await api.loadPresetAttachment(first?.attachment || null)
       if (first) {
         setSelectedPreset(first.name)
         setPresetName(first.name)
@@ -94,7 +159,7 @@ export default function SettingsModal({
         if (first.settings) setOptions(first.settings)
       }
       setStatusMsg(`Preset "${name}" eliminato.`)
-      return next
+      return withAttachment
     })
   }
 
@@ -133,10 +198,10 @@ export default function SettingsModal({
             className={`settings-tab-btn ${activeTab === 'presets' ? 'active' : ''}`}
             onClick={() => { setUserTab('presets'); setStatusMsg('') }}
           >
-            📋 Modelli & Preset ({state.presets?.length || 0})
+            📋 Modelli & Preset
           </button>
           <button
-            className={`settings-tab-btn ${activeTab === 'updates' ? 'active' : ''}`}
+            className={`settings-tab-btn settings-tab-updates ${activeTab === 'updates' ? 'active' : ''}`}
             onClick={() => { setUserTab('updates'); setStatusMsg('') }}
           >
             🔄 Aggiornamenti
@@ -148,7 +213,13 @@ export default function SettingsModal({
             )}
           </button>
           <button
-            className={`settings-tab-btn ${activeTab === 'tutorial' ? 'active' : ''}`}
+            className={`settings-tab-btn settings-tab-birthdays ${activeTab === 'birthdays' ? 'active' : ''}`}
+            onClick={() => { setUserTab('birthdays'); setStatusMsg('') }}
+          >
+            🎂 Compleanni
+          </button>
+          <button
+            className={`settings-tab-btn settings-tab-tutorial ${activeTab === 'tutorial' ? 'active' : ''}`}
             onClick={() => { setUserTab('tutorial'); setStatusMsg('') }}
           >
             🎓 Guida & Tutorial
@@ -269,6 +340,118 @@ export default function SettingsModal({
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'birthdays' && (
+            <div className="settings-birthdays-section">
+              <section className="birthday-settings-hero">
+                <span className="birthday-settings-hero-icon" aria-hidden="true">🎂</span>
+                <div className="birthday-settings-hero-copy">
+                  <span className="eyebrow">Promemoria donatori</span>
+                  <h3>Auguri di compleanno</h3>
+                  <p>Controlla ogni giorno la lista dei donatori e prepara gli auguri senza avviare automaticamente l'invio.</p>
+                </div>
+                <div className={`birthday-settings-status ${state.birthdays?.pendingCount > 0 && !state.birthdays?.sessionPrepared ? 'is-pending' : ''}`}>
+                  <strong>{state.birthdays?.pendingCount > 0 && !state.birthdays?.sessionPrepared ? `${state.birthdays.pendingCount} da gestire` : 'Nessun promemoria'}</strong>
+                  <span>{state.birthdays?.lastCheckedAt ? `Controllato ${new Date(state.birthdays.lastCheckedAt).toLocaleDateString('it-IT')}` : 'In attesa del primo controllo'}</span>
+                </div>
+              </section>
+
+              <div className="birthday-settings-grid">
+                <section className="storage-card birthday-settings-card">
+                  <div className="birthday-card-heading">
+                    <span className="birthday-card-icon" aria-hidden="true">🔔</span>
+                    <div>
+                      <h3>Controllo automatico</h3>
+                      <p className="subtle-note">Viene eseguito all'avvio dell'applicazione.</p>
+                    </div>
+                  </div>
+                  <div className="birthday-card-toggle-row">
+                    <span>Attiva promemoria</span>
+                    <label className="settings-toggle" title="Attiva il controllo compleanni">
+                      <input
+                        type="checkbox"
+                        checked={state.settings?.birthdayEnabled !== false}
+                        onChange={(event) => saveBirthdaySettings({ birthdayEnabled: event.target.checked })}
+                      />
+                      <span className="settings-toggle-track" aria-hidden="true" />
+                      <span className="sr-only">Attiva controllo compleanni</span>
+                    </label>
+                  </div>
+                  <label className="settings-checkbox-row birthday-autostart-row">
+                    <input
+                      type="checkbox"
+                      checked={state.settings?.startWithWindows !== false}
+                      onChange={(event) => call(() => api.setStartWithWindows(event.target.checked))}
+                    />
+                    <span>Avvia AVIS Sender con Windows</span>
+                  </label>
+                </section>
+
+                <section className="storage-card birthday-settings-card">
+                  <div className="birthday-card-heading">
+                    <span className="birthday-card-icon" aria-hidden="true">💬</span>
+                    <div>
+                      <h3>Preset auguri</h3>
+                      <p className="subtle-note">Il messaggio viene caricato quando prepari la sessione.</p>
+                    </div>
+                  </div>
+                  <label className="settings-field-label" htmlFor="birthday-preset-select">Modello predefinito</label>
+                  <div className="birthday-select-wrap">
+                    <select
+                      id="birthday-preset-select"
+                      value={state.settings?.birthdayPresetName || 'Auguri di compleanno'}
+                      onChange={(event) => saveBirthdaySettings({ birthdayPresetName: event.target.value })}
+                    >
+                      {(state.presets || []).map((preset) => (
+                        <option key={preset.name} value={preset.name}>{preset.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </section>
+
+                <section className="storage-card birthday-settings-card birthday-source-card">
+                  <div className="birthday-card-heading">
+                    <span className="birthday-card-icon" aria-hidden="true">📁</span>
+                    <div>
+                      <h3>File sorgente</h3>
+                      <p className="subtle-note">Scegli il file CSV o Excel da controllare ogni giorno.</p>
+                    </div>
+                  </div>
+                  <span className="birthday-source-path-label">File da controllare</span>
+                  <div className="storage-path" title={state.settings?.birthdaySourceFilePath || 'Nessun file selezionato'}>
+                    {state.settings?.birthdaySourceFilePath || 'Nessun file selezionato'}
+                  </div>
+                  <div className="storage-actions">
+                    <button type="button" className="button button-secondary" onClick={handleBirthdaySource}>
+                      Seleziona file…
+                    </button>
+                    {state.settings?.birthdaySourceFilePath && (
+                      <button
+                        type="button"
+                        className="button button-secondary"
+                        onClick={() => api.showItemInFolder(state.settings.birthdaySourceFilePath)}
+                      >
+                        Mostra file
+                      </button>
+                    )}
+                    <button type="button" className="button button-secondary" onClick={handleBirthdayCheck}>
+                      Controlla ora
+                    </button>
+                  </div>
+                </section>
+              </div>
+
+              {state.birthdays?.error && (
+                <div className="settings-status-alert error-box">
+                  {state.birthdays.status === 'not-configured' ? (
+                    <button type="button" className="link-btn birthday-configure-link" onClick={handleBirthdaySource}>
+                      Configura il file della lista compleanni.
+                    </button>
+                  ) : state.birthdays.error}
+                </div>
+              )}
             </div>
           )}
 
@@ -403,6 +586,36 @@ export default function SettingsModal({
                             })
                           }
                         />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="field-group preset-attachment-field">
+                    <div className="field-label-row">
+                      <label htmlFor="preset-attachment">Allegato del modello</label>
+                      <span className="subtle-note">Opzionale · JPG, JPEG o PNG</span>
+                    </div>
+                    <div className={`preset-attachment-box ${presetForm.attachmentFileName ? 'has-attachment' : ''}`}>
+                      <div className="preset-attachment-copy">
+                        <span className="preset-attachment-icon" aria-hidden="true">📎</span>
+                        <div>
+                          <strong>{presetForm.attachmentFileName || 'Nessun allegato salvato'}</strong>
+                          <span>
+                            {presetForm.attachmentSourcePath
+                              ? 'Pronto per il salvataggio nel modello.'
+                              : 'L’allegato verrà copiato nella cartella dati dell’app.'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="preset-attachment-actions">
+                        <button type="button" className="button button-secondary" onClick={handlePresetAttachment}>
+                          {presetForm.attachmentFileName ? 'Sostituisci' : 'Aggiungi allegato'}
+                        </button>
+                        {presetForm.attachmentFileName && (
+                          <button type="button" className="link-btn" onClick={handleRemovePresetAttachment}>
+                            Rimuovi
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -556,21 +769,21 @@ export default function SettingsModal({
 
           {activeTab === 'tutorial' && (
             <div className="settings-tutorial-section">
-              <p className="muted" style={{ marginTop: 0 }}>
+              <p className="muted settings-tutorial-intro">
                 Strumenti di supporto e simulazione per imparare a usare tutte le funzioni di AVIS WhatsApp Sender in totale sicurezza.
               </p>
 
-              <div className="storage-card highlight-card">
+              <div className="storage-card highlight-card settings-tutorial-card">
                 <div className="storage-card-header">
                   <div>
                     <span className="eyebrow">Simulazione Interattiva Protetta</span>
-                    <h3 style={{ margin: '4px 0 2px' }}>Tutorial Passo-Passo</h3>
+                    <h3>Tutorial Passo-Passo</h3>
                     <p className="subtle-note">
                       Esplora tutte le schermate, prova la gestione dei destinatari e visualizza la simulazione d'invio in tempo reale a rischio zero: <strong>nessun messaggio viene realmente inviato</strong> a WhatsApp.
                     </p>
                   </div>
                 </div>
-                <div style={{ marginTop: '14px' }}>
+                <div className="settings-tutorial-card-action">
                   <button
                     type="button"
                     className="button button-primary"
@@ -584,17 +797,17 @@ export default function SettingsModal({
                 </div>
               </div>
 
-              <div className="storage-card">
+              <div className="storage-card settings-tutorial-card">
                 <div className="storage-card-header">
                   <div>
                     <span className="eyebrow">Documentazione & Regole</span>
-                    <h3 style={{ margin: '4px 0 2px' }}>Manuale Operativo Completo</h3>
+                    <h3>Manuale Operativo Completo</h3>
                     <p className="subtle-note">
                       Consulta la guida scritta con tutte le istruzioni dettagliate su formati Excel, normalizzazione dei numeri, tag dinamici, ritmi anti-ban e aggiornamenti GitHub.
                     </p>
                   </div>
                 </div>
-                <div style={{ marginTop: '14px' }}>
+                <div className="settings-tutorial-card-action">
                   <button
                     type="button"
                     className="button button-secondary"
@@ -612,17 +825,7 @@ export default function SettingsModal({
         </div>
 
         <div className="settings-footer">
-          <button
-            type="button"
-            className="link-btn"
-            style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}
-            onClick={() => {
-              onClose()
-              onStartTutorial?.()
-            }}
-          >
-            🎓 Avvia Tutorial Interattivo
-          </button>
+          <div />
           <button className="button button-secondary" onClick={onClose}>
             Chiudi
           </button>

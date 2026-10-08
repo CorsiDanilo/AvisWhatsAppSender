@@ -38,6 +38,7 @@ export default function StepComposer({
     setPresetName(preset.name)
     setMessage(preset.message)
     if (preset.settings) setOptions(preset.settings)
+    call(() => api.loadPresetAttachment(preset.attachment || null))
   }
 
   function insertToken(token) {

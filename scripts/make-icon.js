@@ -6,6 +6,10 @@ const pngToIco = require('png-to-ico').default || require('png-to-ico');
 const inputImg = process.argv[2];
 const outputIcoBuild = path.join(__dirname, '..', 'build', 'icon.ico');
 const outputIcoRes = path.join(__dirname, '..', 'resources', 'icon.ico');
+const outputNotificationIcoBuild = path.join(__dirname, '..', 'build', 'icon-notification.ico');
+const outputNotificationIcoRes = path.join(__dirname, '..', 'resources', 'icon-notification.ico');
+
+
 
 if (!inputImg) {
   console.error('Specifica il file immagine di input!');
@@ -50,18 +54,37 @@ async function run() {
     const posY = Math.round((256 - targetH) / 2);
     canvas.composite(logo, posX, posY);
 
+    const notificationCanvas = canvas.clone();
+    const circle = (centerX, centerY, radius, color) => {
+      for (let y = centerY - radius; y <= centerY + radius; y++) {
+        for (let x = centerX - radius; x <= centerX + radius; x++) {
+          const dx = x - centerX;
+          const dy = y - centerY;
+          if (dx * dx + dy * dy <= radius * radius) notificationCanvas.setPixelColor(color, x, y);
+        }
+      }
+    };
+        circle(204, 52, 42, 0xffffffff);
+    circle(204, 52, 32, 0xc92c2cff);
+
     const tempPng = path.join(__dirname, 'temp_icon.png');
+    const tempNotificationPng = path.join(__dirname, 'temp_notification_icon.png');
     await canvas.write(tempPng);
+    await notificationCanvas.write(tempNotificationPng);
     console.log('Convertita in PNG temporaneo.');
 
     const buf = await pngToIco(tempPng);
+    const notificationBuf = await pngToIco(tempNotificationPng);
     fs.mkdirSync(path.dirname(outputIcoBuild), { recursive: true });
     fs.writeFileSync(outputIcoBuild, buf);
     fs.mkdirSync(path.dirname(outputIcoRes), { recursive: true });
     fs.writeFileSync(outputIcoRes, buf);
-    console.log('Icone create con successo in build/icon.ico e resources/icon.ico');
+    fs.writeFileSync(outputNotificationIcoBuild, notificationBuf);
+    fs.writeFileSync(outputNotificationIcoRes, notificationBuf);
+    console.log('Icone create con successo nelle cartelle build e resources.');
 
     fs.unlinkSync(tempPng);
+    fs.unlinkSync(tempNotificationPng);
   } catch (err) {
     console.error('Errore:', err);
     process.exit(1);

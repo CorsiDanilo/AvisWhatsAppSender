@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ---
 
+## [1.1.0] - 2026-10-08
+
+### Added
+- **Promemoria compleanni**: controllo all'avvio della lista configurata, riconoscimento delle date di nascita e preparazione guidata di una sessione di auguri, senza invio automatico.
+- **Notifiche Windows e centro notifiche**: avviso per i compleanni, indicatore di elementi non letti e storico persistente separato tra notifiche da leggere e già lette.
+- **Indicatori nell'app e nell'area di notifica**: pallino rosso per promemoria compleanni e notifiche non lette nella barra dell'applicazione, nella taskbar e nell'icona di sistema.
+- **Allegati nei preset**: ogni modello può conservare un'immagine JPG, JPEG o PNG nell'area dati interna dell'applicazione.
+- **Avvio con Windows**: opzione per avviare l'applicazione all'accesso dell'utente e controllare i compleanni all'apertura.
+- **Tutorial operativo aggiornato**: guida interattiva e manuale in-app allineati alle nuove funzioni.
+
+### Changed
+- Riordinate le sezioni delle impostazioni e uniformata l'interfaccia dei compleanni, dei modelli e delle azioni di promemoria.
+- L'uscita dal menu dell'icona di sistema chiude ora effettivamente l'applicazione.
+
 ## [1.0.0] - 2026-10-07
 
 ### Summary

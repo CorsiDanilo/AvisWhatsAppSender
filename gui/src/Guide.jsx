@@ -111,13 +111,30 @@ export default function Guide({ onClose, onStartTutorial }) {
             A destra dell'area di scrittura trovi l'<strong>anteprima smartphone in tempo reale</strong> con il fumetto in stile WhatsApp, renderizzata sul primo donatore valido selezionato.
           </p>
 
-          <h3>7. Foto e allegati grafici</h3>
+          <div className="guide-note">
+            <strong>Allegati nei preset:</strong> dalla sezione <strong>Impostazioni → Modelli & Preset</strong> puoi associare a ogni modello un'immagine JPG, JPEG o PNG. L'app ne conserva una copia nella propria cartella dati e la ricarica automaticamente quando selezioni il preset.
+          </div>
+
+          <h3>7. Promemoria compleanni</h3>
+          <p>
+            In <strong>Impostazioni → Compleanni</strong> puoi selezionare direttamente una lista CSV o Excel dedicata. La lista deve contenere nome, telefono e data di nascita (ad esempio una colonna <code>DATADINASCITA</code>).
+          </p>
+          <ul>
+            <li>All'avvio l'app controlla la lista e, se trova compleanni, mostra una notifica Windows e un pallino rosso sul pulsante <strong>🎂 Compleanni</strong>.</li>
+            <li>Puoi controllare la lista in qualsiasi momento dalla barra superiore o dall'icona nell'area di notifica di Windows.</li>
+            <li>Con <strong>Prepara gli auguri</strong> vengono importati soltanto i donatori interessati e viene caricato il preset selezionato.</li>
+          </ul>
+          <div className="guide-note">
+            <strong>Invio sempre manuale:</strong> il promemoria non invia messaggi da solo. Prima dell'invio puoi controllare o modificare destinatari, testo, allegato e riepilogo come per ogni altra sessione.
+          </div>
+
+          <h3>8. Foto e allegati grafici</h3>
           <p>
             Cliccando su <strong>“Seleziona foto”</strong> puoi allegare un'immagine nei formati standard (JPG, JPEG o PNG) fino a 16 MB.
             La foto viene inviata come messaggio con immagine, e il testo personalizzato farà da didascalia (caption). Puoi vedere l'anteprima dell'immagine direttamente nell'interfaccia e rimuoverla con un clic prima dell'invio.
           </p>
 
-          <h3>8. Ritmo di invio anti-ban e protezione numero</h3>
+          <h3>9. Ritmo di invio anti-ban e protezione numero</h3>
           <p>
             Per evitare che WhatsApp consideri l'attività come spam automatizzato, il sistema implementa un algoritmo di sicurezza con ritmi naturali e variabili:
           </p>
@@ -129,7 +146,7 @@ export default function Guide({ onClose, onStartTutorial }) {
             Nello Step 2 e nello Step 3 viene mostrata la <strong>stima del tempo totale di trasmissione</strong> calcolata in tempo reale in base al ritmo scelto e al numero di donatori pronti.
           </div>
 
-          <h3>9. Riepilogo pre-invio e verifica sicurezza</h3>
+          <h3>10. Riepilogo pre-invio e verifica sicurezza</h3>
           <p>
             Lo Step 3 (Riepilogo) riassume tutti i parametri della sessione:
           </p>
@@ -140,7 +157,7 @@ export default function Guide({ onClose, onStartTutorial }) {
             <li>Pulsanti <strong>“✏️ Modifica”</strong> per tornare rapidamente allo Step desiderato e modificare i dati.</li>
           </ul>
 
-          <h3>10. Dashboard operativa in tempo reale</h3>
+          <h3>11. Dashboard operativa in tempo reale</h3>
           <p>
             Durante l'invio, l'applicazione mostra la schermata di monitoraggio con:
           </p>
@@ -151,7 +168,7 @@ export default function Guide({ onClose, onStartTutorial }) {
             <li><strong>Log diagnostici live:</strong> eventi e comunicazioni di rete visualizzati in tempo reale (gli errori vengono evidenziati in rosso).</li>
           </ul>
 
-          <h3>11. Archiviazione esiti e reportistica</h3>
+          <h3>12. Archiviazione esiti e reportistica</h3>
           <p>
             Al termine dell'invio (o in caso di interruzione), l'applicazione crea automaticamente una cartella datata contenente i report completi:
           </p>
@@ -163,7 +180,7 @@ export default function Guide({ onClose, onStartTutorial }) {
             Un comodo pulsante <strong>“📁 Apri esito in Esplora Risorse”</strong> consente di aprire direttamente la cartella generata senza doverla cercare manualmente.
           </p>
 
-          <h3>12. Gestione cartelle e impostazioni di sistema</h3>
+          <h3>13. Gestione cartelle, notifiche e avvio</h3>
           <p>
             Dal menu <strong>⚙️ Impostazioni → Cartelle e Archiviazione</strong> puoi:
           </p>
@@ -172,9 +189,14 @@ export default function Guide({ onClose, onStartTutorial }) {
             <li>Cambiare la cartella in cui archiviare i log diagnostici.</li>
             <li>Aprire le rispettive cartelle o la cartella dati dell'applicazione direttamente in Esplora Risorse.</li>
             <li>Ripristinare i percorsi predefiniti in qualunque momento.</li>
+            <li>Attivare o disattivare le notifiche Windows.</li>
           </ul>
 
-          <h3>13. Aggiornamenti automatici da GitHub</h3>
+          <p>
+            Il pulsante <strong>🔔</strong> nella barra superiore apre il centro notifiche: gli avvisi restano disponibili, possono essere segnati come letti o non letti e quelli letti vengono raccolti nella scheda <strong>Già lette</strong>.
+          </p>
+
+          <h3>14. Aggiornamenti automatici da GitHub</h3>
           <p>
             L'applicazione verifica periodicamente se sono state rilasciate nuove versioni su GitHub:
           </p>
@@ -183,7 +205,7 @@ export default function Guide({ onClose, onStartTutorial }) {
             <li>Nella scheda <strong>🔄 Aggiornamenti</strong> delle Impostazioni puoi visualizzare le novità della versione (note di rilascio), verificare manualmente gli aggiornamenti con <strong>“Controlla ora”</strong>, scaricare l'aggiornamento e applicarlo con <strong>“Riavvia e aggiorna ora”</strong>.</li>
           </ul>
 
-          <h3>14. Nuova sessione</h3>
+          <h3>15. Nuova sessione</h3>
           <p>
             Il pulsante <strong>“↺ Nuova sessione”</strong> nella barra superiore pulisce la lista dei contatti, il messaggio e l'immagine allegata, consentendo di iniziare un nuovo invio da zero. Il collegamento WhatsApp, i modelli salvati e le impostazioni di ritmo rimangono invariati.
           </p>
