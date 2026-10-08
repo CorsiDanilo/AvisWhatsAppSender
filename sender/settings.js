@@ -8,6 +8,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   pauseMinutes: 15,
   outputDir: '',
   logDir: '',
+  notificationsEnabled: true,
 });
 
 const LIMITS = {
@@ -28,6 +29,10 @@ function stringSetting(value, fallback = '') {
   return value.trim();
 }
 
+function booleanSetting(value, fallback) {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
 function normalizeSettings(settings = {}) {
   const normalized = {
     minDelayMs: numberSetting(settings.minDelayMs, DEFAULT_SETTINGS.minDelayMs, LIMITS.minDelayMs),
@@ -36,6 +41,7 @@ function normalizeSettings(settings = {}) {
     pauseMinutes: numberSetting(settings.pauseMinutes, DEFAULT_SETTINGS.pauseMinutes, LIMITS.pauseMinutes),
     outputDir: stringSetting(settings.outputDir, DEFAULT_SETTINGS.outputDir),
     logDir: stringSetting(settings.logDir, DEFAULT_SETTINGS.logDir),
+    notificationsEnabled: booleanSetting(settings.notificationsEnabled, DEFAULT_SETTINGS.notificationsEnabled),
   };
   normalized.maxDelayMs = Math.max(normalized.minDelayMs, normalized.maxDelayMs);
   return normalized;

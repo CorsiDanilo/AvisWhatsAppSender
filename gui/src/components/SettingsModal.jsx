@@ -53,6 +53,14 @@ export default function SettingsModal({
     })
   }
 
+  async function handleNotificationsChange(enabled) {
+    try {
+      await call(() => api.saveSettings({ notificationsEnabled: enabled }))
+    } catch {
+      // L'errore viene mostrato dal gestore centrale dell'applicazione.
+    }
+  }
+
   async function handleSavePreset() {
     if (!presetForm.name.trim()) {
       setStatusMsg('Inserisci un nome per il preset.')
@@ -222,6 +230,28 @@ export default function SettingsModal({
                     📁 Apri cartella log
                   </button>
                 </div>
+              </div>
+
+              {/* Notifiche Windows */}
+              <div className="storage-card">
+                <div className="storage-card-header">
+                  <div>
+                    <strong>Notifiche Windows</strong>
+                    <p className="subtle-note">Ricevi aggiornamenti su WhatsApp, importazioni, invii ed errori importanti.</p>
+                  </div>
+                  <label className="settings-toggle" title="Attiva o disattiva le notifiche Windows">
+                    <input
+                      type="checkbox"
+                      checked={state.settings?.notificationsEnabled !== false}
+                      onChange={(event) => handleNotificationsChange(event.target.checked)}
+                    />
+                    <span className="settings-toggle-track" aria-hidden="true" />
+                    <span className="sr-only">Attiva notifiche Windows</span>
+                  </label>
+                </div>
+                <p className="subtle-note" style={{ marginBottom: 0 }}>
+                  Le notifiche sono attive di default e vengono salvate automaticamente.
+                </p>
               </div>
 
               {/* Dati applicazione */}

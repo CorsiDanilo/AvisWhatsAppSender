@@ -316,6 +316,14 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
 .storage-card-header { display: flex; justify-content: space-between; align-items: flex-start; }
 .storage-path { margin: 8px 0 10px; padding: 8px 10px; font: 11px ui-monospace, Consolas, monospace; color: #2e4437; background: white; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .storage-actions { display: flex; gap: 8px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.settings-toggle { position: relative; display: inline-flex; width: 44px; height: 24px; flex: 0 0 auto; cursor: pointer; }
+.settings-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.settings-toggle-track { width: 44px; height: 24px; border-radius: 999px; background: #c8d6cd; transition: 0.15s ease; }
+.settings-toggle-track::after { content: ''; display: block; width: 18px; height: 18px; margin: 3px; border-radius: 50%; background: white; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); transition: 0.15s ease; }
+.settings-toggle input:checked + .settings-toggle-track { background: var(--green); }
+.settings-toggle input:checked + .settings-toggle-track::after { transform: translateX(20px); }
+.settings-toggle input:focus-visible + .settings-toggle-track { outline: 3px solid rgba(17, 132, 91, 0.24); outline-offset: 2px; }
 
 /* Settings Presets Tab */
 .presets-master-detail { display: grid; grid-template-columns: 240px 1fr; gap: 18px; min-height: 380px; }

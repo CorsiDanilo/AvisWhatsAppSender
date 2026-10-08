@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Notification, dialog, ipcMain, shell } = require('electron');
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -21,13 +21,19 @@ const { DEFAULT_SETTINGS, loadSettings, saveSettings } = require('../sender/sett
 const { renderTemplate } = require('../sender/template');
 const { SendQueue } = require('../sender/queue');
 const { retryAsync } = require('../sender/retry');
+const {
+  summarizePageSnapshot,
+  truncateDiagnosticText,
+} = require('../sender/whatsappDiagnostics');
 const packageInfo = require('../package.json');
 const APP_VERSION = packageInfo.version || app.getVersion();
+const MAX_CONNECTION_ATTEMPTS = 2;
 
 let mainWindow;
 let client;
 let clientReady = false;
 let connectionPromise = null;
+const diagnosticPages = new WeakSet();
 let queue;
 let selectedFile = '';
 let selectedImagePath = '';
@@ -84,6 +90,96 @@ function errorDetails(error) {
   return { error: error?.stack || error?.message || String(error) };
 }
 
+function attachWhatsAppPageDiagnostics(whatsapp, attempt) {
+  const page = whatsapp?.pupPage;
+  if (!page || diagnosticPages.has(page)) return Boolean(page);
+
+  diagnosticPages.add(page);
+  const pageDetails = (details = {}) => ({ attempt, ...details });
+
+  page.on('framenavigated', (frame) => {
+    if (frame.parentFrame() !== null) return;
+    audit('info', 'whatsapp.browser_navigation', pageDetails({ url: frame.url() }));
+  });
+  page.on('console', (message) => {
+    audit('info', 'whatsapp.browser_console', pageDetails({
+      level: message.type(),
+      message: truncateDiagnosticText(message.text()),
+      location: message.location(),
+    }));
+  });
+  page.on('pageerror', (error) => {
+    audit('error', 'whatsapp.browser_page_error', pageDetails(errorDetails(error)));
+  });
+  page.on('requestfailed', (request) => {
+    audit('warn', 'whatsapp.browser_request_failed', pageDetails({
+      method: request.method(),
+      url: truncateDiagnosticText(request.url(), 500),
+      failure: request.failure(),
+    }));
+  });
+  page.on('response', (response) => {
+    const status = response.status();
+    const url = response.url();
+    if (status >= 400 && /whatsapp\.com/i.test(url)) {
+      audit('warn', 'whatsapp.browser_http_error', pageDetails({
+        status,
+        url: truncateDiagnosticText(url, 500),
+      }));
+    }
+  });
+
+  audit('info', 'whatsapp.browser_diagnostics_attached', pageDetails());
+  return true;
+}
+
+async function watchWhatsAppPage(whatsapp, attempt) {
+  for (let check = 0; check < 100; check += 1) {
+    if (attachWhatsAppPageDiagnostics(whatsapp, attempt)) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  audit('warn', 'whatsapp.browser_diagnostics_unavailable', { attempt });
+}
+
+async function logWhatsAppPageSnapshot(whatsapp, error, attempt) {
+  const page = whatsapp?.pupPage;
+  const snapshot = {};
+  let browserVersion = '';
+
+  if (page) {
+    try {
+      snapshot.url = page.url();
+      snapshot.title = await page.title();
+      Object.assign(snapshot, await page.evaluate(() => ({
+        readyState: document.readyState,
+        debugVersion: window.Debug?.VERSION || '',
+        online: navigator.onLine,
+      })));
+    } catch (pageError) {
+      audit('warn', 'whatsapp.browser_snapshot_failed', {
+        attempt,
+        error: errorDetails(pageError),
+      });
+    }
+  }
+
+  try {
+    browserVersion = await whatsapp?.pupBrowser?.version?.() || '';
+  } catch (browserError) {
+    audit('warn', 'whatsapp.browser_version_failed', {
+      attempt,
+      error: errorDetails(browserError),
+    });
+  }
+
+  audit('error', 'whatsapp.browser_timeout_diagnostic', {
+    attempt,
+    cause: errorDetails(error),
+    browserVersion,
+    page: summarizePageSnapshot(snapshot),
+  });
+}
+
 function snapshot() {
   return JSON.parse(JSON.stringify(state));
 }
@@ -104,6 +200,55 @@ function logError(message, error, details = {}) {
   state.logs = [...state.logs, `[${new Date().toLocaleTimeString('it-IT')}] ERRORE: ${message}`].slice(-200);
   audit('error', message, { ...details, ...errorDetails(error) });
   publish();
+}
+
+function notificationErrorBody(error, context = 'generic') {
+  const message = String(error?.message || error || '').toLowerCase();
+  if (context === 'whatsapp' || /whatsapp|auth|qr|browser|puppeteer|timeout/.test(message)) {
+    return 'WhatsApp non ha risposto correttamente. Controlla la connessione e riprova a generare il QR code.';
+  }
+  if (context === 'import' || /csv|excel|xlsx|xls|foglio|file|colonna|parse|enoent/.test(message)) {
+    return 'Impossibile importare i dati. Verifica il file e le colonne selezionate.';
+  }
+  if (context === 'update' || /update|updater|download|repository|release/.test(message)) {
+    return 'Impossibile completare l’aggiornamento. Controlla la connessione internet e riprova.';
+  }
+  return 'Si è verificato un errore. Controlla l’applicazione e riprova.';
+}
+
+function notifyUser(title, body) {
+  if (state.settings.notificationsEnabled !== true) return false;
+  if (process.platform !== 'win32' || typeof Notification !== 'function' || !Notification.isSupported()) {
+    audit('warn', 'notification.unsupported', { platform: process.platform });
+    return false;
+  }
+
+  try {
+    const notification = new Notification({
+      title: `AVIS WhatsApp Sender — ${title}`,
+      body,
+      silent: false,
+    });
+    notification.on('click', () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
+    notification.show();
+    audit('info', 'notification.shown', { title, body });
+    return true;
+  } catch (error) {
+    audit('warn', 'notification.failed', { title, error: errorDetails(error) });
+    return false;
+  }
+}
+
+function notificationContextForChannel(channel) {
+  if (/csv|donor|recipient/i.test(channel)) return 'import';
+  if (/connect|whatsapp/i.test(channel)) return 'whatsapp';
+  if (/update/i.test(channel)) return 'update';
+  return 'generic';
 }
 
 function setConnection(connection, qrDataUrl = '') {
@@ -161,7 +306,7 @@ function createClient() {
     authStrategy: new LocalAuth({
       dataPath: path.join(app.getPath('userData'), 'whatsapp-session'),
     }),
-    authTimeoutMs: 60000,
+    authTimeoutMs: 30000,
     qrMaxRetries: 3,
     puppeteer: {
       executablePath,
@@ -177,11 +322,14 @@ function createClient() {
 
   client.on('qr', async (qr) => {
     try {
+      const shouldNotify = state.connection !== 'qr';
       setConnection('qr', await QRCode.toDataURL(qr));
       log('QR pronto: scansiona il codice con WhatsApp.');
+      if (shouldNotify) notifyUser('QR pronto', 'Il codice QR di WhatsApp è pronto per essere scansionato.');
     } catch (error) {
       setConnection('error');
       log(`Impossibile creare il QR: ${error.message}`);
+      notifyUser('Errore WhatsApp', notificationErrorBody(error, 'whatsapp'));
     }
   });
   client.on('authenticated', () => {
@@ -192,18 +340,22 @@ function createClient() {
   client.on('ready', () => {
     clientReady = true;
     setConnection('ready');
+    notifyUser('WhatsApp collegato', 'WhatsApp è collegato e pronto per l’invio dei messaggi.');
     log('WhatsApp pronto per l’invio.');
   });
   client.on('auth_failure', (message) => {
     clientReady = false;
     setConnection('error');
     logError('whatsapp.auth_failure', new Error(message));
+    notifyUser('Errore WhatsApp', notificationErrorBody(message, 'whatsapp'));
   });
   client.on('disconnected', (reason) => {
+    const wasReady = state.connection === 'ready';
     clientReady = false;
     setConnection('disconnected');
     log(`WhatsApp disconnesso: ${reason}`);
     audit('warn', 'whatsapp.disconnected', { reason: String(reason) });
+    if (wasReady) notifyUser('WhatsApp disconnesso', 'La sessione WhatsApp è stata disconnessa.');
   });
 
   return client;
@@ -225,19 +377,28 @@ async function reconnectClient() {
 
 function startClientConnection(startEvent, failureEvent) {
   if (connectionPromise) return connectionPromise;
+  let lastAttempt = 0;
 
   connectionPromise = retryAsync(async (attempt) => {
+    lastAttempt = attempt;
     await destroyClient();
     setConnection('connecting', '');
     audit('info', startEvent, { attempt });
     const whatsapp = createClient();
+    watchWhatsAppPage(whatsapp, attempt).catch((error) => {
+      audit('warn', 'whatsapp.browser_diagnostics_failed', {
+        attempt,
+        error: errorDetails(error),
+      });
+    });
     await whatsapp.initialize();
     return snapshot();
   }, {
-    attempts: 3,
+    attempts: MAX_CONNECTION_ATTEMPTS,
     delayMs: 1500,
     onRetry: async (error, nextAttempt) => {
-      log(`Connessione WhatsApp: nuovo tentativo ${nextAttempt}/3...`);
+      await logWhatsAppPageSnapshot(client, error, nextAttempt - 1);
+      log(`Connessione WhatsApp: nuovo tentativo ${nextAttempt}/${MAX_CONNECTION_ATTEMPTS}...`);
       audit('warn', 'whatsapp.retry', {
         attempt: nextAttempt,
         error: errorDetails(error),
@@ -245,6 +406,7 @@ function startClientConnection(startEvent, failureEvent) {
     },
   })
     .catch(async (error) => {
+      await logWhatsAppPageSnapshot(client, error, lastAttempt);
       setConnection('error');
       logError(failureEvent, error);
       await destroyClient();
@@ -298,10 +460,12 @@ function attachQueueListeners() {
   queue.on('error', ({ donor, error }) => logError('queue.send_failed', error, { donor: donor.name || 'Senza nome' }));
   queue.on('completed', ({ sent, failed, skipped }) => {
     log(`Coda completata: ${sent} inviati, ${failed} falliti, ${skipped} saltati.`);
+    notifyUser('Invio completato', `${sent} inviati, ${failed} falliti, ${skipped} saltati.`);
     writeOutcome('completed', { sent, failed, skipped });
   });
   queue.on('stopped', () => {
     log('Coda fermata dall’operatore.');
+    notifyUser('Invio interrotto', 'L’invio dei messaggi è stato interrotto.');
     writeOutcome('stopped', { ...state.progress });
   });
 }
@@ -380,6 +544,7 @@ async function loadCsvMapped(filePath, sheetName, mapping) {
   state.logs = [];
   log(`Caricati ${state.donors.length} destinatari da ${state.fileName}.`);
   audit('info', 'recipients.loaded', { fileName: state.fileName, count: state.donors.length, mapping });
+  notifyUser('Importazione completata', `${state.donors.length} destinatari importati da ${state.fileName}.`);
   return snapshot();
 }
 
@@ -635,6 +800,7 @@ async function startQueue(options = {}) {
   state.progress = { current: 0, total: selectedDonors.length, sent: 0, failed: 0, skipped: 0 };
   attachQueueListeners();
   log('Coda avviata.');
+  notifyUser('Invio avviato', `${selectedDonors.length} destinatari in coda.`);
   queue.start();
   return snapshot();
 }
@@ -696,6 +862,7 @@ function registerHandler(channel, handler) {
       return await handler(...args);
     } catch (error) {
       logError(`ipc.${channel}.failed`, error);
+      notifyUser('Operazione non riuscita', notificationErrorBody(error, notificationContextForChannel(channel)));
       throw error;
     }
   });
@@ -786,6 +953,7 @@ function initUpdater() {
     state.updater.lastChecked = new Date().toISOString();
     state.updater.error = '';
     log(`Nuovo aggiornamento disponibile: v${info?.version}`);
+    notifyUser('Aggiornamento disponibile', `È disponibile la versione ${info?.version || 'nuova'} dell’applicazione.`);
     publish();
   });
 
@@ -802,6 +970,7 @@ function initUpdater() {
     state.updater.error = err?.message || 'Errore durante la verifica o il download dell\'aggiornamento';
     state.updater.lastChecked = new Date().toISOString();
     audit('error', 'updater.error', { error: err?.message || String(err) });
+    notifyUser('Errore aggiornamento', notificationErrorBody(err, 'update'));
     publish();
   });
 
@@ -819,6 +988,7 @@ function initUpdater() {
     state.updater.progress = 100;
     state.updater.availableVersion = info?.version || state.updater.availableVersion;
     log(`Aggiornamento v${state.updater.availableVersion} scaricato. Pronto per l'installazione.`);
+    notifyUser('Aggiornamento scaricato', 'L’aggiornamento è pronto per essere installato riavviando l’applicazione.');
     publish();
   });
 
