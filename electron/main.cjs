@@ -8,9 +8,11 @@ const {
   ipcMain,
   nativeImage,
   shell,
+  clipboard,
 } = require('electron');
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const QRCode = require('qrcode');
 const semver = require('semver');
@@ -33,6 +35,8 @@ const { writeSessionResult } = require('../sender/results');
 const { DEFAULT_SETTINGS, loadSettings, saveSettings } = require('../sender/settings');
 const {
   appendNotification,
+  clearAllNotifications,
+  deleteNotification,
   loadNotificationState,
   markAllNotificationsRead,
   markNotificationRead,
@@ -41,6 +45,7 @@ const {
   shouldShowAttentionIndicator,
 } = require('../sender/notifications');
 const { renderTemplate } = require('../sender/template');
+const { buildDeveloperReport, buildMailtoUrl, buildEmlContent } = require('../sender/developer-report');
 const { SendQueue } = require('../sender/queue');
 const { retryAsync } = require('../sender/retry');
 const {
@@ -429,6 +434,24 @@ function markStoredNotificationRead(id, read = true) {
 function markAllStoredNotificationsRead() {
   notificationState = markAllNotificationsRead(notificationState);
   state.birthdays.notificationPending = false;
+  persistNotificationState();
+  publish();
+  return snapshot();
+}
+
+function clearAllStoredNotifications() {
+  notificationState = clearAllNotifications(notificationState);
+  state.birthdays.notificationPending = false;
+  persistNotificationState();
+  publish();
+  return snapshot();
+}
+
+function deleteStoredNotification(id) {
+  notificationState = deleteNotification(notificationState, id);
+  state.birthdays.notificationPending = notificationState.items.some(
+    (item) => item.category === 'birthdays' && !item.readAt
+  );
   persistNotificationState();
   publish();
   return snapshot();
@@ -1238,6 +1261,111 @@ async function openLogsDir() {
   return openPathInExplorer(getEffectiveLogDir());
 }
 
+async function sendDeveloperReport(errorContext = '') {
+  const devEmail = 'danilo.corsi@outlook.it';
+  const appVersion = app.getVersion ? app.getVersion() : '1.2.0';
+  const logDir = getEffectiveLogDir();
+  const today = new Date().toISOString().slice(0, 10);
+  const logPath = path.join(logDir, `${today}.log`);
+  const txtPath = path.join(logDir, `log_${today}.txt`);
+  const emlPath = path.join(logDir, `segnalazione_${today}.eml`);
+
+  let todayLogContent = '';
+  let logFileFound = false;
+
+  if (fs.existsSync(logPath)) {
+    logFileFound = true;
+    try {
+      todayLogContent = fs.readFileSync(logPath, 'utf8');
+    } catch (err) {
+      todayLogContent = `Impossibile leggere il file di log: ${err.message}`;
+    }
+  }
+
+  // Scrivi il file .txt con l'intero contenuto del log
+  try {
+    fs.writeFileSync(txtPath, todayLogContent || '(Nessun evento registrato nel file di log di oggi)', 'utf8');
+  } catch (err) {
+    logError('txt_log.write_failed', err);
+  }
+
+  const { subject, reportText, attachmentName } = buildDeveloperReport({
+    appVersion,
+    osDetails: `Windows (${os.release()} - ${os.arch()})`,
+    connection: state.connection || 'non connesso',
+    errorContext,
+    todayLogContent,
+    todayDate: today,
+  });
+
+  // Copia tutto il log e il report negli appunti
+  try {
+    clipboard.writeText(reportText);
+  } catch (err) {
+    logError('clipboard.copy_failed', err);
+  }
+
+  // Genera il file .eml con il file .txt allegato come allegato MIME
+  let emlOpened = false;
+  try {
+    const emlContent = buildEmlContent({
+      to: devEmail,
+      subject,
+      body: reportText,
+      attachmentName,
+      attachmentContent: todayLogContent || '(Nessun evento registrato nel file di log di oggi)',
+    });
+    fs.writeFileSync(emlPath, emlContent, 'utf8');
+    const openErr = await shell.openPath(emlPath);
+    if (!openErr) {
+      emlOpened = true;
+    }
+  } catch (err) {
+    logError('eml.open_failed', err);
+  }
+
+  // Se l'apertura .eml non è riuscita, apri il fallback mailto:
+  if (!emlOpened) {
+    const mailtoUrl = buildMailtoUrl({
+      to: devEmail,
+      subject,
+      body: reportText,
+      maxBodyLength: 1500,
+    });
+    try {
+      await shell.openExternal(mailtoUrl);
+    } catch (err) {
+      logError('mail.open_failed', err);
+    }
+  }
+
+  // Evidenzia sempre il file .txt nella cartella dei log
+  try {
+    if (fs.existsSync(txtPath)) {
+      shell.showItemInFolder(txtPath);
+    } else {
+      shell.openPath(logDir);
+    }
+  } catch (err) {
+    logError('shell.show_log_failed', err);
+  }
+
+  audit('info', 'developer_report.prepared', {
+    hasError: Boolean(errorContext),
+    logFileFound,
+    logPath,
+    txtPath,
+    emlOpened,
+  });
+
+  return {
+    success: true,
+    email: devEmail,
+    logPath: txtPath,
+    copiedToClipboard: true,
+  };
+}
+
 async function openUserDataDir() {
   return openPathInExplorer(app.getPath('userData'));
 }
@@ -1433,6 +1561,7 @@ registerHandler('sender:reset-logs-dir', resetLogsDir);
 registerHandler('sender:open-output-dir', openOutputDir);
 registerHandler('sender:open-last-outcome', openLastOutcomeDir);
 registerHandler('sender:open-logs-dir', openLogsDir);
+registerHandler('sender:send-developer-report', (errorContext) => sendDeveloperReport(errorContext));
 registerHandler('sender:open-user-data-dir', openUserDataDir);
 registerHandler('sender:open-path', (targetPath) => openPathInExplorer(targetPath));
 registerHandler('sender:show-item', (filePath) => showItemInExplorer(filePath));
@@ -1448,6 +1577,8 @@ registerHandler('sender:open-birthdays', () => openBirthdayCenter());
 registerHandler('sender:set-start-with-windows', (enabled) => setStartWithWindows(enabled));
 registerHandler('sender:set-notification-read', (id, read) => setStoredNotificationRead(id, read));
 registerHandler('sender:mark-all-notifications-read', () => markAllStoredNotificationsRead());
+registerHandler('sender:clear-all-notifications', () => clearAllStoredNotifications());
+registerHandler('sender:delete-notification', (id) => deleteStoredNotification(id));
 
 function initUpdater() {
   autoUpdater.autoDownload = false;

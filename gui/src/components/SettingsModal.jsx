@@ -1,4 +1,4 @@
-import { Folder, FileText, Download, Cake, HelpCircle, ExternalLink, Image, Save, RefreshCw, CheckCircle, Package, ArrowRight, Play, BookOpen, AlertCircle } from 'lucide-react'
+import { Folder, FileText, Download, Cake, HelpCircle, ExternalLink, Image, Save, RefreshCw, CheckCircle, Package, ArrowRight, Play, BookOpen, AlertCircle, Mail } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { toUserError } from '../errorMessage'
 import ReactMarkdown from 'react-markdown'
@@ -302,6 +302,21 @@ export default function SettingsModal({
                     onClick={() => api?.openLogsDir?.()}
                   >
                     <ExternalLink size={16} /> Apri cartella log
+                  </button>
+                  <button
+                    className="button button-secondary"
+                    title="Invia il log della giornata per email allo sviluppatore (danilo.corsi@outlook.it)"
+                    onClick={async () => {
+                      setStatusMsg('Preparazione email in corso...')
+                      try {
+                        await api.sendDeveloperReport()
+                        setStatusMsg('Client di posta aperto! I log sono stati copiati ed evidenziati.')
+                      } catch {
+                        setStatusMsg('Impossibile aprire il client di posta.')
+                      }
+                    }}
+                  >
+                    <Mail size={16} /> Invia log di oggi per email
                   </button>
                 </div>
               </div>

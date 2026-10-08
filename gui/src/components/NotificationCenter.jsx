@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Trash2 } from 'lucide-react'
 
 function formatNotificationDate(value) {
   const date = new Date(value)
@@ -43,6 +44,24 @@ function NotificationCenter({ isOpen, state, api, call, onClose }) {
     try {
       await call(() => api.markAllNotificationsRead())
       setActiveTab('read')
+    } catch {
+      // The shared application error surface handles the failure.
+    }
+  }
+
+  async function clearAll() {
+    if (!items.length) return
+    if (!window.confirm('Cancellare tutte le notifiche dall\'elenco?')) return
+    try {
+      await call(() => api.clearAllNotifications())
+    } catch {
+      // The shared application error surface handles the failure.
+    }
+  }
+
+  async function deleteSingle(id) {
+    try {
+      await call(() => api.deleteNotification(id))
     } catch {
       // The shared application error surface handles the failure.
     }
@@ -103,14 +122,26 @@ function NotificationCenter({ isOpen, state, api, call, onClose }) {
               Già lette <span>{readItems.length}</span>
             </button>
           </div>
-          <button
-            type="button"
-            className="link-btn notifications-mark-all"
-            onClick={markAllRead}
-            disabled={!unreadItems.length}
-          >
-            Segna tutte come lette
-          </button>
+          <div className="notifications-toolbar-actions">
+            <button
+              type="button"
+              className="link-btn notifications-mark-all"
+              onClick={markAllRead}
+              disabled={!unreadItems.length}
+            >
+              Segna tutte lette
+            </button>
+            <button
+              type="button"
+              className="link-btn notifications-clear-all"
+              onClick={clearAll}
+              disabled={!items.length}
+              title="Cancella tutte le notifiche"
+              style={{ color: '#dc2626' }}
+            >
+              <Trash2 size={13} style={{ marginRight: '4px', verticalAlign: '-1px' }} /> Cancella tutte
+            </button>
+          </div>
         </div>
 
         <div className="notifications-list" role="tabpanel">
@@ -138,6 +169,15 @@ function NotificationCenter({ isOpen, state, api, call, onClose }) {
                   )}
                   <button type="button" className="link-btn" onClick={() => toggleRead(item)}>
                     {item.readAt ? 'Segna come non letta' : 'Segna come letta'}
+                  </button>
+                  <button
+                    type="button"
+                    className="link-btn notification-item-delete"
+                    onClick={() => deleteSingle(item.id)}
+                    title="Elimina notifica"
+                    style={{ color: '#94a3b8' }}
+                  >
+                    <Trash2 size={13} style={{ marginRight: '3px', verticalAlign: '-1px' }} /> Elimina
                   </button>
                 </div>
               </div>

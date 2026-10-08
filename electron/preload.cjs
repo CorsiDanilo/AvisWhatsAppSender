@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('whatsappSender', {
   openOutputDir: () => ipcRenderer.invoke('sender:open-output-dir'),
   openLastOutcome: () => ipcRenderer.invoke('sender:open-last-outcome'),
   openLogsDir: () => ipcRenderer.invoke('sender:open-logs-dir'),
+  sendDeveloperReport: (errorContext) => ipcRenderer.invoke('sender:send-developer-report', errorContext),
   openUserDataDir: () => ipcRenderer.invoke('sender:open-user-data-dir'),
   openPath: (targetPath) => ipcRenderer.invoke('sender:open-path', targetPath),
   showItemInFolder: (filePath) => ipcRenderer.invoke('sender:show-item', filePath),
@@ -45,6 +46,8 @@ contextBridge.exposeInMainWorld('whatsappSender', {
   setStartWithWindows: (enabled) => ipcRenderer.invoke('sender:set-start-with-windows', enabled),
   setNotificationRead: (id, read) => ipcRenderer.invoke('sender:set-notification-read', id, read),
   markAllNotificationsRead: () => ipcRenderer.invoke('sender:mark-all-notifications-read'),
+  clearAllNotifications: () => ipcRenderer.invoke('sender:clear-all-notifications'),
+  deleteNotification: (id) => ipcRenderer.invoke('sender:delete-notification', id),
   onState: (listener) => {
     const handler = (_event, state) => listener(state);
     ipcRenderer.on('sender:state', handler);

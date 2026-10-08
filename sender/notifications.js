@@ -64,6 +64,19 @@ function markAllNotificationsRead(state, readAt = new Date().toISOString()) {
   };
 }
 
+function deleteNotification(state, id) {
+  const normalized = normalizeNotificationState(state);
+  return {
+    items: normalized.items.filter((item) => item.id !== id),
+  };
+}
+
+function clearAllNotifications(_state) {
+  return {
+    items: [],
+  };
+}
+
 function notificationUnreadCount(state) {
   return normalizeNotificationState(state).items.filter((item) => !item.readAt).length;
 }
@@ -80,6 +93,8 @@ function shouldShowAttentionIndicator(notificationState, birthdays = {}) {
 module.exports = {
   DEFAULT_NOTIFICATION_STATE,
   appendNotification,
+  clearAllNotifications,
+  deleteNotification,
   loadNotificationState,
   markAllNotificationsRead,
   markNotificationRead,

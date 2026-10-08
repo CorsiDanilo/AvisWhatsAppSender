@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, Gift, HelpCircle, Settings, Bell, Info, Download, CheckCircle, RefreshCw, X, ChevronDown, GraduationCap, ChevronRight } from 'lucide-react'
+import { Plus, Gift, HelpCircle, Settings, Bell, Download, CheckCircle, RefreshCw, X, ChevronDown, GraduationCap, Mail, AlertCircle } from 'lucide-react'
 import './App.css'
 import Guide from './Guide'
 import SettingsModal from './components/SettingsModal'
@@ -101,7 +101,9 @@ function App() {
     pauseAfter: 35,
     pauseMinutes: 15,
   })
-  const [error, setError] = useState('')
+  const [error, setError] = useState('')
+  const [rawError, setRawError] = useState('')
+  const [reportStatus, setReportStatus] = useState('')
   const [showGuide, setShowGuide] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [settingsTab, setSettingsTab] = useState('storage')
@@ -200,7 +202,9 @@ if (!api?.onOpenBirthdays) return undefined
   }, [selectedCount, message])
 
   async function call(command) {
-    setError('')
+    setError('')
+    setRawError('')
+    setReportStatus('')
     try {
       const next = await command()
       if (next && typeof next === 'object' && ('donors' in next || 'connection' in next)) {
@@ -208,11 +212,23 @@ if (!api?.onOpenBirthdays) return undefined
       }
       return next
     } catch (reason) {
-      setError(toUserError(reason))
+      setError(toUserError(reason))
+      setRawError(reason?.message || String(reason || ''))
       throw reason
     }
   }
 
+  async function handleSendErrorReport(userMsg, rawMsg) {
+    setReportStatus('Apertura client di posta...')
+    try {
+      const context = rawMsg ? `${userMsg} [Dettaglio tecnico: ${rawMsg}]` : userMsg
+      await api?.sendDeveloperReport?.(context)
+      setReportStatus('Client di posta aperto! File di log di oggi evidenziato ed estratto copiato negli appunti.')
+    } catch {
+      setReportStatus('Impossibile aprire il client di posta predefinito.')
+    }
+  }
+
   async function resetInterface() {
     if (!window.confirm('Resettare lista, messaggio, foto e stato della sessione? WhatsApp resterà collegato.')) return
     await call(async () => {
@@ -655,7 +671,36 @@ if (!api?.onOpenBirthdays) return undefined
 
       {/* Main Container */}
       <main className="wizard-layout">
-        {error && <div className="alert global-alert" role="alert">{error}</div>}
+        {error && (
+          <div className="alert global-alert error-report-banner" role="alert">
+            <div className="error-report-content">
+              <span className="error-report-icon"><AlertCircle size={20} /></span>
+              <div className="error-report-text">
+                <strong>Si è verificato un errore</strong>
+                <p>{error}</p>
+                {reportStatus && <p className="error-report-status">{reportStatus}</p>}
+              </div>
+            </div>
+            <div className="error-report-actions">
+              <button
+                type="button"
+                className="button button-small button-secondary error-report-btn"
+                onClick={() => handleSendErrorReport(error, rawError)}
+                title="Prepara un'email con i log e i dettagli dell'errore per lo sviluppatore (danilo.corsi@outlook.it)"
+              >
+                <Mail size={15} /> Invia log allo sviluppatore
+              </button>
+              <button
+                type="button"
+                className="link-btn error-report-dismiss"
+                onClick={() => { setError(''); setRawError(''); setReportStatus(''); }}
+                title="Ignora avviso"
+              >
+                <X size={16} /> Chiudi
+              </button>
+            </div>
+          </div>
+        )}
 
         {state.birthdays?.sessionPrepared && !isSendingActive && state.donors.length > 0 && (
           <div className="birthday-session-banner" role="status">

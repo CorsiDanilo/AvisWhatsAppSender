@@ -88,6 +88,17 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
 .wizard-layout { max-width: 1200px; width: 100%; margin: 0 auto; padding: 32px 36px 60px; flex: 1; display: flex; flex-direction: column; }
 .global-alert { margin-bottom: 20px; }
 .alert { padding: 12px 16px; color: var(--red); background: #fff1ef; border: 1px solid #f4d0cb; border-radius: 10px; font-size: 12px; font-weight: 500; }
+.error-report-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 14px 18px; }
+.error-report-content { display: flex; align-items: flex-start; gap: 12px; flex: 1; min-width: 260px; }
+.error-report-icon { display: flex; align-items: center; justify-content: center; color: var(--red); margin-top: 1px; }
+.error-report-text { flex: 1; }
+.error-report-text strong { display: block; font-size: 13px; color: #991b1b; margin-bottom: 2px; }
+.error-report-text p { margin: 0; font-size: 13px; line-height: 1.4; color: #7f1d1d; }
+.error-report-status { font-size: 12px !important; color: #15803d !important; margin-top: 4px !important; font-weight: 600; }
+.error-report-actions { display: flex; align-items: center; gap: 10px; }
+.error-report-btn { background: #ffffff !important; color: #b91c1c !important; border-color: #fca5a5 !important; font-size: 12px !important; padding: 6px 12px !important; display: inline-flex !important; align-items: center !important; gap: 6px !important; font-weight: 600 !important; }
+.error-report-btn:hover { background: #fef2f2 !important; border-color: #f87171 !important; }
+.error-report-dismiss { color: #991b1b !important; font-size: 12px !important; display: inline-flex !important; align-items: center !important; gap: 4px !important; padding: 4px 8px !important; }
 
 /* Stepper Navigation */
 .stepper-nav { margin-bottom: 28px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 28px; box-shadow: var(--shadow-sm); }
@@ -1371,7 +1382,9 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
   text-align: center;
 }
 
-.notifications-mark-all { justify-self: start; }
+.notifications-toolbar-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.notifications-clear-all:hover { color: #b91c1c !important; text-decoration: underline; }
+.notification-item-delete:hover { color: #ef4444 !important; text-decoration: underline; }
 
 .notifications-list {
   flex: 1;
