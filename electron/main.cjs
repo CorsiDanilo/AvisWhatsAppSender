@@ -1263,7 +1263,7 @@ async function openLogsDir() {
 
 async function sendDeveloperReport(errorContext = '') {
   const devEmail = 'danilo.corsi@outlook.it';
-  const appVersion = app.getVersion ? app.getVersion() : '1.2.0';
+  const appVersion = app.getVersion ? app.getVersion() : '1.0.0';
   const logDir = getEffectiveLogDir();
   const today = new Date().toISOString().slice(0, 10);
   const logPath = path.join(logDir, `${today}.log`);

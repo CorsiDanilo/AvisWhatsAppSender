@@ -2,7 +2,7 @@
 
 Applicazione desktop per le sezioni AVIS che permette di preparare e inviare comunicazioni personalizzate ai donatori tramite WhatsApp Web.
 
-[![Versione](https://img.shields.io/badge/versione-1.1.0-green.svg)](package.json)
+[![Versione](https://img.shields.io/badge/versione-1.0.0-green.svg)](package.json)
 [![Piattaforma](https://img.shields.io/badge/piattaforma-Windows-blue.svg)](https://github.com/CorsiDanilo/AvisWhatsAppSender)
 [![CI Build](https://github.com/CorsiDanilo/AvisWhatsAppSender/actions/workflows/build_installer.yml/badge.svg)](https://github.com/CorsiDanilo/AvisWhatsAppSender/actions)
 
@@ -12,8 +12,9 @@ Applicazione desktop per le sezioni AVIS che permette di preparare e inviare com
 - Crea modelli di messaggio con tag dinamici, ad esempio `[nome]`, `[cognome]` e le colonne personalizzate della lista.
 - Salva preset completi: testo, ritmo di invio e un allegato immagine opzionale (`.jpg`, `.jpeg`, `.png`). L'allegato viene copiato nell'area dati interna dell'app, quindi resta disponibile anche se il file originale viene spostato.
 - Mostra un'anteprima prima dell'invio e applica pause e ritardi configurabili tra i messaggi.
-- Genera report di esito e log locali al termine di ogni sessione.
-- Controlla gli aggiornamenti da GitHub e li rende disponibili dall'applicazione.
+- Genera report di esito (`.xlsx` e report falliti) e log locali al termine di ogni sessione.
+- Segnalazione rapida degli errori allo sviluppatore via email con log giornaliero allegato automaticamente.
+- Controlla gli aggiornamenti da GitHub e li rende disponibili dall'applicazione con auto-updater integrato.
 
 ## Promemoria compleanni
 
@@ -29,13 +30,14 @@ Al primo avvio dell'applicazione viene eseguito il controllo. Se ci sono complea
 
 Con **Prepara gli auguri** vengono importati soltanto i donatori che compiono gli anni, viene caricato il preset scelto e si torna alla normale procedura: controlla destinatari, testo, allegato e riepilogo prima di confermare l'invio.
 
-## Notifiche e avvio automatico
+## Notifiche e segnalazione errori
 
 Le notifiche Windows possono essere attivate o disattivate in **Impostazioni → Cartelle e Archiviazione**. Tutte le notifiche create dall'app restano consultabili dal pulsante **🔔** in alto a destra:
 
 - le notifiche non lette mostrano un pallino rosso;
 - possono essere segnate come lette o non lette;
-- le notifiche lette sono conservate nella scheda **Già lette**, non vengono eliminate.
+- è possibile eliminare singole notifiche o svuotare completamente l'elenco con **Cancella tutte**;
+- in caso di anomalie, è possibile inviare i log giornalieri direttamente allo sviluppatore (`danilo.corsi@outlook.it`) con generazione automatica del file `.eml` e copia completa del report negli appunti.
 
 Nella sezione **Compleanni** è disponibile anche l'opzione per avviare AVIS WhatsApp Sender con Windows. Il controllo richiede che il file selezionato resti disponibile nel suo percorso.
 

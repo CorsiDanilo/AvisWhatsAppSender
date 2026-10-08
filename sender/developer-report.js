@@ -1,5 +1,5 @@
 function buildDeveloperReport({
-  appVersion = '1.2.0',
+  appVersion = '1.0.0',
   osDetails = 'Windows',
   connection = 'non connesso',
   errorContext = '',

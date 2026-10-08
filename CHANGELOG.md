@@ -6,38 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ---
 
-## [1.1.0] - 2026-10-08
-
-### Added
-- **Promemoria compleanni**: controllo all'avvio della lista configurata, riconoscimento delle date di nascita e preparazione guidata di una sessione di auguri, senza invio automatico.
-- **Notifiche Windows e centro notifiche**: avviso per i compleanni, indicatore di elementi non letti e storico persistente separato tra notifiche da leggere e già lette.
-- **Indicatori nell'app e nell'area di notifica**: pallino rosso per promemoria compleanni e notifiche non lette nella barra dell'applicazione, nella taskbar e nell'icona di sistema.
-- **Allegati nei preset**: ogni modello può conservare un'immagine JPG, JPEG o PNG nell'area dati interna dell'applicazione.
-- **Avvio con Windows**: opzione per avviare l'applicazione all'accesso dell'utente e controllare i compleanni all'apertura.
-- **Tutorial operativo aggiornato**: guida interattiva e manuale in-app allineati alle nuove funzioni.
-
-### Changed
-- Riordinate le sezioni delle impostazioni e uniformata l'interfaccia dei compleanni, dei modelli e delle azioni di promemoria.
-- L'uscita dal menu dell'icona di sistema chiude ora effettivamente l'applicazione.
-
-## [1.0.0] - 2026-10-07
+## [1.0.0] - 2026-10-08
 
 ### Summary
-First official production release of **AVIS WhatsApp Sender**. This release introduces a complete desktop application for managing personalized donor messaging via WhatsApp Web, featuring an automated in-app update mechanism and a continuous integration pipeline for Windows installer builds.
+Prima release ufficiale di produzione di **AVIS WhatsApp Sender**. L'applicazione fornisce una soluzione completa, sicura e moderna per la gestione e l'invio personalizzato di comunicazioni e promemoria ai donatori AVIS tramite WhatsApp Web.
 
 ### Added
-- **Auto-Updater System**: Integrated `electron-updater` with GitHub Releases provider for automated and manual update checks.
-- **In-App Updates UI**: Dedicated "Aggiornamenti" (Updates) tab in the Settings modal with real-time download progress and one-click restart installation.
-- **Update Notification Banner**: Prominent banner displayed on startup when a new release is available on GitHub.
-- **CI/CD Pipeline**: GitHub Actions workflow (`.github/workflows/build_installer.yml`) to automatically build NSIS Windows installers (`.exe`) and publish release artifacts upon pushing version tags (`v*`).
-- **Core WhatsApp Automation**: WhatsApp Web client integration (`whatsapp-web.js`) with persistent authentication, QR code login, and robust session cleanup.
-- **Recipient Management**: CSV and Excel donor list parsing, column mapping preview, telephone number normalization, and recipient selection.
-- **Message Composer & Presets**: Dynamic template rendering (`[nome]`, `[cognome]`, etc.), image attachment with captions, and preset management.
-- **Humanized Delivery Queue**: Anti-ban pacing with configurable min/max delay intervals, batch pauses, pause/resume/stop controls, and real-time progress tracking.
-- **Session Reports & Logging**: Detailed outcome logging and session export in Excel (`.xlsx`) to user-defined directories.
-
-### Fixed
-- Resolved development environment version mismatch where `app.getVersion()` reported runtime Electron version instead of `package.json` application version.
-- Hardened React state updates in the Settings modal to prevent blank screen crashes on update checks.
-- Handled `console-message` deprecation warnings on modern Electron versions.
-- Added explicit window display and focus handling on the `ready-to-show` lifecycle event.
+- **Automazione WhatsApp Web**: integrazione sicura tramite `whatsapp-web.js` con autenticazione persistente locale, login rapido via QR code e gestione dello stato di connessione.
+- **Gestione Destinatari Avanzata**: supporto per elenchi donatori in formato Excel (`.xlsx`, `.xls`) e CSV, con rilevamento automatico delle colonne, normalizzazione dei numeri telefonici italiani e conservazione dei campi personalizzati.
+- **Compositore Messaggi & Modelli Dinamici**: supporto per tag personalizzati (`[nome]`, `[cognome]`, ecc.), allegati grafici (JPG, JPEG, PNG) archiviati in modo permanente nell'area dati dell'applicazione, e gestione preset salvabili.
+- **Invio Umanizzato & Anti-Ban**: cadenza controllata con ritardi minimi/massimi configurabili, pause periodiche ogni blocco di messaggi, controlli in tempo reale di avvio/pausa/arresto e barra di avanzamento.
+- **Centro Promemoria Compleanni**: verifica giornaliera della lista compleanni all'avvio, notifiche Windows dedicate, avviso visivo con badge rosso persistente, e procedura guidata per la preparazione della sessione di auguri senza invio automatico.
+- **Centro Notifiche Integrato**: visualizzazione degli avvisi interni e di sistema, gestione dello stato di lettura, eliminazione di singole notifiche e cancellazione totale dell'elenco.
+- **Reportistica & Esportazione Esiti**: generazione automatica del report completo della sessione in Excel (`.xlsx`), file di dettaglio dedicato agli invii falliti (`esito_falliti.csv`) e archiviazione storica dei log operativi.
+- **Segnalazione Errori & Invio Log via Email**: pulsante rapido per l'invio via email allo sviluppatore (`danilo.corsi@outlook.it`) con generazione automatica del file `.txt`, composizione della bozza `.eml` con allegato MIME ed evidenziazione del file in Esplora Risorse.
+- **Interfaccia Grafica Moderna & Accessibile**: GUI realizzata in React 19 e Vite con set di icone vettoriali Lucide, modalità Tutorial Interattivo per simulazioni protette senza invii reali, e manuale operativo integrato.
+- **Ripristino Errori Interfaccia (Error Boundary)**: gestione integrata degli errori runtime React con schermata di failover per evitare blocchi dell'interfaccia e consentire il riavvio o l'invio immediato dei log.
+- **Sistema di Aggiornamento Automatico**: auto-updater integrato (`electron-updater`) con verifica su GitHub Releases, indicatore visivo di nuove versioni e installazione guidata in un click.
+- **Workflow CI/CD**: pipeline GitHub Actions per la compilazione automatizzata dell'installer Windows NSIS (`.exe`) e pubblicazione delle release ufficiali.

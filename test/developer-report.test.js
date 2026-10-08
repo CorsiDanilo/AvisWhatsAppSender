@@ -5,15 +5,15 @@ const { buildDeveloperReport, buildMailtoUrl, buildEmlContent } = require('../se
 test('buildDeveloperReport genera oggetto e report coerenti copiando tutto il log', () => {
   const fullLog = 'log riga 1\nlog riga 2\nlog riga 3\nlog riga 100';
   const result = buildDeveloperReport({
-    appVersion: '1.2.0',
+    appVersion: '1.0.0',
     osDetails: 'Windows 10',
     connection: 'ready',
     todayDate: '2026-10-08',
     todayLogContent: fullLog,
   });
 
-  assert.match(result.subject, /\[AVIS WhatsApp Sender v1\.2\.0\] Log e Segnalazione \(2026-10-08\)/);
-  assert.match(result.reportText, /AVIS WhatsApp Sender v1\.2\.0/);
+  assert.match(result.subject, /\[AVIS WhatsApp Sender v1\.0\.0\] Log e Segnalazione \(2026-10-08\)/);
+  assert.match(result.reportText, /AVIS WhatsApp Sender v1\.0\.0/);
   assert.match(result.reportText, /Stato Connessione WhatsApp: ready/);
   // Assicura che TUTTO il log sia presente nel testo del report copiato
   assert.match(result.reportText, /log riga 1\nlog riga 2\nlog riga 3\nlog riga 100/);
@@ -22,7 +22,7 @@ test('buildDeveloperReport genera oggetto e report coerenti copiando tutto il lo
 
 test('buildDeveloperReport include il dettaglio errore se fornito', () => {
   const result = buildDeveloperReport({
-    appVersion: '1.2.0',
+    appVersion: '1.0.0',
     osDetails: 'Windows 11',
     connection: 'disconnected',
     errorContext: 'Puppeteer timeout 30000ms',
