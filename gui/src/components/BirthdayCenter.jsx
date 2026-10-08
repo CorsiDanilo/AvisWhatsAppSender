@@ -27,11 +27,6 @@ function BirthdayCenter({ isOpen, state, api, call, onClose, onPrepared, onConfi
     onClose()
   }
 
-  async function postpone() {
-    await call(() => api.dismissBirthdayReminder())
-    onClose()
-  }
-
   async function toggleInhibition() {
     await call(() => api.toggleBirthdayInhibition())
   }

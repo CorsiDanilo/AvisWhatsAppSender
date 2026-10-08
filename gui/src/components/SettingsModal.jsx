@@ -1,4 +1,4 @@
-import { Folder, FileText, Download, Cake, HelpCircle, ExternalLink, Image, Save, RefreshCw, CheckCircle, Package, ArrowRight, Play, BookOpen, AlertCircle, Mail } from 'lucide-react'
+import { Folder, FileText, Download, Cake, HelpCircle, ExternalLink, Image, Save, RefreshCw, CheckCircle, Play, BookOpen, AlertCircle, Mail } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { toUserError } from '../errorMessage'
 import ReactMarkdown from 'react-markdown'
@@ -209,10 +209,10 @@ export default function SettingsModal({
           >
             <Download className="tab-icon" size={16} /> Aggiornamenti
             {state.updater?.status === 'available' && (
-              <span className="tab-update-badge" title="Nuova versione disponibile">?</span>
+              <span className="tab-update-badge" title="Nuova versione disponibile">●</span>
             )}
             {state.updater?.status === 'downloaded' && (
-              <span className="tab-update-badge ready" title="Pronto da installare">?</span>
+              <span className="tab-update-badge ready" title="Pronto da installare">●</span>
             )}
           </button>
           <button

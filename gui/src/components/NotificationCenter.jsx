@@ -137,9 +137,8 @@ function NotificationCenter({ isOpen, state, api, call, onClose }) {
               onClick={clearAll}
               disabled={!items.length}
               title="Cancella tutte le notifiche"
-              style={{ color: '#dc2626' }}
             >
-              <Trash2 size={13} style={{ marginRight: '4px', verticalAlign: '-1px' }} /> Cancella tutte
+              <Trash2 size={13} /> Cancella tutte
             </button>
           </div>
         </div>
@@ -175,9 +174,8 @@ function NotificationCenter({ isOpen, state, api, call, onClose }) {
                     className="link-btn notification-item-delete"
                     onClick={() => deleteSingle(item.id)}
                     title="Elimina notifica"
-                    style={{ color: '#94a3b8' }}
                   >
-                    <Trash2 size={13} style={{ marginRight: '3px', verticalAlign: '-1px' }} /> Elimina
+                    <Trash2 size={13} /> Elimina
                   </button>
                 </div>
               </div>

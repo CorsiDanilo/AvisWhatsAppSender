@@ -1383,7 +1383,10 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
 }
 
 .notifications-toolbar-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.notifications-clear-all { color: #dc2626 !important; }
 .notifications-clear-all:hover { color: #b91c1c !important; text-decoration: underline; }
+.notifications-clear-all svg, .notification-item-delete svg { margin-right: 4px; vertical-align: -1px; }
+.notification-item-delete { color: #94a3b8 !important; }
 .notification-item-delete:hover { color: #ef4444 !important; text-decoration: underline; }
 
 .notifications-list {

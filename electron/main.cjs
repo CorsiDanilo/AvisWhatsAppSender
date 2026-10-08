@@ -1282,6 +1282,13 @@ async function sendDeveloperReport(errorContext = '') {
     }
   }
 
+  // Assicura che la cartella dei log esista
+  try {
+    fs.mkdirSync(logDir, { recursive: true });
+  } catch (err) {
+    logError('log_dir.create_failed', err);
+  }
+
   // Scrivi il file .txt con l'intero contenuto del log
   try {
     fs.writeFileSync(txtPath, todayLogContent || '(Nessun evento registrato nel file di log di oggi)', 'utf8');

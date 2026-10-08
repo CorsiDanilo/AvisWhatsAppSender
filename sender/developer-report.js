@@ -53,6 +53,7 @@ function buildEmlContent({
   const chunks = base64Content ? (base64Content.match(/.{1,76}/g) || []).join('\r\n') : '';
 
   const encodedSubject = `=?UTF-8?B?${Buffer.from(subject, 'utf8').toString('base64')}?=`;
+  const normalizedBody = (body || '').replace(/\r?\n/g, '\r\n');
 
   const lines = [
     'X-Unsent: 1',
@@ -65,7 +66,7 @@ function buildEmlContent({
     'Content-Type: text/plain; charset=utf-8',
     'Content-Transfer-Encoding: 8bit',
     '',
-    body,
+    normalizedBody,
     '',
     `--${boundary}`,
     `Content-Type: text/plain; charset=utf-8; name="${attachmentName}"`,
