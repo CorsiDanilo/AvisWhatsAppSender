@@ -59,6 +59,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "AVIS WhatsApp Sender",
+      "artifactName": "AVIS-WhatsApp-Sender-Setup-${version}.${ext}",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico"
     }

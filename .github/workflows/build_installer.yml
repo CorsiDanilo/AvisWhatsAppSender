@@ -52,7 +52,7 @@ jobs:
         run: npm run build:gui
 
       - name: Build Windows Executable
-        run: npx electron-builder --win nsis
+        run: npx electron-builder --win nsis --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
