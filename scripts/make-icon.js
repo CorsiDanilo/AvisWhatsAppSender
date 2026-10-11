@@ -8,6 +8,8 @@ const outputIcoBuild = path.join(__dirname, '..', 'build', 'icon.ico');
 const outputIcoRes = path.join(__dirname, '..', 'resources', 'icon.ico');
 const outputNotificationIcoBuild = path.join(__dirname, '..', 'build', 'icon-notification.ico');
 const outputNotificationIcoRes = path.join(__dirname, '..', 'resources', 'icon-notification.ico');
+const outputOverlayBuild = path.join(__dirname, '..', 'build', 'icon-overlay.png');
+const outputOverlayRes = path.join(__dirname, '..', 'resources', 'icon-overlay.png');
 
 
 
@@ -81,6 +83,9 @@ async function run() {
     fs.writeFileSync(outputIcoRes, buf);
     fs.writeFileSync(outputNotificationIcoBuild, notificationBuf);
     fs.writeFileSync(outputNotificationIcoRes, notificationBuf);
+    if (fs.existsSync(outputOverlayRes)) {
+      fs.copyFileSync(outputOverlayRes, outputOverlayBuild);
+    }
     console.log('Icone create con successo nelle cartelle build e resources.');
 
     fs.unlinkSync(tempPng);

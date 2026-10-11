@@ -26,10 +26,15 @@ function derivePreviewRow(row, { nameCol, surnameCol, phoneCol, oneColumnName })
   let warning = '';
 
   if (oneColumnName) {
-    surname = parts.length > 1 ? normalizePreviewName(parts.pop()) : '';
-    const givenNames = normalizePreviewName(parts.join(' ') || rawName);
-    name = givenNames.split(' ')[0] || '';
-    if (name && !surname) warning = 'Cognome non rilevato';
+    if (parts.length > 1) {
+      surname = normalizePreviewName(parts.shift());
+      const givenNames = normalizePreviewName(parts.join(' '));
+      name = givenNames.split(' ')[0] || '';
+    } else {
+      const givenNames = normalizePreviewName(parts[0] || '');
+      name = givenNames;
+      if (name) warning = 'Cognome non rilevato';
+    }
   } else {
     const givenNames = normalizePreviewName(rawName);
     name = givenNames.split(' ')[0] || '';
@@ -228,7 +233,7 @@ export default function ExcelPreviewModal({
                         checked={oneColumnName}
                         onChange={(e) => handleOneColumnNameChange(e.target.checked)}
                       />
-                      <span>Nome e cognome nella stessa colonna — ultima parola = cognome</span>
+                      <span>Cognome e nome nella stessa colonna — prima parola = cognome</span>
                     </label>
                   </div>
                   {showManualMapping && (

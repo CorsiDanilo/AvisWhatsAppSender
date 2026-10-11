@@ -41,7 +41,7 @@ function splitFullName(value) {
     };
   }
 
-  const surname = normalizeNamePart(parts.pop());
+  const surname = normalizeNamePart(parts.shift());
   const givenNames = normalizeNamePart(parts.join(' '));
   return {
     name: givenNames.split(' ')[0] || '',

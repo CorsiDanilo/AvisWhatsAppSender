@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Changed
 - **Importazione donatori più compatibile**: supporto per CSV separati da punto e virgola, colonne AVIS preselezionate e fallback alla mappatura automatica esistente.
+- **Riconoscimento cognome e nome da colonna unica**: la colonna singola (es. `COGNOMEENOME`) estrae ora per impostazione predefinita il cognome dalla prima parola e assegna il primo nome utile delle restanti parole al tag saluto `[nome]`.
 - **Compleanni da Excel**: riconoscimento delle date seriali di Excel e dei formati senza anno.
 - **Stima invio più leggibile**: durate espresse in ore e minuti quando necessario.
 

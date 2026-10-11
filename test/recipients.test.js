@@ -26,11 +26,17 @@ test('normalizes name parts without losing apostrophes or hyphens', () => {
   assert.equal(normalizeNamePart('ROSSI-BIANCHI'), 'Rossi-Bianchi');
 });
 
-test('splits a full name at the last word and exposes the first given name', () => {
-  assert.deepEqual(splitFullName('  MARIA   ELENA   ROSSI '), {
+test('splits a full name assuming surname first and exposes the first given name', () => {
+  assert.deepEqual(splitFullName('  ROSSI   MARIA   ELENA '), {
     name: 'Maria',
     givenNames: 'Maria Elena',
     surname: 'Rossi',
+    warning: '',
+  });
+  assert.deepEqual(splitFullName('ARON ALINA LACRAMIORA'), {
+    name: 'Alina',
+    givenNames: 'Alina Lacramiora',
+    surname: 'Aron',
     warning: '',
   });
 });
@@ -46,12 +52,12 @@ test('keeps a one-word name and reports a non-blocking warning', () => {
 
 test('detects and parses the known AVIS columns without changing the source values', async () => {
   const { directory, filePath } = temporaryCsv(
-    'NOMEECOGNOME,DATADINASCITA,CELLULARE\nMARIA ELENA ROSSI,01/02/1980,+393331234567\n'
+    'COGNOMEENOME,DATADINASCITA,CELLULARE\nROSSI MARIA ELENA,01/02/1980,+393331234567\n'
   );
 
   try {
     const inspection = await inspectFile(filePath);
-    assert.equal(inspection.detectedMapping.name, 'NOMEECOGNOME');
+    assert.equal(inspection.detectedMapping.name, 'COGNOMEENOME');
     assert.equal(inspection.detectedMapping.nameAndSurnameInOneColumn, true);
     assert.equal(inspection.detectedMapping.phone, 'CELLULARE');
     assert.deepEqual(inspection.detectedMapping.customFields, ['DATADINASCITA']);
@@ -82,7 +88,7 @@ test('detects and parses the known AVIS columns without changing the source valu
       }
     );
     assert.equal(renderTemplate('Ciao [nome] [cognome]', donor), 'Ciao Maria Rossi');
-    assert.equal(fs.readFileSync(filePath, 'utf8'), 'NOMEECOGNOME,DATADINASCITA,CELLULARE\nMARIA ELENA ROSSI,01/02/1980,+393331234567\n');
+    assert.equal(fs.readFileSync(filePath, 'utf8'), 'COGNOMEENOME,DATADINASCITA,CELLULARE\nROSSI MARIA ELENA,01/02/1980,+393331234567\n');
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
@@ -146,7 +152,7 @@ test('creates a selected pending donor with all current custom fields', () => {
 
 test('detects and parses CSV files delimited by semicolon', async () => {
   const { directory, filePath } = temporaryCsv(
-    'COGNOMEENOME;DATADINASCITA;CELLULARE\nMARIO ROSSI;14/02/1990;3331234567\n'
+    'COGNOMEENOME;DATADINASCITA;CELLULARE\nROSSI MARIO;14/02/1990;3331234567\n'
   );
 
   try {
@@ -175,7 +181,7 @@ test('reads Excel dates formatted in Italian dd/mm/yyyy format', async () => {
     'A1': { t: 's', v: 'COGNOMEENOME' },
     'B1': { t: 's', v: 'DATADINASCITA' },
     'C1': { t: 's', v: 'CELLULARE' },
-    'A2': { t: 's', v: 'MARIO ROSSI' },
+    'A2': { t: 's', v: 'ROSSI MARIO' },
     'B2': { t: 'n', v: 33171, z: XLSX.SSF._table[14] }, // 25 Oct 1990
     'C2': { t: 's', v: '3331234567' }
   };
