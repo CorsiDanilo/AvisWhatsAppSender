@@ -43,8 +43,8 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .topbar-right { display: flex; align-items: center; gap: 20px; }
 .connection { display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: 650; }
 .status-dot { width: 9px; height: 9px; background: #b8c3bd; border-radius: 50%; }
-.connection-ready { color: var(--green); }
-.connection-ready .status-dot { background: #22a874; box-shadow: 0 0 0 4px var(--green-soft); }
+.connection-ready, .connection-authenticated { color: var(--green); }
+.connection-ready .status-dot, .connection-authenticated .status-dot { background: #22a874; box-shadow: 0 0 0 4px var(--green-soft); }
 .connection-qr .status-dot, .connection-connecting .status-dot { background: #d59a42; }
 .connection-error .status-dot { background: var(--red); }
 .connect-link-hint { font-size: 11px; color: var(--green); text-decoration: underline; }

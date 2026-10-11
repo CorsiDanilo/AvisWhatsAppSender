@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Fixed
 - **Reset della sessione WhatsApp**: il reset non può più riutilizzare o ricevere eventi dal tentativo di connessione precedente.
+- **Indicatore e gestione connessione WhatsApp**: stato "Connesso" con pallino verde esteso alla fase autenticata e apertura garantita del dialog di gestione anche durante l'avvio della sessione.
 
 ---
 

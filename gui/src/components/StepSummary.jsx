@@ -24,7 +24,7 @@ export default function StepSummary({
   const validSelectedDonors = selectedDonors.filter((d) => d.valid)
   const invalidSelectedDonors = selectedDonors.filter((d) => !d.valid)
 
-  const isConnected = state.connection === 'ready'
+  const isConnected = state.connection === 'ready' || state.connection === 'authenticated'
   const isConnecting = state.connection === 'connecting'
   const isQr = state.connection === 'qr'
 

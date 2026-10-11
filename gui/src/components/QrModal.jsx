@@ -81,7 +81,7 @@ export default function QrModal({ isOpen, onClose, state, api, call }) {
               <h3>Generazione del codice QR in corso…</h3>
               <p className="muted">Avvio del browser e richiesta della sessione WhatsApp…</p>
             </div>
-          ) : state.connection === 'ready' ? (
+          ) : state.connection === 'ready' || state.connection === 'authenticated' ? (
             <div className="qr-success-box">
               <span className="big-check-icon">✓</span>
               <h3>WhatsApp è già collegato e pronto!</h3>
@@ -116,7 +116,7 @@ export default function QrModal({ isOpen, onClose, state, api, call }) {
             </button>
           </div>
           <button type="button" className="button button-primary" onClick={onClose}>
-            {state.connection === 'ready' ? 'Fatto' : 'Chiudi e continua'}
+            {state.connection === 'ready' || state.connection === 'authenticated' ? 'Fatto' : 'Chiudi e continua'}
           </button>
         </div>
       </div>

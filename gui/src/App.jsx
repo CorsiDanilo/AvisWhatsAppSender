@@ -195,7 +195,7 @@ if (!api?.onOpenBirthdays) return undefined
   const isSendingActive = isRunning || isPaused || isSimulating
   const showDashboard = isSendingActive || manualSendingView || ((isCompleted || isStopped) && state.progress.total > 0)
 
-  const canStart = state.connection === 'ready' && selectedCount > 0 && message.trim().length > 0
+  const canStart = (state.connection === 'ready' || state.connection === 'authenticated') && selectedCount > 0 && message.trim().length > 0
 
   // Calculate highest reachable step
   const maxStepReached = useMemo(() => {
@@ -569,8 +569,8 @@ if (!api?.onOpenBirthdays) return undefined
       disconnected: 'Non connesso',
       connecting: 'Connessione...',
       qr: 'Scansiona il QR',
-      authenticated: 'Autenticato',
-      ready: 'Pronto',
+      authenticated: 'Connesso',
+      ready: 'Connesso',
       error: 'Errore connessione',
     }[state.connection] || state.connection
 
@@ -595,19 +595,18 @@ if (!api?.onOpenBirthdays) return undefined
             onClick={() => {
               if (state.connection === 'disconnected' || state.connection === 'error') {
                 call(() => api.connect())
-                setShowQrModal(true)
               } else if (state.connection === 'qr' || state.connection === 'connecting') {
                 setShowQrBanner(true)
-                setShowQrModal(true)
-              } else if (state.connection === 'ready') {
-                setShowQrModal(true)
               }
+              setShowQrModal(true)
             }}
             style={{ cursor: 'pointer' }}
           >
             <span className="status-dot" />
             {connectionText}
-            {state.connection !== 'ready' && <span className="connect-link-hint"> (mostra QR)</span>}
+            {['disconnected', 'error', 'qr'].includes(state.connection) && (
+              <span className="connect-link-hint"> (mostra QR)</span>
+            )}
           </button>
 
           <div className="topbar-actions">
