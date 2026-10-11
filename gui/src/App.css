@@ -937,6 +937,7 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
 .release-notes-content {
   font-size: 13px;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   color: #334155;
   max-height: 160px;
   overflow-y: auto;

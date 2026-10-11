@@ -2,6 +2,7 @@ import { Folder, FileText, Download, Cake, HelpCircle, ExternalLink, Image, Save
 import { useState, useEffect } from 'react'
 import { toUserError } from '../errorMessage'
 import ReactMarkdown from 'react-markdown'
+import { normalizeReleaseNotes } from '../releaseNotes.mjs'
 export default function SettingsModal({
   isOpen,
   onClose,
@@ -710,7 +711,7 @@ export default function SettingsModal({
                 {state.updater?.status === 'available' && (
                   <div className="update-box available-box">
                     <div className="update-box-icon"><Download size={32} /></div>
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div className="available-header">
                         <strong>Nuova versione disponibile: v{state.updater.availableVersion}</strong>
                       </div>
@@ -718,7 +719,7 @@ export default function SettingsModal({
                         <div className="release-notes-wrapper">
                           <span className="eyebrow">Novità del rilascio:</span>
                           <div className="release-notes-content">
-                            <ReactMarkdown>{state.updater.releaseNotes}</ReactMarkdown>
+                            <ReactMarkdown>{normalizeReleaseNotes(state.updater.releaseNotes)}</ReactMarkdown>
                           </div>
                         </div>
                       ) : null}
