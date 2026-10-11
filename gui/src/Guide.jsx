@@ -43,7 +43,7 @@ export default function Guide({ onClose, onStartTutorial }) {
           <h3>1. Preparazione della lista donatori (Excel o CSV)</h3>
           <p>
             Puoi caricare file in formato <strong>Excel (.xlsx, .xls)</strong> oppure <strong>CSV</strong>.
-            I file devono includere almeno una colonna con i numeri di telefono. Possono essere presenti anche colonne per <strong>Nome</strong>, <strong>Cognome</strong> o qualsiasi informazione aggiuntiva utile (es. <em>Gruppo Sanguigno</em>, <em>Sede</em>, <em>Data Ultima Donazione</em>).
+            I file devono includere almeno una colonna con i numeri di telefono. Sono supportati anche CSV separati da punto e virgola. Possono essere presenti colonne per <strong>Nome</strong>, <strong>Cognome</strong> o qualsiasi informazione aggiuntiva utile (es. <em>Gruppo Sanguigno</em>, <em>Sede</em>, <em>Data Ultima Donazione</em>).
           </p>
           <div className="guide-note">
             <strong>Supporto Multi-Foglio:</strong> Se il file Excel contiene più fogli di lavoro (sheet), l'applicazione ti consente di selezionare esattamente quale foglio leggere dall'anteprima di caricamento.
@@ -93,6 +93,9 @@ export default function Guide({ onClose, onStartTutorial }) {
           </ol>
           <div className="guide-note">
             <strong>Sessione persistente:</strong> Il collegamento rimane memorizzato nella cartella dati dell'applicazione. Ai successivi avvii, l'app si riconnetterà in automatico senza richiedere nuovamente la scansione del QR code.
+          </div>
+          <div className="guide-note">
+            <strong>Problemi di collegamento:</strong> dalla finestra QR puoi usare <strong>“Azzera sessione”</strong> per eliminare le credenziali locali e generare un nuovo codice QR.
           </div>
 
           <h3>6. Modelli, preset e tag dinamici</h3>
@@ -190,6 +193,7 @@ export default function Guide({ onClose, onStartTutorial }) {
             <li>Aprire le rispettive cartelle o la cartella dati dell'applicazione direttamente in Esplora Risorse.</li>
             <li>Ripristinare i percorsi predefiniti in qualunque momento.</li>
             <li>Attivare o disattivare le notifiche Windows.</li>
+            <li>Preparare un log diagnostico da inviare allo sviluppatore tramite Gmail, client di posta Windows oppure appunti.</li>
           </ul>
 
           <p>
@@ -198,7 +202,7 @@ export default function Guide({ onClose, onStartTutorial }) {
 
           <h3>14. Aggiornamenti automatici da GitHub</h3>
           <p>
-            L'applicazione verifica periodicamente se sono state rilasciate nuove versioni su GitHub:
+            All'avvio l'applicazione verifica una volta se sono state rilasciate nuove versioni su GitHub. Puoi avviare ulteriori controlli manuali in qualsiasi momento:
           </p>
           <ul>
             <li>Se è disponibile una nuova versione, compare un banner in alto con il pulsante <strong>“Visualizza e aggiorna”</strong>.</li>

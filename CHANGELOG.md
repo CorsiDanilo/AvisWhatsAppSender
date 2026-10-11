@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ---
 
+## [1.1.0] - 2026-10-11
+
+### Added
+- **Segnalazione diagnostica flessibile**: invio dei log allo sviluppatore tramite Gmail, client di posta Windows oppure copia negli appunti.
+- **Gestione aggiornamenti più visibile**: avvisi in-app, notifica Windows e procedura guidata per scaricare e installare le nuove versioni.
+- **Ripristino sessione WhatsApp**: azzeramento dei dati di autenticazione e generazione di un nuovo QR code direttamente dall'app.
+
+### Changed
+- **Importazione donatori più compatibile**: supporto per CSV separati da punto e virgola, colonne AVIS preselezionate e fallback alla mappatura automatica esistente.
+- **Compleanni da Excel**: riconoscimento delle date seriali di Excel e dei formati senza anno.
+- **Stima invio più leggibile**: durate espresse in ore e minuti quando necessario.
+
+### Fixed
+- **Reset della sessione WhatsApp**: il reset non può più riutilizzare o ricevere eventi dal tentativo di connessione precedente.
+
+---
+
 ## [1.0.0] - 2026-10-08
 
 ### Summary

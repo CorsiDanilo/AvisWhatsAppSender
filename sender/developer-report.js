@@ -1,3 +1,5 @@
+const DEVELOPER_REPORT_RECIPIENT = 'danilo.corsi@outlook.it';
+
 function buildDeveloperReport({
   appVersion = '1.0.0',
   osDetails = 'Windows',
@@ -42,7 +44,7 @@ function buildDeveloperReport({
 }
 
 function buildEmlContent({
-  to = 'danilo.corsi@outlook.it',
+  to = DEVELOPER_REPORT_RECIPIENT,
   subject = '',
   body = '',
   attachmentName = 'log.txt',
@@ -82,7 +84,7 @@ function buildEmlContent({
 }
 
 function buildMailtoUrl({
-  to = 'danilo.corsi@outlook.it',
+  to = DEVELOPER_REPORT_RECIPIENT,
   subject = '',
   body = '',
   maxBodyLength = 1500,
@@ -95,8 +97,28 @@ function buildMailtoUrl({
   return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(mailtoBody)}`;
 }
 
+function buildGmailComposeUrl({
+  to = DEVELOPER_REPORT_RECIPIENT,
+  subject = '',
+  body = '',
+} = {}) {
+  return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+async function openExternalUrl(openExternal, url) {
+  try {
+    await openExternal(url);
+    return { opened: true };
+  } catch (error) {
+    return { opened: false, error };
+  }
+}
+
 module.exports = {
+  DEVELOPER_REPORT_RECIPIENT,
   buildDeveloperReport,
   buildEmlContent,
+  buildGmailComposeUrl,
   buildMailtoUrl,
+  openExternalUrl,
 };

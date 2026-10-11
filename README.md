@@ -2,19 +2,20 @@
 
 Applicazione desktop per le sezioni AVIS che permette di preparare e inviare comunicazioni personalizzate ai donatori tramite WhatsApp Web.
 
-[![Versione](https://img.shields.io/badge/versione-1.0.0-green.svg)](package.json)
+[![Versione](https://img.shields.io/badge/versione-1.1.0-green.svg)](package.json)
 [![Piattaforma](https://img.shields.io/badge/piattaforma-Windows-blue.svg)](https://github.com/CorsiDanilo/AvisWhatsAppSender)
 [![CI Build](https://github.com/CorsiDanilo/AvisWhatsAppSender/actions/workflows/build_installer.yml/badge.svg)](https://github.com/CorsiDanilo/AvisWhatsAppSender/actions)
 
 ## Funzioni principali
 
-- Importa liste di destinatari da file `.xlsx`, `.xls` e `.csv`, associa le colonne e normalizza i numeri di telefono.
+- Importa liste di destinatari da file `.xlsx`, `.xls` e `.csv`, inclusi CSV separati da punto e virgola, associa le colonne e normalizza i numeri di telefono.
 - Crea modelli di messaggio con tag dinamici, ad esempio `[nome]`, `[cognome]` e le colonne personalizzate della lista.
 - Salva preset completi: testo, ritmo di invio e un allegato immagine opzionale (`.jpg`, `.jpeg`, `.png`). L'allegato viene copiato nell'area dati interna dell'app, quindi resta disponibile anche se il file originale viene spostato.
 - Mostra un'anteprima prima dell'invio e applica pause e ritardi configurabili tra i messaggi.
 - Genera report di esito (`.xlsx` e report falliti) e log locali al termine di ogni sessione.
-- Segnalazione rapida degli errori allo sviluppatore via email con log giornaliero allegato automaticamente.
-- Controlla gli aggiornamenti da GitHub e li rende disponibili dall'applicazione con auto-updater integrato.
+- Segnalazione rapida degli errori allo sviluppatore tramite Gmail, client di posta Windows o copia negli appunti, con log giornaliero disponibile per l'allegato.
+- Ripristina la sessione WhatsApp dall'app per eliminare le credenziali locali e generare un nuovo QR code in caso di problemi di collegamento.
+- Controlla gli aggiornamenti da GitHub una volta all'avvio e su richiesta dell'operatore, con notifica, download e installazione guidata.
 
 ## Promemoria compleanni
 

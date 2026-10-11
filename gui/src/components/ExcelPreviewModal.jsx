@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { toUserError } from '../errorMessage';
+import { getInitialImportMapping } from './importMapping.mjs';
 
 function normalizePreviewName(value) {
   return String(value ?? '')
@@ -59,26 +60,18 @@ export default function ExcelPreviewModal({
 }) {
   const inspection = inspectionData?.inspection || {};
   const sheets = inspection.sheets || [];
-  const detectedMapping = inspection.detectedMapping || {};
+  const initialMapping = getInitialImportMapping(inspection.headers, inspection.detectedMapping);
   const [currentSheet, setCurrentSheet] = useState(inspection.currentSheet || 'CSV');
   const [headers, setHeaders] = useState(inspection.headers || []);
   const [sampleRows, setSampleRows] = useState(inspection.sampleRows || []);
-  const [nameCol, setNameCol] = useState(detectedMapping.name || '');
-  const [surnameCol, setSurnameCol] = useState(detectedMapping.surname || '');
-  const [phoneCol, setPhoneCol] = useState(detectedMapping.phone || '');
-  const [oneColumnName, setOneColumnName] = useState(Boolean(detectedMapping.nameAndSurnameInOneColumn));
-  const [selectedColumns, setSelectedColumns] = useState(() => {
-    const detectedColumns = [
-      detectedMapping.name,
-      detectedMapping.surname,
-      detectedMapping.phone,
-      ...(detectedMapping.customFields || []),
-    ].filter(Boolean);
-    return (inspection.headers || []).filter((header) => detectedColumns.includes(header));
-  });
+  const [nameCol, setNameCol] = useState(initialMapping.name);
+  const [surnameCol, setSurnameCol] = useState(initialMapping.surname);
+  const [phoneCol, setPhoneCol] = useState(initialMapping.phone);
+  const [oneColumnName, setOneColumnName] = useState(initialMapping.nameAndSurnameInOneColumn);
+  const [selectedColumns, setSelectedColumns] = useState(initialMapping.selectedColumns);
   const [isLoadingSheet, setIsLoadingSheet] = useState(false);
   const [sheetError, setSheetError] = useState('');
-  const [showManualMapping, setShowManualMapping] = useState(() => !detectedMapping.name || !detectedMapping.phone);
+  const [showManualMapping, setShowManualMapping] = useState(() => !initialMapping.name || !initialMapping.phone);
 
   const selectedMainColumns = [nameCol, phoneCol, oneColumnName ? '' : surnameCol].filter(Boolean);
   const customFields = selectedColumns.filter((column) => !selectedMainColumns.includes(column));
@@ -106,22 +99,16 @@ export default function ExcelPreviewModal({
       if (!data?.inspection) throw new Error('Foglio non disponibile');
 
       const nextInspection = data.inspection;
-      const nextMapping = nextInspection.detectedMapping || {};
-      const detectedColumns = [
-        nextMapping.name,
-        nextMapping.surname,
-        nextMapping.phone,
-        ...(nextMapping.customFields || []),
-      ].filter(Boolean);
+      const nextMapping = getInitialImportMapping(nextInspection.headers, nextInspection.detectedMapping);
 
       setCurrentSheet(newSheet);
       setHeaders(nextInspection.headers || []);
       setSampleRows(nextInspection.sampleRows || []);
-      setNameCol(nextMapping.name || '');
-      setSurnameCol(nextMapping.surname || '');
-      setPhoneCol(nextMapping.phone || '');
-      setSelectedColumns((nextInspection.headers || []).filter((header) => detectedColumns.includes(header)));
-      setOneColumnName(Boolean(nextMapping.nameAndSurnameInOneColumn));
+      setNameCol(nextMapping.name);
+      setSurnameCol(nextMapping.surname);
+      setPhoneCol(nextMapping.phone);
+      setSelectedColumns(nextMapping.selectedColumns);
+      setOneColumnName(nextMapping.nameAndSurnameInOneColumn);
       setShowManualMapping(!nextMapping.name || !nextMapping.phone);
     } catch (err) {
       console.error(err);
@@ -228,7 +215,7 @@ export default function ExcelPreviewModal({
                   <span className="excel-selection-count">{selectedColumns.length} selezionate</span>
                 </div>
                 <p className="excel-selection-help">
-                  Nome, cognome e telefono sono selezionati automaticamente. Le altre colonne selezionate saranno disponibili come tag nel messaggio.
+                  COGNOMEENOME e CELLULARE sono selezionate automaticamente se presenti. DATADINASCITA viene preselezionata ma resta facoltativa; le altre colonne diventano tag nel messaggio.
                 </p>
                 <div className="excel-mapping-tools">
                   <button type="button" className="link-btn" onClick={() => setShowManualMapping((current) => !current)}>
@@ -248,8 +235,13 @@ export default function ExcelPreviewModal({
                     <div className={`excel-main-mapping-grid ${oneColumnName ? 'full-name' : ''}`}>
                       {oneColumnName ? (
                         <label>
-                          Nome completo <strong>*</strong>
-                          <select value={nameCol} onChange={(e) => handleMainColumnChange('name', e.target.value)}>
+                          <span>Nome completo <strong>*</strong></span>
+                          <select
+                            value={nameCol}
+                            onChange={(e) => handleMainColumnChange('name', e.target.value)}
+                            aria-invalid={!nameCol}
+                            aria-describedby={!nameCol ? 'excel-name-error' : undefined}
+                          >
                             <option value="">Seleziona colonna</option>
                             {headers.map((header) => (
                               <option key={header} value={header} disabled={header === phoneCol && header !== nameCol}>
@@ -257,12 +249,18 @@ export default function ExcelPreviewModal({
                               </option>
                             ))}
                           </select>
+                          {!nameCol && <span id="excel-name-error" className="excel-field-error">Seleziona la colonna del nome.</span>}
                         </label>
                       ) : (
                         <>
                           <label>
-                            Nome <strong>*</strong>
-                            <select value={nameCol} onChange={(e) => handleMainColumnChange('name', e.target.value)}>
+                            <span>Nome <strong>*</strong></span>
+                            <select
+                              value={nameCol}
+                              onChange={(e) => handleMainColumnChange('name', e.target.value)}
+                              aria-invalid={!nameCol}
+                              aria-describedby={!nameCol ? 'excel-name-error' : undefined}
+                            >
                               <option value="">Seleziona colonna</option>
                               {headers.map((header) => (
                                 <option key={header} value={header} disabled={[phoneCol, surnameCol].includes(header) && header !== nameCol}>
@@ -270,9 +268,10 @@ export default function ExcelPreviewModal({
                                 </option>
                               ))}
                             </select>
+                            {!nameCol && <span id="excel-name-error" className="excel-field-error">Seleziona la colonna del nome.</span>}
                           </label>
                           <label>
-                            Cognome
+                            <span>Cognome</span>
                             <select value={surnameCol} onChange={(e) => handleMainColumnChange('surname', e.target.value)}>
                               <option value="">Nessuna colonna</option>
                               {headers.map((header) => (
@@ -285,8 +284,13 @@ export default function ExcelPreviewModal({
                         </>
                       )}
                       <label>
-                        Telefono <strong>*</strong>
-                        <select value={phoneCol} onChange={(e) => handleMainColumnChange('phone', e.target.value)}>
+                        <span>Telefono <strong>*</strong></span>
+                        <select
+                          value={phoneCol}
+                          onChange={(e) => handleMainColumnChange('phone', e.target.value)}
+                          aria-invalid={!phoneCol}
+                          aria-describedby={!phoneCol ? 'excel-phone-error' : undefined}
+                        >
                           <option value="">Seleziona colonna</option>
                           {headers.map((header) => (
                             <option key={header} value={header} disabled={[nameCol, ...(oneColumnName ? [] : [surnameCol])].includes(header) && header !== phoneCol}>
@@ -294,6 +298,7 @@ export default function ExcelPreviewModal({
                             </option>
                           ))}
                         </select>
+                        {!phoneCol && <span id="excel-phone-error" className="excel-field-error">Seleziona la colonna del telefono.</span>}
                       </label>
                     </div>
                   )}

@@ -1,3 +1,5 @@
+import { formatEstimatedDuration } from './duration.mjs'
+
 function previewMessage(message, donor) {
   if (!donor) return message
   return message
@@ -29,6 +31,7 @@ export default function StepSummary({
   const avgDelaySec = ((options.minDelayMs + options.maxDelayMs) / 2) / 1000
   const pauseCount = options.pauseAfter > 0 ? Math.floor(validSelectedDonors.length / options.pauseAfter) : 0
   const totalMinutesEst = Math.round((validSelectedDonors.length * avgDelaySec + pauseCount * options.pauseMinutes * 60) / 60)
+  const estimatedDuration = formatEstimatedDuration(totalMinutesEst)
 
   return (
     <div className="step-container">
@@ -151,7 +154,7 @@ export default function StepSummary({
               </li>
               <li>
                 <span>Durata totale stimata:</span>
-                <strong>~{totalMinutesEst} minuti</strong>
+                <strong>~{estimatedDuration}</strong>
               </li>
             </ul>
           </div>

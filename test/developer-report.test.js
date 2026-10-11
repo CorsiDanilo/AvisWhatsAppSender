@@ -1,6 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildDeveloperReport, buildMailtoUrl, buildEmlContent } = require('../sender/developer-report');
+const {
+  buildDeveloperReport,
+  buildMailtoUrl,
+  buildEmlContent,
+  buildGmailComposeUrl,
+  openExternalUrl,
+} = require('../sender/developer-report');
 
 test('buildDeveloperReport genera oggetto e report coerenti copiando tutto il log', () => {
   const fullLog = 'log riga 1\nlog riga 2\nlog riga 3\nlog riga 100';
@@ -68,4 +74,31 @@ test('buildMailtoUrl costruisce URL mailto valido e rispetta il limite massimo d
   const bodyPart = decodeURIComponent(url.split('&body=')[1]);
   assert.ok(bodyPart.length < 2000);
   assert.match(bodyPart, /Log completo copiato negli appunti/);
+});
+
+test('buildGmailComposeUrl costruisce URL di composizione Gmail valido', () => {
+  const url = buildGmailComposeUrl({
+    to: 'danilo.corsi@outlook.it',
+    subject: 'Segnalazione AVIS',
+    body: 'Dettagli errore',
+  });
+
+  assert.match(url, /^https:\/\/mail\.google\.com\/mail\/\?view=cm&fs=1&to=danilo\.corsi%40outlook\.it&su=Segnalazione%20AVIS&body=Dettagli%20errore/);
+});
+
+test('buildGmailComposeUrl conserva integralmente un log lungo', () => {
+  const fullLog = 'riga di log\n'.repeat(400);
+  const url = buildGmailComposeUrl({ body: fullLog });
+
+  assert.equal(new URL(url).searchParams.get('body'), fullLog);
+});
+
+test('openExternalUrl segnala quando il sistema non può aprire il client esterno', async () => {
+  const launchError = new Error('Nessun browser predefinito');
+
+  const result = await openExternalUrl(async () => {
+    throw launchError;
+  }, 'https://mail.google.com/');
+
+  assert.deepEqual(result, { opened: false, error: launchError });
 });

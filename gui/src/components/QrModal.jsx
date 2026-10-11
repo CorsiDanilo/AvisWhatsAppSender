@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 export default function QrModal({ isOpen, onClose, state, api, call }) {
   const [regenerating, setRegenerating] = useState(false)
+  const [resetting, setResetting] = useState(false)
 
   if (!isOpen) return null
 
@@ -20,6 +21,21 @@ export default function QrModal({ isOpen, onClose, state, api, call }) {
       // Error handled by call()
     } finally {
       setRegenerating(false)
+    }
+  }
+
+  async function handleResetSession() {
+    setResetting(true)
+    try {
+      if (api?.resetWhatsAppSession) {
+        await call(() => api.resetWhatsAppSession())
+      } else if (api?.reconnect) {
+        await call(() => api.reconnect())
+      }
+    } catch {
+      // Error handled by call()
+    } finally {
+      setResetting(false)
     }
   }
 
@@ -80,16 +96,25 @@ export default function QrModal({ isOpen, onClose, state, api, call }) {
         </div>
 
         <div className="qr-modal-footer">
-          {state.connection !== 'ready' && (
+          <div className="qr-modal-actions">
             <button
               type="button"
               className="button button-secondary regenerate-qr-btn"
               onClick={handleRegenerate}
-              disabled={regenerating}
+              disabled={regenerating || resetting}
             >
-              <span>🔄</span> {regenerating ? 'Rigenerazione in corso…' : 'Rigenera codice QR'}
+              <span>🔄</span> {regenerating ? 'Riconnessione in corso…' : 'Riconnetti WhatsApp'}
             </button>
-          )}
+            <button
+              type="button"
+              className="button button-secondary reset-session-btn"
+              onClick={handleResetSession}
+              disabled={regenerating || resetting}
+              title="Cancella i file di sessione memorizzati e rigenera un nuovo codice QR"
+            >
+              <span>🧹</span> {resetting ? 'Azzeramento in corso…' : 'Azzera sessione'}
+            </button>
+          </div>
           <button type="button" className="button button-primary" onClick={onClose}>
             {state.connection === 'ready' ? 'Fatto' : 'Chiudi e continua'}
           </button>

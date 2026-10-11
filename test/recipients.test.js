@@ -143,3 +143,54 @@ test('creates a selected pending donor with all current custom fields', () => {
     customFields: { DATADINASCITA: '04/05/1990', Gruppo: '' },
   });
 });
+
+test('detects and parses CSV files delimited by semicolon', async () => {
+  const { directory, filePath } = temporaryCsv(
+    'COGNOMEENOME;DATADINASCITA;CELLULARE\nMARIO ROSSI;14/02/1990;3331234567\n'
+  );
+
+  try {
+    const inspection = await inspectFile(filePath);
+    assert.equal(inspection.detectedMapping.name, 'COGNOMEENOME');
+    assert.equal(inspection.detectedMapping.phone, 'CELLULARE');
+    assert.deepEqual(inspection.detectedMapping.customFields, ['DATADINASCITA']);
+
+    const [donor] = await parseWithMapping(filePath, 'CSV', inspection.detectedMapping);
+    assert.equal(donor.name, 'Mario');
+    assert.equal(donor.surname, 'Rossi');
+    assert.equal(donor.phone, '393331234567');
+    assert.equal(donor.customFields.DATADINASCITA, '14/02/1990');
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('reads Excel dates formatted in Italian dd/mm/yyyy format', async () => {
+  const XLSX = require('xlsx');
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'avis-excel-test-'));
+  const filePath = path.join(directory, 'test.xlsx');
+
+  const ws = {
+    '!ref': 'A1:C2',
+    'A1': { t: 's', v: 'COGNOMEENOME' },
+    'B1': { t: 's', v: 'DATADINASCITA' },
+    'C1': { t: 's', v: 'CELLULARE' },
+    'A2': { t: 's', v: 'MARIO ROSSI' },
+    'B2': { t: 'n', v: 33171, z: XLSX.SSF._table[14] }, // 25 Oct 1990
+    'C2': { t: 's', v: '3331234567' }
+  };
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+  XLSX.writeFile(wb, filePath);
+
+  try {
+    const inspection = await inspectFile(filePath);
+    assert.equal(inspection.detectedMapping.name, 'COGNOMEENOME');
+    assert.deepEqual(inspection.detectedMapping.customFields, ['DATADINASCITA']);
+
+    const [donor] = await parseWithMapping(filePath, 'Sheet1', inspection.detectedMapping);
+    assert.equal(donor.customFields.DATADINASCITA, '25/10/1990');
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});

@@ -45,7 +45,14 @@ const {
   shouldShowAttentionIndicator,
 } = require('../sender/notifications');
 const { renderTemplate } = require('../sender/template');
-const { buildDeveloperReport, buildMailtoUrl, buildEmlContent } = require('../sender/developer-report');
+const {
+  DEVELOPER_REPORT_RECIPIENT,
+  buildDeveloperReport,
+  buildMailtoUrl,
+  buildEmlContent,
+  buildGmailComposeUrl,
+  openExternalUrl,
+} = require('../sender/developer-report');
 const { SendQueue } = require('../sender/queue');
 const { retryAsync } = require('../sender/retry');
 const {
@@ -92,6 +99,7 @@ let tray;
 let client;
 let clientReady = false;
 let connectionPromise = null;
+let connectionGeneration = 0;
 const diagnosticPages = new WeakSet();
 let queue;
 let selectedFile = '';
@@ -762,11 +770,11 @@ function createClient() {
     executablePath = path.join(process.resourcesPath, 'browser', 'chrome.exe');
   }
 
-  client = new Client({
+  const whatsapp = new Client({
     authStrategy: new LocalAuth({
       dataPath: path.join(app.getPath('userData'), 'whatsapp-session'),
     }),
-    authTimeoutMs: 30000,
+    authTimeoutMs: 90000,
     qrMaxRetries: 3,
     puppeteer: {
       executablePath,
@@ -776,11 +784,18 @@ function createClient() {
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--disable-features=CalculateNativeWinOcclusion',
       ],
     },
   });
 
-  client.on('qr', async (qr) => {
+  client = whatsapp;
+
+  whatsapp.on('qr', async (qr) => {
+    if (client !== whatsapp) return;
     try {
       const shouldNotify = state.connection !== 'qr';
       setConnection('qr', await QRCode.toDataURL(qr));
@@ -792,24 +807,31 @@ function createClient() {
       notifyUser('Errore WhatsApp', notificationErrorBody(error, 'whatsapp'));
     }
   });
-  client.on('authenticated', () => {
+  whatsapp.on('authenticated', () => {
+    if (client !== whatsapp) return;
     setConnection('authenticated');
     log('WhatsApp autenticato.');
     audit('info', 'whatsapp.authenticated');
   });
-  client.on('ready', () => {
+  whatsapp.on('ready', () => {
+    if (client !== whatsapp) return;
+    const wasReady = clientReady || state.connection === 'ready';
     clientReady = true;
     setConnection('ready');
-    notifyUser('WhatsApp collegato', 'WhatsApp è collegato e pronto per l’invio dei messaggi.');
+    if (!wasReady) {
+      notifyUser('WhatsApp collegato', 'WhatsApp è collegato e pronto per l’invio dei messaggi.');
+    }
     log('WhatsApp pronto per l’invio.');
   });
-  client.on('auth_failure', (message) => {
+  whatsapp.on('auth_failure', (message) => {
+    if (client !== whatsapp) return;
     clientReady = false;
     setConnection('error');
     logError('whatsapp.auth_failure', new Error(message));
     notifyUser('Errore WhatsApp', notificationErrorBody(message, 'whatsapp'));
   });
-  client.on('disconnected', (reason) => {
+  whatsapp.on('disconnected', (reason) => {
+    if (client !== whatsapp) return;
     const wasReady = state.connection === 'ready';
     clientReady = false;
     setConnection('disconnected');
@@ -818,7 +840,7 @@ function createClient() {
     if (wasReady) notifyUser('WhatsApp disconnesso', 'La sessione WhatsApp è stata disconnessa.');
   });
 
-  return client;
+  return whatsapp;
 }
 
 async function connectClient() {
@@ -835,13 +857,34 @@ async function reconnectClient() {
   return startClientConnection('whatsapp.reconnecting', 'whatsapp.reconnect_failed');
 }
 
+async function resetWhatsAppSession() {
+  connectionGeneration += 1;
+  connectionPromise = null;
+  await destroyClient();
+  const sessionDir = path.join(app.getPath('userData'), 'whatsapp-session');
+  try {
+    if (fs.existsSync(sessionDir)) {
+      fs.rmSync(sessionDir, { recursive: true, force: true });
+    }
+  } catch (err) {
+    audit('warn', 'whatsapp.session_cleanup_failed', errorDetails(err));
+  }
+  setConnection('disconnected', '');
+  log('Sessione WhatsApp azzerata. Rigenerazione del codice QR...');
+  return reconnectClient();
+}
+
 function startClientConnection(startEvent, failureEvent) {
   if (connectionPromise) return connectionPromise;
+  const generation = ++connectionGeneration;
+  const isCurrent = () => generation === connectionGeneration;
   let lastAttempt = 0;
 
-  connectionPromise = retryAsync(async (attempt) => {
+  const promise = retryAsync(async (attempt) => {
+    if (!isCurrent()) throw new Error('Tentativo di connessione annullato');
     lastAttempt = attempt;
     await destroyClient();
+    if (!isCurrent()) throw new Error('Tentativo di connessione annullato');
     setConnection('connecting', '');
     audit('info', startEvent, { attempt });
     const whatsapp = createClient();
@@ -852,11 +895,14 @@ function startClientConnection(startEvent, failureEvent) {
       });
     });
     await whatsapp.initialize();
+    if (!isCurrent()) throw new Error('Tentativo di connessione annullato');
     return snapshot();
   }, {
     attempts: MAX_CONNECTION_ATTEMPTS,
     delayMs: 1500,
+    shouldRetry: () => isCurrent(),
     onRetry: async (error, nextAttempt) => {
+      if (!isCurrent()) return;
       await logWhatsAppPageSnapshot(client, error, nextAttempt - 1);
       log(`Connessione WhatsApp: nuovo tentativo ${nextAttempt}/${MAX_CONNECTION_ATTEMPTS}...`);
       audit('warn', 'whatsapp.retry', {
@@ -866,6 +912,7 @@ function startClientConnection(startEvent, failureEvent) {
     },
   })
     .catch(async (error) => {
+      if (!isCurrent()) return snapshot();
       await logWhatsAppPageSnapshot(client, error, lastAttempt);
       setConnection('error');
       logError(failureEvent, error);
@@ -873,10 +920,11 @@ function startClientConnection(startEvent, failureEvent) {
       throw error;
     })
     .finally(() => {
-      connectionPromise = null;
+      if (connectionPromise === promise) connectionPromise = null;
     });
 
-  return connectionPromise;
+  connectionPromise = promise;
+  return promise;
 }
 
 function optionNumber(value, fallback, minimum, maximum) {
@@ -1261,8 +1309,18 @@ async function openLogsDir() {
   return openPathInExplorer(getEffectiveLogDir());
 }
 
-async function sendDeveloperReport(errorContext = '') {
-  const devEmail = 'danilo.corsi@outlook.it';
+async function sendDeveloperReport(options = '') {
+  let errorContext = '';
+  let method = 'eml';
+
+  if (typeof options === 'string') {
+    errorContext = options;
+  } else if (options && typeof options === 'object') {
+    errorContext = options.errorContext || '';
+    method = options.method || 'eml';
+  }
+
+  const devEmail = DEVELOPER_REPORT_RECIPIENT;
   const appVersion = app.getVersion ? app.getVersion() : '1.0.0';
   const logDir = getEffectiveLogDir();
   const today = new Date().toISOString().slice(0, 10);
@@ -1307,42 +1365,60 @@ async function sendDeveloperReport(errorContext = '') {
 
   // Copia tutto il log e il report negli appunti
   try {
-    clipboard.writeText(reportText);
+    clipboard.writeText(method === 'gmail' ? todayLogContent : reportText);
   } catch (err) {
     logError('clipboard.copy_failed', err);
   }
 
-  // Genera il file .eml con il file .txt allegato come allegato MIME
   let emlOpened = false;
-  try {
-    const emlContent = buildEmlContent({
-      to: devEmail,
-      subject,
-      body: reportText,
-      attachmentName,
-      attachmentContent: todayLogContent || '(Nessun evento registrato nel file di log di oggi)',
-    });
-    fs.writeFileSync(emlPath, emlContent, 'utf8');
-    const openErr = await shell.openPath(emlPath);
-    if (!openErr) {
-      emlOpened = true;
-    }
-  } catch (err) {
-    logError('eml.open_failed', err);
-  }
+  let deliveryError;
+  let deliveryMethod = method;
 
-  // Se l'apertura .eml non è riuscita, apri il fallback mailto:
-  if (!emlOpened) {
-    const mailtoUrl = buildMailtoUrl({
+  if (method === 'gmail') {
+    const gmailUrl = buildGmailComposeUrl({
       to: devEmail,
       subject,
-      body: reportText,
-      maxBodyLength: 1500,
+      body: todayLogContent,
     });
+    const result = await openExternalUrl((url) => shell.openExternal(url), gmailUrl);
+    if (!result.opened) {
+      logError('gmail.open_failed', result.error);
+      deliveryError = result.error;
+    }
+  } else if (method === 'eml') {
+    // Genera il file .eml con il file .txt allegato come allegato MIME
     try {
-      await shell.openExternal(mailtoUrl);
+      const emlContent = buildEmlContent({
+        to: devEmail,
+        subject,
+        body: reportText,
+        attachmentName,
+        attachmentContent: todayLogContent || '(Nessun evento registrato nel file di log di oggi)',
+      });
+      fs.writeFileSync(emlPath, emlContent, 'utf8');
+      const openErr = await shell.openPath(emlPath);
+      if (!openErr) {
+        emlOpened = true;
+      }
     } catch (err) {
-      logError('mail.open_failed', err);
+      logError('eml.open_failed', err);
+    }
+
+    // Se l'apertura .eml non è riuscita, apri il fallback mailto:
+    if (!emlOpened) {
+      const mailtoUrl = buildMailtoUrl({
+        to: devEmail,
+        subject,
+        body: reportText,
+        maxBodyLength: 1500,
+      });
+      const result = await openExternalUrl((url) => shell.openExternal(url), mailtoUrl);
+      if (result.opened) {
+        deliveryMethod = 'mailto';
+      } else {
+        logError('mail.open_failed', result.error);
+        deliveryError = result.error;
+      }
     }
   }
 
@@ -1359,16 +1435,20 @@ async function sendDeveloperReport(errorContext = '') {
 
   audit('info', 'developer_report.prepared', {
     hasError: Boolean(errorContext),
+    method: deliveryMethod,
     logFileFound,
     logPath,
     txtPath,
     emlOpened,
   });
 
+  if (deliveryError) throw deliveryError;
+
   return {
     success: true,
     email: devEmail,
     logPath: txtPath,
+    method: deliveryMethod,
     copiedToClipboard: true,
   };
 }
@@ -1536,6 +1616,7 @@ registerHandler('sender:select-preset-attachment', selectPresetAttachment);
 registerHandler('sender:load-preset-attachment', (attachment) => loadPresetAttachment(attachment));
 registerHandler('sender:connect', connectClient);
 registerHandler('sender:reconnect', reconnectClient);
+registerHandler('sender:reset-whatsapp-session', resetWhatsAppSession);
 registerHandler('sender:get-state', () => snapshot());
 registerHandler('sender:start', (options) => startQueue(options));
 registerHandler('sender:set-selection', (index, selected) => setDonorSelection(index, selected));

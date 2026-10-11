@@ -17,6 +17,7 @@ export default function SettingsModal({
   initialTab = 'storage',
   onStartTutorial,
   onOpenGuide,
+  onOpenDeveloperReport,
 }) {
   const [userTab, setUserTab] = useState(null)
   const activeTab = userTab ?? initialTab
@@ -305,14 +306,12 @@ export default function SettingsModal({
                   </button>
                   <button
                     className="button button-secondary"
-                    title="Invia il log della giornata per email allo sviluppatore (danilo.corsi@outlook.it)"
-                    onClick={async () => {
-                      setStatusMsg('Preparazione email in corso...')
-                      try {
-                        await api.sendDeveloperReport()
-                        setStatusMsg('Client di posta aperto! I log sono stati copiati ed evidenziati.')
-                      } catch {
-                        setStatusMsg('Impossibile aprire il client di posta.')
+                    title="Invia il log della giornata per email allo sviluppatore"
+                    onClick={() => {
+                      if (onOpenDeveloperReport) {
+                        onOpenDeveloperReport('')
+                      } else {
+                        api?.sendDeveloperReport?.()
                       }
                     }}
                   >

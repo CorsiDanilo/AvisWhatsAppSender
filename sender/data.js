@@ -127,8 +127,38 @@ function normalizeCsvHeader(value) {
   return String(value ?? '').replace(/^\uFEFF/, '').trim();
 }
 
-function createCsvParser() {
-  return csv({ mapHeaders: ({ header }) => normalizeCsvHeader(header) });
+function detectCsvSeparator(filePath) {
+  let fd;
+  try {
+    fd = fs.openSync(filePath, 'r');
+    const buffer = Buffer.alloc(4096);
+    const bytesRead = fs.readSync(fd, buffer, 0, 4096, 0);
+    const text = buffer.toString('utf8', 0, bytesRead);
+    const firstLine = text.split(/\r?\n/)[0] || '';
+
+    const semicolons = (firstLine.match(/;/g) || []).length;
+    const commas = (firstLine.match(/,/g) || []).length;
+    const tabs = (firstLine.match(/\t/g) || []).length;
+
+    if (semicolons > commas && semicolons > tabs) return ';';
+    if (tabs > commas && tabs > semicolons) return '\t';
+    return ',';
+  } catch {
+    return ',';
+  } finally {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd);
+      } catch {}
+    }
+  }
+}
+
+function createCsvParser(separator = ',') {
+  return csv({
+    separator,
+    mapHeaders: ({ header }) => normalizeCsvHeader(header),
+  });
 }
 
 function normalizeDonor(row, columns) {
@@ -161,8 +191,11 @@ function columnsFor(headers) {
   };
 }
 
+const EXCEL_WORKBOOK_OPTIONS = { cellDates: false, raw: false, dateNF: 'dd/mm/yyyy' };
+const EXCEL_SHEET_OPTIONS = { defval: '', raw: false, dateNF: 'dd/mm/yyyy' };
+
 function inspectExcel(filePath, sheetName) {
-  const workbook = XLSX.readFile(filePath, { cellDates: false, raw: false });
+  const workbook = XLSX.readFile(filePath, EXCEL_WORKBOOK_OPTIONS);
   const sheets = workbook.SheetNames;
   if (sheets.length === 0) return { sheets: [], headers: [], sampleRows: [], detectedMapping: {}, currentSheet: '' };
 
@@ -170,7 +203,7 @@ function inspectExcel(filePath, sheetName) {
   const sheet = workbook.Sheets[targetSheet];
   if (!sheet) return { sheets, headers: [], sampleRows: [], detectedMapping: {}, currentSheet: targetSheet };
 
-  const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+  const rows = XLSX.utils.sheet_to_json(sheet, EXCEL_SHEET_OPTIONS);
   let headers = [];
   if (rows.length > 0) {
     const candidateHeaders = Object.keys(rows[0]).filter((h) => h && !h.startsWith('__EMPTY'));
@@ -188,10 +221,11 @@ function inspectCsv(filePath) {
     let headers = [];
     const sampleRows = [];
     const populatedHeaders = new Set();
+    const separator = detectCsvSeparator(filePath);
 
     fs.createReadStream(filePath)
       .on('error', reject)
-      .pipe(createCsvParser())
+      .pipe(createCsvParser(separator))
       .on('headers', (h) => {
         headers = h.filter(Boolean);
       })
@@ -224,18 +258,19 @@ function inspectFile(filePath, sheetName) {
 }
 
 function getRowsFromExcel(filePath, sheetName) {
-  const workbook = XLSX.readFile(filePath, { cellDates: false, raw: false });
+  const workbook = XLSX.readFile(filePath, EXCEL_WORKBOOK_OPTIONS);
   const sheet = sheetName && workbook.Sheets[sheetName] ? workbook.Sheets[sheetName] : workbook.Sheets[workbook.SheetNames[0]];
   if (!sheet) return [];
-  return XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+  return XLSX.utils.sheet_to_json(sheet, EXCEL_SHEET_OPTIONS);
 }
 
 function getRowsFromCsv(filePath) {
   return new Promise((resolve, reject) => {
     const rows = [];
+    const separator = detectCsvSeparator(filePath);
     fs.createReadStream(filePath)
       .on('error', reject)
-      .pipe(createCsvParser())
+      .pipe(createCsvParser(separator))
       .on('data', (row) => rows.push(row))
       .on('end', () => resolve(rows));
   });
@@ -284,6 +319,7 @@ async function parseWithMapping(filePath, sheetName, mapping) {
 }
 
 module.exports = {
+  detectCsvSeparator,
   normalizeHeader,
   normalizeNamePart,
   normalizePhone,

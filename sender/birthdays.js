@@ -1,39 +1,63 @@
+const XLSX = require('xlsx');
+
 const BIRTH_DATE_KEYS = new Set(['datadinascita', 'nascita', 'birthdate', 'dob']);
 
 function daysInMonth(month, year) {
   return new Date(year, month, 0).getDate();
 }
 
-function validParts(day, month, year) {
+function validDayMonth(day, month) {
   return Number.isInteger(day)
     && Number.isInteger(month)
-    && Number.isInteger(year)
-    && year >= 1
     && month >= 1
     && month <= 12
     && day >= 1
-    && day <= daysInMonth(month, year);
+    && day <= daysInMonth(month, 2000);
+}
+
+function parseExcelSerial(serial) {
+  if (typeof serial !== 'number' || !Number.isFinite(serial)) return null;
+  if (serial < 10000 || serial > 65000) return null;
+  try {
+    const parsed = XLSX.SSF.parse_date_code(serial);
+    if (parsed && validDayMonth(parsed.d, parsed.m)) {
+      return { day: parsed.d, month: parsed.m };
+    }
+  } catch {}
+  return null;
 }
 
 function parseBirthdayDate(value) {
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) return null;
-    return { day: value.getDate(), month: value.getMonth() + 1, year: value.getFullYear() };
+    return { day: value.getDate(), month: value.getMonth() + 1 };
+  }
+
+  if (typeof value === 'number') {
+    const fromSerial = parseExcelSerial(value);
+    if (fromSerial) return fromSerial;
   }
 
   const raw = String(value ?? '').trim();
   if (!raw) return null;
 
-  let match = raw.match(/^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})$/);
-  if (match) {
-    const [, day, month, year] = match.map(Number);
-    return validParts(day, month, year) ? { day, month, year } : null;
+  if (/^\d{5}(?:\.\d+)?$/.test(raw)) {
+    const fromSerial = parseExcelSerial(Number(raw));
+    if (fromSerial) return fromSerial;
   }
 
-  match = raw.match(/^(\d{4})[/.\-](\d{1,2})[/.\-](\d{1,2})$/);
+  let match = raw.match(/^(\d{4})[/.\-](\d{1,2})[/.\-](\d{1,2})$/);
   if (match) {
-    const [, year, month, day] = match.map(Number);
-    return validParts(day, month, year) ? { day, month, year } : null;
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    return validDayMonth(day, month) ? { day, month } : null;
+  }
+
+  match = raw.match(/^(\d{1,2})[/.\-](\d{1,2})(?:[/.\-](\d{4}|\d{2}))?$/);
+  if (match) {
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+    return validDayMonth(day, month) ? { day, month } : null;
   }
 
   return null;

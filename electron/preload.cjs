@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('whatsappSender', {
   loadPresetAttachment: (attachment) => ipcRenderer.invoke('sender:load-preset-attachment', attachment),
   connect: () => ipcRenderer.invoke('sender:connect'),
   reconnect: () => ipcRenderer.invoke('sender:reconnect'),
+  resetWhatsAppSession: () => ipcRenderer.invoke('sender:reset-whatsapp-session'),
   start: (options) => ipcRenderer.invoke('sender:start', options),
   pause: () => ipcRenderer.invoke('sender:pause'),
   resume: () => ipcRenderer.invoke('sender:resume'),

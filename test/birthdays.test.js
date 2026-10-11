@@ -10,18 +10,26 @@ const {
   parseBirthdayDate,
 } = require('../sender/birthdays');
 
-test('parses Italian birthday dates without using UTC conversion', () => {
-  assert.deepEqual(parseBirthdayDate('14/02/1997'), { day: 14, month: 2, year: 1997 });
-  assert.deepEqual(parseBirthdayDate(' 01/12/1980 '), { day: 1, month: 12, year: 1980 });
-  assert.deepEqual(parseBirthdayDate('1997-02-14'), { day: 14, month: 2, year: 1997 });
-  assert.deepEqual(parseBirthdayDate(new Date(1997, 1, 14)), { day: 14, month: 2, year: 1997 });
+test('parses Italian birthday dates ignoring year and without using UTC conversion', () => {
+  assert.deepEqual(parseBirthdayDate('14/02/1997'), { day: 14, month: 2 });
+  assert.deepEqual(parseBirthdayDate('14/02'), { day: 14, month: 2 });
+  assert.deepEqual(parseBirthdayDate('14/02/97'), { day: 14, month: 2 });
+  assert.deepEqual(parseBirthdayDate(' 01/12/1980 '), { day: 1, month: 12 });
+  assert.deepEqual(parseBirthdayDate('1997-02-14'), { day: 14, month: 2 });
+  assert.deepEqual(parseBirthdayDate(new Date(1997, 1, 14)), { day: 14, month: 2 });
+  assert.deepEqual(parseBirthdayDate(33171), { day: 25, month: 10 });
+  assert.deepEqual(parseBirthdayDate('33171.5'), { day: 25, month: 10 });
 });
 
-test('rejects impossible and incomplete birthday dates', () => {
+test('rejects impossible birthday dates', () => {
   assert.equal(parseBirthdayDate('31/02/1997'), null);
+  assert.equal(parseBirthdayDate('31/02'), null);
   assert.equal(parseBirthdayDate('14/13/1997'), null);
-  assert.equal(parseBirthdayDate('14/02'), null);
+  assert.equal(parseBirthdayDate('14/13'), null);
+  assert.equal(parseBirthdayDate('14/02/123'), null);
   assert.equal(parseBirthdayDate(''), null);
+  assert.equal(parseBirthdayDate('1995'), null);
+  assert.equal(parseBirthdayDate('invalido'), null);
 });
 
 test('matches birthdays by local day and month', () => {

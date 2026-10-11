@@ -36,3 +36,20 @@ test('retryAsync rilancia l’ultimo errore dopo il numero massimo di tentativi'
   );
   assert.equal(attempts, 2);
 });
+
+test('retryAsync interrompe i tentativi quando shouldRetry lo richiede', async () => {
+  let attempts = 0;
+
+  await assert.rejects(
+    retryAsync(async () => {
+      attempts += 1;
+      throw new Error('tentativo annullato');
+    }, {
+      attempts: 2,
+      shouldRetry: () => false,
+    }),
+    { message: 'tentativo annullato' },
+  );
+
+  assert.equal(attempts, 1);
+});
