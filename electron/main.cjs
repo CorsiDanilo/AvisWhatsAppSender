@@ -79,6 +79,7 @@ const {
   summarizePageSnapshot,
   truncateDiagnosticText,
 } = require('../sender/whatsappDiagnostics');
+const { createPostSessionManager } = require('../sender/post-session');
 const { handleWindowClose, showWindow } = require('../sender/window-lifecycle');
 const packageInfo = require('../package.json');
 const APP_VERSION = packageInfo.version || app.getVersion();
@@ -136,6 +137,7 @@ const state = {
   defaultLogDir: '',
   userDataDir: '',
   lastOutcomeDir: '',
+  postSessionCountdown: null,
   notifications: {
     items: [],
     unreadCount: 0,
@@ -356,6 +358,16 @@ function notifyUser(title, body, options = {}) {
     return false;
   }
 }
+
+const postSessionManager = createPostSessionManager({
+  log,
+  logError,
+  audit,
+  notifyUser,
+  publish,
+  getState: () => state,
+  getClient: () => client,
+});
 
 function syncNotificationState() {
   state.notifications = {
@@ -966,15 +978,23 @@ function attachQueueListeners() {
     publish();
   });
   queue.on('error', ({ donor, error }) => logError('queue.send_failed', error, { donor: donor.name || 'Senza nome' }));
-  queue.on('completed', ({ sent, failed, skipped }) => {
+  queue.on('completed', async ({ sent, failed, skipped }) => {
     log(`Coda completata: ${sent} inviati, ${failed} falliti, ${skipped} saltati.`);
     notifyUser('Invio completato', `${sent} inviati, ${failed} falliti, ${skipped} saltati.`);
     writeOutcome('completed', { sent, failed, skipped });
+
+    if (activeSession?.sendSelfReport) {
+      await postSessionManager.sendSelfReport({ sent, failed, skipped, activeSession });
+    }
+    if (activeSession?.postSessionAction && activeSession.postSessionAction !== 'none') {
+      postSessionManager.scheduleAction(activeSession.postSessionAction);
+    }
   });
   queue.on('stopped', () => {
     log('Coda fermata dall’operatore.');
     notifyUser('Invio interrotto', 'L’invio dei messaggi è stato interrotto.');
     writeOutcome('stopped', { ...state.progress });
+    postSessionManager.cancelAction();
   });
 }
 
@@ -1161,8 +1181,9 @@ function addDonor(input, customFieldKeys = []) {
 function saveRhythm(options = {}) {
   if (!settingsPath) throw new Error('Percorso impostazioni non disponibile.');
   state.settings = saveSettings(settingsPath, { ...state.settings, ...options });
-  log('Ritmo di invio salvato.');
+  log('Impostazioni aggiornate.');
   audit('info', 'settings.saved', state.settings);
+  publish();
   return snapshot();
 }
 
@@ -1469,11 +1490,14 @@ async function startQueue(options = {}) {
   const selectedDonors = state.donors.filter((donor) => donor.selected !== false);
   if (!selectedDonors.length) throw new Error('Seleziona almeno un destinatario.');
   state.settings = saveSettings(settingsPath, { ...state.settings, ...options });
+  postSessionManager.cancelAction();
   activeSession = {
     presetName: String(options.presetName || 'Senza preset').trim() || 'Senza preset',
     message: currentMessage,
     imageName: state.imageName,
     settings: state.settings,
+    sendSelfReport: Boolean(options.sendSelfReport ?? state.settings.sendSelfReport),
+    postSessionAction: options.postSessionAction || state.settings.postSessionAction || 'none',
     startedAt: new Date().toISOString(),
   };
   resultWritten = false;
@@ -1667,6 +1691,7 @@ registerHandler('sender:set-notification-read', (id, read) => setStoredNotificat
 registerHandler('sender:mark-all-notifications-read', () => markAllStoredNotificationsRead());
 registerHandler('sender:clear-all-notifications', () => clearAllStoredNotifications());
 registerHandler('sender:delete-notification', (id) => deleteStoredNotification(id));
+registerHandler('sender:cancel-post-action', () => postSessionManager.cancelAction());
 
 function initUpdater() {
   autoUpdater.autoDownload = false;

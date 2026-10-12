@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld('whatsappSender', {
   markAllNotificationsRead: () => ipcRenderer.invoke('sender:mark-all-notifications-read'),
   clearAllNotifications: () => ipcRenderer.invoke('sender:clear-all-notifications'),
   deleteNotification: (id) => ipcRenderer.invoke('sender:delete-notification', id),
+  cancelPostAction: () => ipcRenderer.invoke('sender:cancel-post-action'),
   onState: (listener) => {
     const handler = (_event, state) => listener(state);
     ipcRenderer.on('sender:state', handler);

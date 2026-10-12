@@ -38,7 +38,7 @@ export default function StepComposer({
     setSelectedPreset(preset.name)
     setPresetName(preset.name)
     setMessage(preset.message)
-    if (preset.settings) setOptions(preset.settings)
+    if (preset.settings) setOptions((current) => ({ ...current, ...preset.settings }))
     call(() => api.loadPresetAttachment(preset.attachment || null))
   }
 

@@ -146,7 +146,9 @@ const [showBirthdayCenter, setShowBirthdayCenter] = useState(false)
           setSelectedPreset(firstPreset.name)
           setPresetName(firstPreset.name)
           setMessage(firstPreset.message)
-          if (firstPreset.settings) setOptions(firstPreset.settings)
+          if (firstPreset.settings) {
+            setOptions((prev) => ({ ...prev, ...firstPreset.settings }))
+          }
           if (api.loadPresetAttachment) {
             api.loadPresetAttachment(firstPreset.attachment || null)
               .then(setState)
@@ -235,7 +237,9 @@ if (!api?.onOpenBirthdays) return undefined
       setSelectedPreset(firstPreset.name)
       setPresetName(firstPreset.name)
       setMessage(firstPreset.message)
-      setOptions(firstPreset.settings)
+      if (firstPreset.settings) {
+        setOptions((prev) => ({ ...prev, ...firstPreset.settings }))
+      }
       setCurrentStep(1)
       setManualSendingView(false)
       return api.loadPresetAttachment
@@ -435,6 +439,8 @@ if (!api?.onOpenBirthdays) return undefined
       await call(() =>
         api.start({
           ...options,
+          sendSelfReport: Boolean(state.settings?.sendSelfReport),
+          postSessionAction: state.settings?.postSessionAction || 'none',
           pauseMs: options.pauseMinutes * 60 * 1000,
           message,
           presetName,
@@ -454,7 +460,9 @@ if (!api?.onOpenBirthdays) return undefined
       setSelectedPreset(preset.name)
       setPresetName(preset.name)
       setMessage(preset.message)
-      if (preset.settings) setOptions(preset.settings)
+      if (preset.settings) {
+        setOptions((prev) => ({ ...prev, ...preset.settings }))
+      }
       if (api.loadPresetAttachment) {
         call(() => api.loadPresetAttachment(preset.attachment || null))
       }
@@ -898,8 +906,10 @@ if (!api?.onOpenBirthdays) return undefined
                   onBack={() => setCurrentStep(2)}
                   onGoToStep={(step) => setCurrentStep(step)}
                   onStart={handleStart}
-                  api={effectiveApi}
-                  call={call}
+                  onOpenSettings={() => {
+                    setSettingsTab('general')
+                    setShowSettings(true)
+                  }}
                 />
               )}
             </div>

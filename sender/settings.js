@@ -10,10 +10,14 @@ const DEFAULT_SETTINGS = Object.freeze({
   logDir: '',
   notificationsEnabled: true,
   startWithWindows: true,
+  sendSelfReport: false,
+  postSessionAction: 'none',
   birthdayEnabled: true,
   birthdaySourceFilePath: '',
   birthdayPresetName: 'Auguri di compleanno',
 });
+
+const POST_SESSION_ACTIONS = Object.freeze(['none', 'sleep', 'hibernate', 'shutdown']);
 
 const LIMITS = {
   minDelayMs: [0, 10 * 60 * 1000],
@@ -37,6 +41,13 @@ function booleanSetting(value, fallback) {
   return typeof value === 'boolean' ? value : fallback;
 }
 
+function postSessionActionSetting(value, fallback = 'none') {
+  if (typeof value === 'string' && POST_SESSION_ACTIONS.includes(value.trim().toLowerCase())) {
+    return value.trim().toLowerCase();
+  }
+  return fallback;
+}
+
 function normalizeSettings(settings = {}) {
   const normalized = {
     minDelayMs: numberSetting(settings.minDelayMs, DEFAULT_SETTINGS.minDelayMs, LIMITS.minDelayMs),
@@ -47,6 +58,8 @@ function normalizeSettings(settings = {}) {
     logDir: stringSetting(settings.logDir, DEFAULT_SETTINGS.logDir),
     notificationsEnabled: booleanSetting(settings.notificationsEnabled, DEFAULT_SETTINGS.notificationsEnabled),
     startWithWindows: booleanSetting(settings.startWithWindows, DEFAULT_SETTINGS.startWithWindows),
+    sendSelfReport: booleanSetting(settings.sendSelfReport, DEFAULT_SETTINGS.sendSelfReport),
+    postSessionAction: postSessionActionSetting(settings.postSessionAction, DEFAULT_SETTINGS.postSessionAction),
     birthdayEnabled: booleanSetting(settings.birthdayEnabled, DEFAULT_SETTINGS.birthdayEnabled),
     birthdaySourceFilePath: stringSetting(settings.birthdaySourceFilePath, DEFAULT_SETTINGS.birthdaySourceFilePath),
     birthdayPresetName: stringSetting(settings.birthdayPresetName, DEFAULT_SETTINGS.birthdayPresetName),
@@ -70,4 +83,10 @@ function saveSettings(filePath, settings) {
   return normalized;
 }
 
-module.exports = { DEFAULT_SETTINGS, loadSettings, saveSettings, normalizeSettings };
+module.exports = {
+  DEFAULT_SETTINGS,
+  POST_SESSION_ACTIONS,
+  loadSettings,
+  saveSettings,
+  normalizeSettings,
+};

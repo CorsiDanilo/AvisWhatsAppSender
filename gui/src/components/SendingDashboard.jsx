@@ -148,6 +148,37 @@ export default function SendingDashboard({
           )}
         </div>
 
+        {/* Banner conto alla rovescia spegnimento/sospensione */}
+        {state.postSessionCountdown && (
+          <div className="post-session-countdown-banner">
+            <div className="countdown-info">
+              <span className="countdown-icon" role="img" aria-label="Icona azione">
+                {state.postSessionCountdown.action === 'shutdown' ? '🔌' : state.postSessionCountdown.action === 'hibernate' ? '🌙' : '💤'}
+              </span>
+              <div>
+                <strong>
+                  {state.postSessionCountdown.action === 'shutdown'
+                    ? 'Spegnimento del PC programmato'
+                    : state.postSessionCountdown.action === 'hibernate'
+                    ? 'Ibernazione del PC programmata'
+                    : 'Sospensione del PC programmata'}
+                </strong>
+                <p>
+                  Il sistema entrerà in stato di {state.postSessionCountdown.action === 'shutdown' ? 'spegnimento' : state.postSessionCountdown.action === 'hibernate' ? 'ibernazione' : 'sospensione'} tra{' '}
+                  <span className="countdown-seconds">{state.postSessionCountdown.secondsLeft} secondi</span>.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="button button-danger countdown-cancel-btn"
+              onClick={() => call(() => api.cancelPostAction())}
+            >
+              ❌ Annulla operazione
+            </button>
+          </div>
+        )}
+
         {/* Outcome banner if available */}
         {Boolean(state.lastOutcomeDir) && (
           <div className="outcome-card">

@@ -17,16 +17,11 @@ export default function StepSummary({
   onBack,
   onGoToStep,
   onStart,
-  api,
-  call,
+  onOpenSettings,
 }) {
   const selectedDonors = state.donors.filter((d) => d.selected !== false)
   const validSelectedDonors = selectedDonors.filter((d) => d.valid)
   const invalidSelectedDonors = selectedDonors.filter((d) => !d.valid)
-
-  const isConnected = state.connection === 'ready' || state.connection === 'authenticated'
-  const isConnecting = state.connection === 'connecting'
-  const isQr = state.connection === 'qr'
 
   const avgDelaySec = ((options.minDelayMs + options.maxDelayMs) / 2) / 1000
   const pauseCount = options.pauseAfter > 0 ? Math.floor(validSelectedDonors.length / options.pauseAfter) : 0
@@ -160,56 +155,53 @@ export default function StepSummary({
           </div>
         </div>
 
-        {/* Card 4: Connessione WhatsApp Web */}
-        <div className={`panel summary-card whatsapp-status-card ${isConnected ? 'ready' : 'not-ready'}`}>
+        {/* Card 4: Azioni al completamento */}
+        <div className="panel summary-card">
           <div className="summary-card-header">
             <div>
-              <span className="eyebrow">Stato Connessione</span>
-              <h3>WhatsApp Web</h3>
+              <span className="eyebrow">04 · Azioni finali</span>
+              <h3>Al termine dell'invio</h3>
             </div>
+            {onOpenSettings && (
+              <button
+                type="button"
+                className="link-btn"
+                onClick={onOpenSettings}
+                title="Modifica impostazioni generali"
+              >
+                ✏️ Modifica
+              </button>
+            )}
           </div>
           <div className="summary-card-content">
-            {isConnected ? (
-              <div className="whatsapp-connected-banner">
-                <span className="big-check-icon">✓</span>
-                <div>
-                  <strong>WhatsApp è collegato e pronto</strong>
-                  <p className="subtle-note">L'applicazione è sincronizzata con la sessione attiva.</p>
-                </div>
+            <ul className="summary-param-list">
+              <li>
+                <span>Riepilogo WhatsApp a me stesso:</span>
+                <strong>
+                  {state.settings?.sendSelfReport ? '✅ Attivo (chat personale "Tu")' : '⚪ Non attivo'}
+                </strong>
+              </li>
+              <li>
+                <span>Azione per il PC al termine:</span>
+                <strong>
+                  {state.settings?.postSessionAction === 'shutdown'
+                    ? '🔌 Spegni il PC'
+                    : state.settings?.postSessionAction === 'hibernate'
+                    ? '🌙 Iberna il PC'
+                    : state.settings?.postSessionAction === 'sleep'
+                    ? '💤 Sospendi il PC (Standby)'
+                    : '⚪ Nessuna azione (lascia acceso)'}
+                </strong>
+              </li>
+            </ul>
+            {state.settings?.postSessionAction && state.settings.postSessionAction !== 'none' ? (
+              <div className="summary-warning-pill" style={{ marginTop: '8px' }}>
+                ⏳ Al termine dell'invio partirà un countdown di 60s per annullare prima dello spegnimento/sospensione.
               </div>
             ) : (
-              <div className="whatsapp-connect-prompt">
-                <p style={{ margin: '0 0 10px', fontSize: '13px' }}>
-                  WhatsApp non è collegato. È necessario sincronizzare il dispositivo prima di iniziare.
-                </p>
-                <div className="whatsapp-prompt-actions">
-                  <button
-                    type="button"
-                    className="button button-primary"
-                    onClick={() => call(() => api.connect())}
-                    disabled={isConnecting}
-                  >
-                    {isConnecting ? 'Connessione in corso…' : 'Collega WhatsApp'}
-                  </button>
-                </div>
-
-                {isQr && state.qrDataUrl && (
-                  <div className="qr-inline-card">
-                    <img src={state.qrDataUrl} alt="QR Code WhatsApp" />
-                    <div className="qr-inline-content">
-                      <strong>Inquadra il QR con il telefono</strong>
-                      <p>WhatsApp → Dispositivi collegati → Collega un dispositivo.</p>
-                      <button
-                        type="button"
-                        className="button button-secondary mini qr-inline-btn"
-                        onClick={() => call(() => (api.reconnect ? api.reconnect() : api.connect()))}
-                      >
-                        <span>🔄</span> Rigenera QR code
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <p className="subtle-note" style={{ marginTop: '8px', marginBottom: 0 }}>
+                Configurato nelle Impostazioni Generali. Il computer rimarrà acceso normalmente al termine.
+              </p>
             )}
           </div>
         </div>

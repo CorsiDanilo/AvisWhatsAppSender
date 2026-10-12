@@ -1,4 +1,4 @@
-import { Folder, FileText, Download, Cake, HelpCircle, ExternalLink, Image, Save, RefreshCw, CheckCircle, Play, BookOpen, AlertCircle, Mail } from 'lucide-react'
+import { FileText, Download, Cake, HelpCircle, ExternalLink, Image, Save, RefreshCw, CheckCircle, Play, BookOpen, AlertCircle, Mail, SlidersHorizontal } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { toUserError } from '../errorMessage'
 import ReactMarkdown from 'react-markdown'
@@ -194,10 +194,10 @@ export default function SettingsModal({
 
         <div className="settings-tabs">
           <button
-            className={`settings-tab-btn ${activeTab === 'storage' ? 'active' : ''}`}
-            onClick={() => { setUserTab('storage'); setStatusMsg('') }}
+            className={`settings-tab-btn ${activeTab === 'general' || activeTab === 'storage' ? 'active' : ''}`}
+            onClick={() => { setUserTab('general'); setStatusMsg('') }}
           >
-            <Folder className="tab-icon" size={16} /> Cartelle e Archiviazione
+            <SlidersHorizontal className="tab-icon" size={16} /> Generali
           </button>
           <button
             className={`settings-tab-btn ${activeTab === 'presets' ? 'active' : ''}`}
@@ -234,11 +234,110 @@ export default function SettingsModal({
         <div className="settings-body">
           {statusMsg && <div className="settings-status-alert">{statusMsg}</div>}
 
-          {activeTab === 'storage' && (
+          {(activeTab === 'general' || activeTab === 'storage') && (
             <div className="settings-storage-section">
               <p className="muted" style={{ marginTop: 0 }}>
-                Configura dove vengono salvati gli esiti delle sessioni (file CSV e JSON) e i log diagnostici per l'assistenza.
+                Configura le opzioni di sistema, le automazioni al termine dell'invio e le cartelle di archiviazione.
               </p>
+
+              {/* Sistema & Avvio */}
+              <div className="storage-card">
+                <div className="storage-card-header">
+                  <div>
+                    <strong>Sistema & Notifiche</strong>
+                    <p className="subtle-note">Gestisci l'avvio automatico e gli avvisi desktop.</p>
+                  </div>
+                </div>
+
+                <label className="settings-checkbox-row" style={{ marginTop: '10px' }}>
+                  <input
+                    type="checkbox"
+                    checked={state.settings?.startWithWindows !== false}
+                    onChange={(event) => call(() => api.setStartWithWindows(event.target.checked))}
+                  />
+                  <span>Avvia AVIS Sender con Windows</span>
+                </label>
+                <p className="subtle-note" style={{ margin: '2px 0 12px 24px' }}>
+                  Avvia l'app all'accesso al computer per controllare i promemoria e rimanere pronta nella barra delle applicazioni.
+                </p>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '10px', borderTop: '1px solid var(--line)' }}>
+                  <div>
+                    <strong style={{ fontSize: '13px' }}>Notifiche Windows</strong>
+                    <p className="subtle-note" style={{ margin: '2px 0 0' }}>
+                      Ricevi avvisi su desktop per connessione WhatsApp, completamento invii ed errori.
+                    </p>
+                  </div>
+                  <label className="settings-toggle" title="Attiva o disattiva le notifiche Windows">
+                    <input
+                      type="checkbox"
+                      checked={state.settings?.notificationsEnabled !== false}
+                      onChange={(event) => handleNotificationsChange(event.target.checked)}
+                    />
+                    <span className="settings-toggle-track" aria-hidden="true" />
+                    <span className="sr-only">Attiva notifiche Windows</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Automazioni di fine sessione */}
+              <div className="storage-card">
+                <div className="storage-card-header">
+                  <div>
+                    <strong>Automazioni di fine sessione</strong>
+                    <p className="subtle-note">Comportamenti automatici una volta completato l'invio dei messaggi.</p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--line)' }}>
+                  <div>
+                    <strong style={{ fontSize: '13px' }}>Invia riepilogo a me stesso su WhatsApp</strong>
+                    <p className="subtle-note" style={{ margin: '2px 0 0' }}>
+                      Ricevi una notifica con il riassunto dell'esito nella chat personale WhatsApp ("Tu").
+                    </p>
+                  </div>
+                  <label className="settings-toggle" title="Invia riepilogo a me stesso">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(state.settings?.sendSelfReport)}
+                      onChange={(event) => {
+                        const val = event.target.checked
+                        call(() => api.saveSettings({ sendSelfReport: val }))
+                        if (setOptions) setOptions((prev) => ({ ...prev, sendSelfReport: val }))
+                      }}
+                    />
+                    <span className="settings-toggle-track" aria-hidden="true" />
+                    <span className="sr-only">Invia riepilogo a me stesso</span>
+                  </label>
+                </div>
+
+                <div style={{ paddingTop: '12px' }}>
+                  <label className="settings-field-label" htmlFor="post-session-action-select">
+                    Azione per il PC al termine:
+                  </label>
+                  <select
+                    id="post-session-action-select"
+                    className="preset-input-field"
+                    style={{ width: '100%', marginTop: '4px' }}
+                    value={state.settings?.postSessionAction || 'none'}
+                    onChange={(event) => {
+                      const val = event.target.value
+                      call(() => api.saveSettings({ postSessionAction: val }))
+                      if (setOptions) setOptions((prev) => ({ ...prev, postSessionAction: val }))
+                    }}
+                  >
+                    <option value="none">Nessuna azione (lascia il PC acceso)</option>
+                    <option value="sleep">💤 Sospendi il PC (Standby)</option>
+                    <option value="hibernate">🌙 Iberna il PC</option>
+                    <option value="shutdown">🔌 Spegni il PC</option>
+                  </select>
+                  <p className="subtle-note" style={{ marginTop: '6px', marginBottom: 0 }}>
+                    {state.settings?.postSessionAction && state.settings?.postSessionAction !== 'none'
+                      ? 'Prima dell’esecuzione avrai 60 secondi per annullare l’azione dalla schermata. Potrai modificare la scelta per ogni singolo invio nello step finale.'
+                      : 'Nessuna azione energetica programmata. Puoi comunque attivarla per una singola sessione nello step di riepilogo.'}
+                  </p>
+                </div>
+              </div>
 
               {/* Cartella Esiti */}
               <div className="storage-card">
@@ -321,28 +420,6 @@ export default function SettingsModal({
                 </div>
               </div>
 
-              {/* Notifiche Windows */}
-              <div className="storage-card">
-                <div className="storage-card-header">
-                  <div>
-                    <strong>Notifiche Windows</strong>
-                    <p className="subtle-note">Ricevi aggiornamenti su WhatsApp, importazioni, invii ed errori importanti.</p>
-                  </div>
-                  <label className="settings-toggle" title="Attiva o disattiva le notifiche Windows">
-                    <input
-                      type="checkbox"
-                      checked={state.settings?.notificationsEnabled !== false}
-                      onChange={(event) => handleNotificationsChange(event.target.checked)}
-                    />
-                    <span className="settings-toggle-track" aria-hidden="true" />
-                    <span className="sr-only">Attiva notifiche Windows</span>
-                  </label>
-                </div>
-                <p className="subtle-note" style={{ marginBottom: 0 }}>
-                  Le notifiche sono attive di default e vengono salvate automaticamente.
-                </p>
-              </div>
-
               {/* Dati applicazione */}
               <div className="storage-card subtle">
                 <div className="storage-card-header">
@@ -397,14 +474,6 @@ export default function SettingsModal({
                       <span className="sr-only">Attiva controllo compleanni</span>
                     </label>
                   </div>
-                  <label className="settings-checkbox-row birthday-autostart-row">
-                    <input
-                      type="checkbox"
-                      checked={state.settings?.startWithWindows !== false}
-                      onChange={(event) => call(() => api.setStartWithWindows(event.target.checked))}
-                    />
-                    <span>Avvia AVIS Sender con Windows</span>
-                  </label>
                 </section>
 
                 <section className="storage-card birthday-settings-card">

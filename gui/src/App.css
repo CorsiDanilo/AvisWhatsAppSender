@@ -2019,3 +2019,58 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
   padding: 16px 24px;
   border-top: 1px solid var(--line, #e2e8f0);
 }
+
+/* Post-Session Countdown Banner */
+.post-session-countdown-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 16px 0;
+  padding: 16px 20px;
+  background: #fef2f2;
+  border: 1.5px solid #f87171;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.12);
+}
+
+.post-session-countdown-banner .countdown-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.post-session-countdown-banner .countdown-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.post-session-countdown-banner strong {
+  display: block;
+  font-size: 14px;
+  color: #991b1b;
+  font-weight: 700;
+}
+
+.post-session-countdown-banner p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: #7f1d1d;
+}
+
+.post-session-countdown-banner .countdown-seconds {
+  display: inline-block;
+  font-weight: 800;
+  font-size: 15px;
+  color: #dc2626;
+  background: #fee2e2;
+  padding: 1px 8px;
+  border-radius: 6px;
+}
+
+.post-session-countdown-banner .countdown-cancel-btn {
+  white-space: nowrap;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
