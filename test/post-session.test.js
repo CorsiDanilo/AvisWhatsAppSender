@@ -22,18 +22,11 @@ test('buildSelfReportMessage formatta correttamente l’esito dell’invio', () 
   assert.ok(msg.includes('Spegnimento del PC programmato'));
 });
 
-test('createPostSessionManager invia il messaggio alla chat personale del mittente', async () => {
-  let sentTo = '';
-  let sentText = '';
+test('createPostSessionManager invia il messaggio ai numeri destinatari configurati con label', async () => {
+  const sentMessages = [];
   const mockClient = {
-    info: {
-      wid: {
-        _serialized: '393331234567@c.us',
-      },
-    },
     sendMessage: async (to, text) => {
-      sentTo = to;
-      sentText = text;
+      sentMessages.push({ to, text });
     },
   };
 
@@ -42,15 +35,24 @@ test('createPostSessionManager invia il messaggio alla chat personale del mitten
     getState: () => ({ fileName: 'Test.csv' }),
   });
 
-  await manager.sendSelfReport({
+  await manager.sendSessionReports({
     sent: 5,
     failed: 0,
     skipped: 0,
-    activeSession: { presetName: 'Test Preset' },
+    activeSession: {
+      presetName: 'Test Preset',
+      reportRecipients: [
+        { id: '1', label: 'Presidente', phone: '393331234567', enabled: true },
+        { id: '2', label: 'Segreteria', phone: '393409876543', enabled: true },
+        { id: '3', label: 'Escluso', phone: '393281112233', enabled: false },
+      ],
+    },
   });
 
-  assert.equal(sentTo, '393331234567@c.us');
-  assert.ok(sentText.includes('Inviati con successo: *5*'));
+  assert.equal(sentMessages.length, 2);
+  assert.equal(sentMessages[0].to, '393331234567@c.us');
+  assert.equal(sentMessages[1].to, '393409876543@c.us');
+  assert.ok(sentMessages[0].text.includes('Inviati con successo: *5*'));
 });
 
 test('createPostSessionManager pianifica e consente di annullare l’azione programmata', () => {

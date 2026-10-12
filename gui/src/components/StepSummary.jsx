@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { formatEstimatedDuration } from './duration.mjs'
+import { normalizeReportPhone, formatReportPhoneDisplay } from './reportRecipients.mjs'
 
 function previewMessage(message, donor) {
   if (!donor) return message
@@ -12,13 +14,57 @@ export default function StepSummary({
   message,
   selectedPreset,
   options,
+  setOptions,
   canStart,
   firstSelectedDonor,
+  sessionReportRecipients = [],
+  onToggleSessionRecipient,
+  onAddSessionRecipient,
   onBack,
   onGoToStep,
   onStart,
   onOpenSettings,
 }) {
+  const [showQuickAdd, setShowQuickAdd] = useState(false)
+  const [quickLabel, setQuickLabel] = useState('')
+  const [quickPhone, setQuickPhone] = useState('')
+  const [quickError, setQuickError] = useState('')
+
+  const api = window.whatsappSender
+
+  function handleAddQuickRecipient() {
+    const label = quickLabel.trim()
+    if (!label) {
+      setQuickError('Inserisci un’etichetta (es. Segreteria).')
+      return
+    }
+    const { valid, phone, error } = normalizeReportPhone(quickPhone)
+    if (!valid) {
+      setQuickError(error || 'Inserisci un numero di cellulare valido.')
+      return
+    }
+
+    const newRec = {
+      id: `rec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      label,
+      phone,
+      enabled: true,
+    }
+
+    if (api?.saveSettings) {
+      const currentList = Array.isArray(state.settings?.reportRecipients) ? state.settings.reportRecipients : []
+      api.saveSettings({ reportRecipients: [...currentList, newRec] })
+    }
+    if (onAddSessionRecipient) {
+      onAddSessionRecipient(newRec)
+    }
+
+    setQuickLabel('')
+    setQuickPhone('')
+    setQuickError('')
+    setShowQuickAdd(false)
+  }
+
   const selectedDonors = state.donors.filter((d) => d.selected !== false)
   const validSelectedDonors = selectedDonors.filter((d) => d.valid)
   const invalidSelectedDonors = selectedDonors.filter((d) => !d.valid)
@@ -166,43 +212,162 @@ export default function StepSummary({
               <button
                 type="button"
                 className="link-btn"
-                onClick={onOpenSettings}
-                title="Modifica impostazioni generali"
+                onClick={() => onOpenSettings('general')}
+                title="Gestisci impostazioni e rubrica"
               >
-                ✏️ Modifica
+                ⚙️ Gestisci rubrica
               </button>
             )}
           </div>
           <div className="summary-card-content">
-            <ul className="summary-param-list">
-              <li>
-                <span>Riepilogo WhatsApp a me stesso:</span>
-                <strong>
-                  {state.settings?.sendSelfReport ? '✅ Attivo (chat personale "Tu")' : '⚪ Non attivo'}
-                </strong>
-              </li>
-              <li>
-                <span>Azione per il PC al termine:</span>
-                <strong>
-                  {state.settings?.postSessionAction === 'shutdown'
-                    ? '🔌 Spegni il PC'
-                    : state.settings?.postSessionAction === 'hibernate'
-                    ? '🌙 Iberna il PC'
-                    : state.settings?.postSessionAction === 'sleep'
-                    ? '💤 Sospendi il PC (Standby)'
-                    : '⚪ Nessuna azione (lascia acceso)'}
-                </strong>
-              </li>
-            </ul>
-            {state.settings?.postSessionAction && state.settings.postSessionAction !== 'none' ? (
-              <div className="summary-warning-pill" style={{ marginTop: '8px' }}>
-                ⏳ Al termine dell'invio partirà un countdown di 60s per annullare prima dello spegnimento/sospensione.
+            <div style={{ marginBottom: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 650 }}>
+                  📱 Destinatari Report WhatsApp:
+                </span>
+                <button
+                  type="button"
+                  className="link-btn"
+                  style={{ fontSize: '11px', padding: 0 }}
+                  onClick={() => setShowQuickAdd((prev) => !prev)}
+                >
+                  {showQuickAdd ? '✕ Chiudi' : '+ Aggiungi numero'}
+                </button>
               </div>
-            ) : (
-              <p className="subtle-note" style={{ marginTop: '8px', marginBottom: 0 }}>
-                Configurato nelle Impostazioni Generali. Il computer rimarrà acceso normalmente al termine.
-              </p>
-            )}
+
+              {/* Form rapido inline per aggiungere un contatto */}
+              {showQuickAdd && (
+                <div className="report-recipient-add-box" style={{ marginBottom: '10px' }}>
+                  <div className="report-recipient-add-grid">
+                    <input
+                      type="text"
+                      placeholder="Etichetta (es. Presidente)"
+                      className="preset-input-field"
+                      style={{ fontSize: '11px', padding: '6px 8px' }}
+                      value={quickLabel}
+                      onChange={(e) => {
+                        setQuickLabel(e.target.value)
+                        if (quickError) setQuickError('')
+                      }}
+                    />
+                    <input
+                      type="tel"
+                      placeholder="Cellulare (es. 333...)"
+                      className="preset-input-field"
+                      style={{ fontSize: '11px', padding: '6px 8px' }}
+                      value={quickPhone}
+                      onChange={(e) => {
+                        setQuickPhone(e.target.value)
+                        if (quickError) setQuickError('')
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleAddQuickRecipient()
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      style={{ padding: '6px 10px', fontSize: '11px', whiteSpace: 'nowrap' }}
+                      onClick={handleAddQuickRecipient}
+                    >
+                      Salva
+                    </button>
+                  </div>
+                  {quickError && (
+                    <p className="report-error-text" style={{ margin: '4px 0 0' }}>
+                      ⚠️ {quickError}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Chip interattivi per ciascun destinatario */}
+              {sessionReportRecipients.length === 0 ? (
+                <p className="subtle-note" style={{ margin: 0, fontStyle: 'italic' }}>
+                  ⚪ Nessun numero configurato per il report WhatsApp. Clicca "+ Aggiungi numero" per impostarne uno.
+                </p>
+              ) : (
+                <div>
+                  <div className="report-chips-wrapper">
+                    {sessionReportRecipients.map((rec) => {
+                      const isChecked = rec.enabled !== false
+                      return (
+                        <button
+                          key={rec.id}
+                          type="button"
+                          onClick={() => onToggleSessionRecipient && onToggleSessionRecipient(rec.id)}
+                          className={`report-chip-btn ${isChecked ? 'is-active' : 'is-inactive'}`}
+                          title={`Clicca per ${isChecked ? 'escludere' : 'includere'} questo numero dall'invio`}
+                        >
+                          <span>{isChecked ? '✅' : '⚪'}</span>
+                          <span>🏷️ {rec.label}</span>
+                          <span style={{ fontSize: '11px', opacity: 0.85 }}>
+                            ({formatReportPhoneDisplay(rec.phone)})
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {sessionReportRecipients.filter((r) => r.enabled !== false).length > 0 ? (
+                    <span className="subtle-note" style={{ fontSize: '11px', color: 'var(--green-dark)' }}>
+                      📨 Il report finale verrà inviato a:{' '}
+                      <strong>
+                        {sessionReportRecipients
+                          .filter((r) => r.enabled !== false)
+                          .map((r) => r.label)
+                          .join(', ')}
+                      </strong>
+                    </span>
+                  ) : (
+                    <span className="subtle-note" style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                      ⚪ Nessun destinatario selezionato per questa sessione (nessun messaggio di riepilogo).
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--line)', paddingTop: '12px', marginTop: '12px' }}>
+              <label
+                className="settings-field-label"
+                htmlFor="summary-post-session-select"
+                style={{ margin: '0 0 6px 0', fontSize: '12px', fontWeight: 650 }}
+              >
+                Azione per il PC al termine:
+              </label>
+              <select
+                id="summary-post-session-select"
+                className="preset-input-field"
+                style={{ width: '100%', marginTop: '2px', cursor: 'pointer' }}
+                value={options.postSessionAction || state.settings?.postSessionAction || 'none'}
+                onChange={(event) => {
+                  const val = event.target.value
+                  if (setOptions) {
+                    setOptions((prev) => ({ ...prev, postSessionAction: val }))
+                  }
+                }}
+              >
+                <option value="none">Nessuna azione (lascia il PC acceso)</option>
+                <option value="sleep">💤 Sospendi il PC (Standby)</option>
+                <option value="hibernate">🌙 Iberna il PC</option>
+                <option value="shutdown">🔌 Spegni il PC</option>
+              </select>
+
+              {(options.postSessionAction || state.settings?.postSessionAction) &&
+              (options.postSessionAction || state.settings?.postSessionAction) !== 'none' ? (
+                <div className="summary-warning-pill" style={{ marginTop: '8px' }}>
+                  ⏳ Al termine dell'invio partirà un countdown di 60s per annullare prima dello spegnimento/sospensione (valido solo per questo invio).
+                </div>
+              ) : (
+                <p className="subtle-note" style={{ marginTop: '6px', marginBottom: 0 }}>
+                  Il computer rimarrà acceso normalmente al termine dell'invio.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </div>

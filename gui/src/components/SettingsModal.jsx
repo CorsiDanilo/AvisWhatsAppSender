@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { toUserError } from '../errorMessage'
 import ReactMarkdown from 'react-markdown'
 import { normalizeReleaseNotes } from '../releaseNotes.mjs'
+import { normalizeReportPhone, formatReportPhoneDisplay } from './reportRecipients.mjs'
 export default function SettingsModal({
   isOpen,
   onClose,
@@ -33,12 +34,45 @@ export default function SettingsModal({
     attachmentFileName: initialPreset?.attachment?.fileName || '',
   })
   const [statusMsg, setStatusMsg] = useState('')
+  const [newRecipientLabel, setNewRecipientLabel] = useState('')
+  const [newRecipientPhone, setNewRecipientPhone] = useState('')
+  const [recipientError, setRecipientError] = useState('')
   const effectiveOutputDir = state.settings?.outputDir || state.defaultOutputDir || 'Desktop / AVIS WhatsApp Sender'
   const effectiveLogDir = state.settings?.logDir || state.defaultLogDir || 'Cartella log predefinita'
 
   useEffect(() => { if (isOpen) { setUserTab(null); setStatusMsg('') } }, [isOpen, initialTab]);
 
   if (!isOpen) return null
+
+  function handleAddRecipient() {
+    const label = newRecipientLabel.trim()
+    if (!label) {
+      setRecipientError('Inserisci un’etichetta per identificare il contatto (es. Segreteria).')
+      return
+    }
+
+    const phoneResult = normalizeReportPhone(newRecipientPhone)
+    if (!phoneResult.valid) {
+      setRecipientError(phoneResult.error)
+      return
+    }
+
+    const currentList = Array.isArray(state.settings?.reportRecipients) ? state.settings.reportRecipients : []
+    const updated = [
+      ...currentList,
+      {
+        id: `rec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        label,
+        phone: phoneResult.phone,
+        enabled: true,
+      },
+    ]
+
+    call(() => api.saveSettings({ reportRecipients: updated }))
+    setNewRecipientLabel('')
+    setNewRecipientPhone('')
+    setRecipientError('')
+  }
 
   function handleSelectPreset(preset) {
     setStatusMsg('')
@@ -284,34 +318,125 @@ export default function SettingsModal({
               <div className="storage-card">
                 <div className="storage-card-header">
                   <div>
-                    <strong>Automazioni di fine sessione</strong>
-                    <p className="subtle-note">Comportamenti automatici una volta completato l'invio dei messaggi.</p>
+                    <strong>Report di fine invio via WhatsApp</strong>
+                    <p className="subtle-note">Configura uno o più numeri a cui recapitare automaticamente l'esito al termine dell'invio.</p>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--line)' }}>
-                  <div>
-                    <strong style={{ fontSize: '13px' }}>Invia riepilogo a me stesso su WhatsApp</strong>
-                    <p className="subtle-note" style={{ margin: '2px 0 0' }}>
-                      Ricevi una notifica con il riassunto dell'esito nella chat personale WhatsApp ("Tu").
+                {/* Lista destinatari configurati */}
+                {(!state.settings?.reportRecipients || state.settings.reportRecipients.length === 0) ? (
+                  <div className="report-recipients-empty">
+                    <p className="subtle-note" style={{ margin: 0 }}>
+                      ⚪ Nessun destinatario configurato. Il report finale non verrà inviato. Aggiungi uno o più numeri qui sotto con una label identificativa.
                     </p>
                   </div>
-                  <label className="settings-toggle" title="Invia riepilogo a me stesso">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(state.settings?.sendSelfReport)}
-                      onChange={(event) => {
-                        const val = event.target.checked
-                        call(() => api.saveSettings({ sendSelfReport: val }))
-                        if (setOptions) setOptions((prev) => ({ ...prev, sendSelfReport: val }))
-                      }}
-                    />
-                    <span className="settings-toggle-track" aria-hidden="true" />
-                    <span className="sr-only">Invia riepilogo a me stesso</span>
-                  </label>
+                ) : (
+                  <div className="report-recipients-list">
+                    {state.settings.reportRecipients.map((rec) => (
+                      <div
+                        key={rec.id}
+                        className={`report-recipient-card ${rec.enabled !== false ? 'is-active' : 'is-inactive'}`}
+                      >
+                        <div className="report-recipient-left">
+                          <input
+                            type="checkbox"
+                            id={`rec-toggle-${rec.id}`}
+                            className="report-recipient-checkbox"
+                            checked={rec.enabled !== false}
+                            onChange={(e) => {
+                              const updated = (state.settings?.reportRecipients || []).map((r) =>
+                                r.id === rec.id ? { ...r, enabled: e.target.checked } : r
+                              )
+                              call(() => api.saveSettings({ reportRecipients: updated }))
+                            }}
+                            title="Attivo come valore predefinito"
+                          />
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span className="report-recipient-label-tag">
+                                🏷️ {rec.label}
+                              </span>
+                              <strong className="report-recipient-phone">
+                                {formatReportPhoneDisplay(rec.phone)}
+                              </strong>
+                            </div>
+                            <span className="subtle-note" style={{ fontSize: '11px' }}>
+                              {rec.enabled !== false ? 'Incluso di default' : 'Escluso di default'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="link-btn report-recipient-delete-btn"
+                          onClick={() => {
+                            const updated = (state.settings?.reportRecipients || []).filter((r) => r.id !== rec.id)
+                            call(() => api.saveSettings({ reportRecipients: updated }))
+                          }}
+                          title={`Elimina ${rec.label}`}
+                        >
+                          🗑️ Rimuovi
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Form aggiunta nuovo destinatario */}
+                <div className="report-recipient-add-box">
+                  <span className="report-recipient-add-title">
+                    ➕ Aggiungi un destinatario
+                  </span>
+                  <div className="report-recipient-add-grid">
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="Etichetta (es. Presidente, Segreteria)"
+                        className="preset-input-field"
+                        style={{ width: '100%', fontSize: '12px' }}
+                        value={newRecipientLabel}
+                        onChange={(e) => {
+                          setNewRecipientLabel(e.target.value)
+                          if (recipientError) setRecipientError('')
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="tel"
+                        placeholder="Numero (es. 3331234567)"
+                        className="preset-input-field"
+                        style={{ width: '100%', fontSize: '12px' }}
+                        value={newRecipientPhone}
+                        onChange={(e) => {
+                          setNewRecipientPhone(e.target.value)
+                          if (recipientError) setRecipientError('')
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleAddRecipient()
+                          }
+                        }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      style={{ padding: '6px 14px', fontSize: '12px', whiteSpace: 'nowrap' }}
+                      onClick={handleAddRecipient}
+                    >
+                      + Aggiungi
+                    </button>
+                  </div>
+                  {recipientError && (
+                    <p className="report-error-text">
+                      ⚠️ {recipientError}
+                    </p>
+                  )}
                 </div>
 
-                <div style={{ paddingTop: '12px' }}>
+                <div style={{ paddingTop: '14px', marginTop: '14px', borderTop: '1px solid var(--line)' }}>
                   <label className="settings-field-label" htmlFor="post-session-action-select">
                     Azione per il PC al termine:
                   </label>
@@ -484,17 +609,21 @@ export default function SettingsModal({
                       <p className="subtle-note">Il messaggio viene caricato quando prepari la sessione.</p>
                     </div>
                   </div>
-                  <label className="settings-field-label" htmlFor="birthday-preset-select">Modello predefinito</label>
-                  <div className="birthday-select-wrap">
-                    <select
-                      id="birthday-preset-select"
-                      value={state.settings?.birthdayPresetName || 'Auguri di compleanno'}
-                      onChange={(event) => saveBirthdaySettings({ birthdayPresetName: event.target.value })}
-                    >
-                      {(state.presets || []).map((preset) => (
-                        <option key={preset.name} value={preset.name}>{preset.name}</option>
-                      ))}
-                    </select>
+                  <div className="birthday-card-field-row">
+                    <label className="eyebrow birthday-preset-eyebrow" htmlFor="birthday-preset-select">
+                      Modello predefinito
+                    </label>
+                    <div className="birthday-select-wrap">
+                      <select
+                        id="birthday-preset-select"
+                        value={state.settings?.birthdayPresetName || 'Auguri di compleanno'}
+                        onChange={(event) => saveBirthdaySettings({ birthdayPresetName: event.target.value })}
+                      >
+                        {(state.presets || []).map((preset) => (
+                          <option key={preset.name} value={preset.name}>{preset.name}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </section>
 

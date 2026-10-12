@@ -983,8 +983,12 @@ function attachQueueListeners() {
     notifyUser('Invio completato', `${sent} inviati, ${failed} falliti, ${skipped} saltati.`);
     writeOutcome('completed', { sent, failed, skipped });
 
-    if (activeSession?.sendSelfReport) {
-      await postSessionManager.sendSelfReport({ sent, failed, skipped, activeSession });
+    const hasReportRecipients = Array.isArray(activeSession?.reportRecipients)
+      ? activeSession.reportRecipients.some((r) => r.enabled !== false && r.phone)
+      : (state.settings?.reportRecipients || []).some((r) => r.enabled !== false && r.phone);
+
+    if (hasReportRecipients) {
+      await postSessionManager.sendSessionReports({ sent, failed, skipped, activeSession });
     }
     if (activeSession?.postSessionAction && activeSession.postSessionAction !== 'none') {
       postSessionManager.scheduleAction(activeSession.postSessionAction);
@@ -1496,7 +1500,9 @@ async function startQueue(options = {}) {
     message: currentMessage,
     imageName: state.imageName,
     settings: state.settings,
-    sendSelfReport: Boolean(options.sendSelfReport ?? state.settings.sendSelfReport),
+    reportRecipients: Array.isArray(options.reportRecipients)
+      ? options.reportRecipients
+      : (state.settings.reportRecipients || []),
     postSessionAction: options.postSessionAction || state.settings.postSessionAction || 'none',
     startedAt: new Date().toISOString(),
   };

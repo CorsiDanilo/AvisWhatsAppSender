@@ -101,7 +101,9 @@ function App() {
     maxDelayMs: 40000,
     pauseAfter: 35,
     pauseMinutes: 15,
+    postSessionAction: 'none',
   })
+  const [sessionReportRecipients, setSessionReportRecipients] = useState([])
   const [error, setError] = useState('')
   const [rawError, setRawError] = useState('')
   const [reportStatus, setReportStatus] = useState('')
@@ -140,7 +142,16 @@ const [showBirthdayCenter, setShowBirthdayCenter] = useState(false)
       .getState()
       .then((next) => {
         setState(next)
-        if (next.settings) setOptions(next.settings)
+        if (next.settings) {
+          setOptions((prev) => ({
+            ...prev,
+            ...next.settings,
+            postSessionAction: prev.postSessionAction || next.settings.postSessionAction || 'none',
+          }))
+          if (Array.isArray(next.settings.reportRecipients)) {
+            setSessionReportRecipients(next.settings.reportRecipients)
+          }
+        }
         const firstPreset = next.presets?.[0]
         if (firstPreset) {
           setSelectedPreset(firstPreset.name)
@@ -157,7 +168,18 @@ const [showBirthdayCenter, setShowBirthdayCenter] = useState(false)
         }
       })
       .catch((reason) => setError(toUserError(reason)))
-    return api.onState(setState)
+    return api.onState((next) => {
+      setState(next)
+      if (next.settings) {
+        setOptions((prev) => ({
+          ...prev,
+          postSessionAction: prev.postSessionAction ?? next.settings.postSessionAction ?? 'none',
+        }))
+      }
+      if (Array.isArray(next.settings?.reportRecipients)) {
+        setSessionReportRecipients(next.settings.reportRecipients)
+      }
+    })
   }, [api])
 
   useEffect(() => {
@@ -439,8 +461,8 @@ if (!api?.onOpenBirthdays) return undefined
       await call(() =>
         api.start({
           ...options,
-          sendSelfReport: Boolean(state.settings?.sendSelfReport),
-          postSessionAction: state.settings?.postSessionAction || 'none',
+          reportRecipients: sessionReportRecipients.filter((r) => r && r.enabled !== false),
+          postSessionAction: options.postSessionAction || state.settings?.postSessionAction || 'none',
           pauseMs: options.pauseMinutes * 60 * 1000,
           message,
           presetName,
@@ -901,13 +923,23 @@ if (!api?.onOpenBirthdays) return undefined
                   message={message}
                   selectedPreset={selectedPreset}
                   options={options}
+                  setOptions={setOptions}
                   canStart={canStart}
                   firstSelectedDonor={firstSelectedDonor}
+                  sessionReportRecipients={sessionReportRecipients}
+                  onToggleSessionRecipient={(id) => {
+                    setSessionReportRecipients((prev) =>
+                      prev.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r))
+                    )
+                  }}
+                  onAddSessionRecipient={(newRec) => {
+                    setSessionReportRecipients((prev) => [...prev, newRec])
+                  }}
                   onBack={() => setCurrentStep(2)}
                   onGoToStep={(step) => setCurrentStep(step)}
                   onStart={handleStart}
-                  onOpenSettings={() => {
-                    setSettingsTab('general')
+                  onOpenSettings={(tab = 'general') => {
+                    setSettingsTab(tab)
                     setShowSettings(true)
                   }}
                 />

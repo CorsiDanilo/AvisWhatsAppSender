@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ---
 
+## [1.2.1] - 2026-10-12
+
+### Summary
+
+Supporto per destinatari multipli del report finale WhatsApp con etichetta (sostituzione dell'invio fisso a "Tu"), configurazione della rubrica nelle impostazioni con selezione per singola sessione nel riepilogo, allineamento visivo e restyling delle impostazioni compleanni.
+
+### Added
+
+- **Destinatari Multipli Report WhatsApp**: possibilità di aggiungere e gestire nella scheda "Generali" uno o più numeri con etichetta (es. Presidente, Segreteria) a cui recapitare automaticamente il resoconto di fine sessione.
+- **Selezione Rapida per Sessione**: chip interattivi nello Step 3 (Riepilogo) per attivare/disattivare i destinatari per il singolo invio e form rapido per aggiungere nuovi numeri al volo.
+- **Azione Post-Invio per Sessione**: selezione dell'azione finale per il PC direttamente nello Step 3 coordinata con le impostazioni ma valida esclusivamente per l'invio corrente.
+
+### Changed
+
+- **Rimozione Invio a "Tu"**: eliminato il vecchio invio automatico al mittente personale in favore della nuova gestione rubrica personalizzabile.
+- **Restyling Impostazioni Compleanni**: card allineate in altezza e menu a discesa del modello predefinito aggiornato con design verde a pillola.
+
+### Fixed
+
+- **Normalizzazione Numeri**: utility condivisa frontend per la validazione e l'aggiunta automatica del prefisso internazionale italiano (+39).
+- **Refactoring CSS**: rimossi gli stili inline in favore di classi stylesheet dedicate.
+
+Full Changelog: [https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.2.0...v1.2.1](https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.2.0...v1.2.1)
+
+---
+
 ## [1.2.0] - 2026-10-12
 
 ### Summary

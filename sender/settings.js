@@ -15,6 +15,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   birthdayEnabled: true,
   birthdaySourceFilePath: '',
   birthdayPresetName: 'Auguri di compleanno',
+  reportRecipients: Object.freeze([]),
 });
 
 const POST_SESSION_ACTIONS = Object.freeze(['none', 'sleep', 'hibernate', 'shutdown']);
@@ -48,6 +49,33 @@ function postSessionActionSetting(value, fallback = 'none') {
   return fallback;
 }
 
+function reportRecipientsSetting(value, fallback = []) {
+  if (!Array.isArray(value)) return Array.isArray(fallback) ? [...fallback] : [];
+  const result = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const label = typeof item.label === 'string' ? item.label.trim() : '';
+    const rawPhone = typeof item.phone === 'string' ? item.phone.trim() : (typeof item.rawPhone === 'string' ? item.rawPhone.trim() : '');
+    const cleanDigits = rawPhone.replace(/\D/g, '');
+    let phone = cleanDigits;
+    if (cleanDigits.length === 10 && cleanDigits.startsWith('3')) {
+      phone = `39${cleanDigits}`;
+    }
+    if (!phone && !label) continue;
+    const enabled = typeof item.enabled === 'boolean' ? item.enabled : true;
+    const id = typeof item.id === 'string' && item.id.trim()
+      ? item.id.trim()
+      : `rec_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    result.push({
+      id,
+      label: label || 'Destinatario',
+      phone,
+      enabled,
+    });
+  }
+  return result;
+}
+
 function normalizeSettings(settings = {}) {
   const normalized = {
     minDelayMs: numberSetting(settings.minDelayMs, DEFAULT_SETTINGS.minDelayMs, LIMITS.minDelayMs),
@@ -63,6 +91,7 @@ function normalizeSettings(settings = {}) {
     birthdayEnabled: booleanSetting(settings.birthdayEnabled, DEFAULT_SETTINGS.birthdayEnabled),
     birthdaySourceFilePath: stringSetting(settings.birthdaySourceFilePath, DEFAULT_SETTINGS.birthdaySourceFilePath),
     birthdayPresetName: stringSetting(settings.birthdayPresetName, DEFAULT_SETTINGS.birthdayPresetName),
+    reportRecipients: reportRecipientsSetting(settings.reportRecipients, DEFAULT_SETTINGS.reportRecipients),
   };
   normalized.maxDelayMs = Math.max(normalized.minDelayMs, normalized.maxDelayMs);
   return normalized;

@@ -1741,7 +1741,7 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
 .birthday-settings-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start;
+  align-items: stretch;
   gap: 14px;
 }
 
@@ -1783,24 +1783,44 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 16px;
-  padding-top: 12px;
+  margin-top: auto;
+  padding-top: 14px;
   border-top: 1px solid #e6eee9;
   color: var(--text);
   font-size: 13px;
   font-weight: 700;
+  min-height: 52px;
+}
+
+.birthday-card-field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid #e6eee9;
+  min-height: 52px;
+}
+
+.birthday-preset-eyebrow {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  color: var(--green);
 }
 
 .birthday-autostart-row { margin-top: 12px; }
 
 .birthday-select-wrap {
   position: relative;
+  display: inline-flex;
+  width: 100%;
 }
 
 .birthday-select-wrap::after {
   position: absolute;
   top: 50%;
-  right: 13px;
+  right: 14px;
   width: 7px;
   height: 7px;
   border-right: 2px solid var(--green-dark);
@@ -1812,19 +1832,27 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
 
 .birthday-select-wrap select {
   width: 100%;
-  min-height: 44px;
-  padding: 0 42px 0 12px;
-  border: 1px solid #cfe0d5;
-  border-radius: 10px;
-  color: var(--ink);
-  background: white;
+  min-height: 38px;
+  padding: 8px 36px 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--green-dark);
+  background: var(--green-soft);
+  font-size: 13px;
+  font-weight: 750;
   appearance: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
 .birthday-select-wrap select:focus {
   border-color: var(--green);
   outline: 0;
   box-shadow: 0 0 0 3px rgba(17, 132, 91, 0.12);
+}
+
+.birthday-select-wrap select:hover {
+  background: #d8eee1;
 }
 
 .birthday-source-path-label {
@@ -2073,4 +2101,137 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
   font-weight: 600;
   flex-shrink: 0;
 }
+
+/* Report Recipients UI */
+.report-recipients-empty {
+  padding: 12px 14px;
+  background: var(--paper);
+  border-radius: 8px;
+  border: 1px dashed var(--line);
+  margin-top: 8px;
+}
+
+.report-recipients-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.report-recipient-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.report-recipient-card.is-active {
+  background: var(--card);
+  opacity: 1;
+}
+
+.report-recipient-card.is-inactive {
+  background: var(--paper);
+  opacity: 0.65;
+}
+
+.report-recipient-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.report-recipient-checkbox {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+}
+
+.report-recipient-label-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 650;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--green-soft);
+  color: var(--green-dark);
+}
+
+.report-recipient-phone {
+  font-size: 13px;
+  letter-spacing: 0.3px;
+}
+
+.report-recipient-delete-btn {
+  color: var(--red);
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.report-recipient-add-box {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--paper);
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+
+.report-recipient-add-title {
+  font-size: 12px;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.report-recipient-add-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.report-error-text {
+  color: var(--red);
+  font-size: 11px;
+  margin: 6px 0 0;
+}
+
+/* StepSummary Recipient Chips */
+.report-chips-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.report-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.report-chip-btn.is-active {
+  border: 1px solid var(--green);
+  background: var(--green-soft);
+  color: var(--green-dark);
+  font-weight: 650;
+}
+
+.report-chip-btn.is-inactive {
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--muted);
+  font-weight: 500;
+}
+
 

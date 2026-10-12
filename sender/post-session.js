@@ -56,20 +56,24 @@ function createPostSessionManager({
   let timer = null;
   let interval = null;
 
-  async function sendSelfReport({ sent, failed, skipped, activeSession }) {
+  async function sendSessionReports({ sent, failed, skipped, activeSession }) {
     const client = getClient();
     if (!client) {
-      log('Impossibile inviare il riepilogo a te stesso: client WhatsApp non disponibile.');
-      return;
-    }
-
-    const myWid = client.info?.wid?._serialized;
-    if (!myWid) {
-      log('Impossibile inviare il riepilogo a te stesso: numero mittente non rilevato.');
+      log('Impossibile inviare il riepilogo: client WhatsApp non disponibile.');
       return;
     }
 
     const currentState = getState();
+    const configuredRecipients = Array.isArray(activeSession?.reportRecipients)
+      ? activeSession.reportRecipients
+      : (currentState.settings?.reportRecipients || []);
+
+    const activeRecipients = configuredRecipients.filter((r) => r && r.enabled !== false && r.phone);
+
+    if (activeRecipients.length === 0) {
+      return;
+    }
+
     const text = buildSelfReportMessage({
       sent,
       failed,
@@ -80,13 +84,23 @@ function createPostSessionManager({
       postSessionAction: activeSession?.postSessionAction || 'none',
     });
 
-    try {
-      await client.sendMessage(myWid, text);
-      log('Riepilogo inviato al tuo WhatsApp (chat personale).');
-      audit('info', 'post_session.self_report_sent', { recipient: myWid, sent, failed, skipped });
-    } catch (error) {
-      logError('post_session.self_report_failed', error);
+    for (const recipient of activeRecipients) {
+      const cleanPhone = String(recipient.phone).replace(/\D/g, '');
+      if (!cleanPhone) continue;
+      const chatId = `${cleanPhone}@c.us`;
+      try {
+        await client.sendMessage(chatId, text);
+        log(`Riepilogo inviato su WhatsApp a: ${recipient.label || 'Destinatario'} (${cleanPhone}).`);
+        audit('info', 'post_session.report_sent', { recipient: chatId, label: recipient.label, sent, failed, skipped });
+      } catch (error) {
+        logError('post_session.report_failed', error, { recipient: chatId, label: recipient.label });
+        log(`Invio riepilogo non riuscito a ${recipient.label || cleanPhone}: ${error.message || error}`);
+      }
     }
+  }
+
+  async function sendSelfReport(args) {
+    return sendSessionReports(args);
   }
 
   function cancelAction() {
@@ -182,6 +196,7 @@ function createPostSessionManager({
 
   return {
     sendSelfReport,
+    sendSessionReports,
     scheduleAction,
     cancelAction,
     executeAction,

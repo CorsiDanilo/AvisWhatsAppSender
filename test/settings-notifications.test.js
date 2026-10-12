@@ -27,3 +27,24 @@ test('sendSelfReport e postSessionAction hanno valori predefiniti sicuri e vengo
   assert.equal(normalizeSettings({ postSessionAction: 'hibernate' }).postSessionAction, 'hibernate');
   assert.equal(normalizeSettings({ postSessionAction: 'invalid' }).postSessionAction, 'none');
 });
+
+test('reportRecipients ha valore predefinito array vuoto e viene normalizzato', () => {
+  assert.deepEqual(DEFAULT_SETTINGS.reportRecipients, []);
+  assert.deepEqual(normalizeSettings({}).reportRecipients, []);
+
+  const normalized = normalizeSettings({
+    reportRecipients: [
+      { label: '  Presidente  ', phone: ' 333 123 4567 ', enabled: true },
+      { label: 'Segreteria', phone: '+39 340 9876543', enabled: false },
+      { label: '', phone: '' },
+    ],
+  });
+
+  assert.equal(normalized.reportRecipients.length, 2);
+  assert.equal(normalized.reportRecipients[0].label, 'Presidente');
+  assert.equal(normalized.reportRecipients[0].phone, '393331234567');
+  assert.equal(normalized.reportRecipients[0].enabled, true);
+  assert.equal(normalized.reportRecipients[1].label, 'Segreteria');
+  assert.equal(normalized.reportRecipients[1].phone, '393409876543');
+  assert.equal(normalized.reportRecipients[1].enabled, false);
+});
