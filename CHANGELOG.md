@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ---
 
+## [1.2.0] - 2026-10-12
+
+### Summary
+
+Release di ampliamento incentrata sull’automazione post-invio, sull'invio del resoconto su WhatsApp alla chat personale, sulla riorganizzazione delle impostazioni generali e sullo snellimento dell'interfaccia di riepilogo.
+
+### Added
+
+- **Automazioni di Fine Sessione**: opzione per spegnere, ibernare o sospendere automaticamente il PC al termine dell'invio.
+- **Conto alla Rovescia di Sicurezza**: banner interattivo con timer di 60 secondi prima dell'esecuzione dell'azione sul PC, annullabile in qualsiasi momento con un clic.
+- **Auto-Riepilogo su WhatsApp**: invio facoltativo del resoconto dell'invio (inviati, falliti, saltati, durata ed eventuali errori) direttamente alla propria chat personale ("Tu").
+- **Scheda "Generali" nelle Impostazioni**: riorganizzazione della sezione con raggruppamento chiaro di sistema (avvio automatico con Windows, notifiche), automazioni post-invio e percorsi di archiviazione.
+
+### Changed
+
+- **Riepilogo Invio (Step 3)**: segue e mostra direttamente le impostazioni generali con collegamento rapido per la modifica (`✏️ Modifica`).
+- **Snellimento Interfaccia**: rimossa la scheda dello stato connessione WhatsApp da Step 3, poiché già monitorata in tempo reale nella barra superiore.
+
+### Fixed
+
+- **Stato Connessione WhatsApp**: unificato lo stato connesso nella barra superiore e garantita l'apertura del modale di gestione al clic.
+- **Riconoscimento Nomi Donatori**: impostata la logica di fallback su "Cognome Nome" per elenchi con colonna unica.
+
+Full Changelog: [https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.1.0...v1.2.0](https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.1.0...v1.2.0)
+
+---
+
 ## [1.1.0] - 2026-10-11
 
 ### Added
