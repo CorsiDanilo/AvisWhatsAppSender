@@ -52,8 +52,8 @@ test('treats 29 February as 28 February in non-leap years', () => {
 test('finds matches and reports invalid populated dates', () => {
   const donors = [
     { name: 'Danilo', surname: 'Corsi', phone: '393331234567', customFields: { DATADINASCITA: '14/02/1997' } },
-    { name: 'Maria', surname: 'Rossi', phone: '393331234568', customFields: { DATADINASCITA: '15/02/1980' } },
-    { name: 'Luca', surname: 'Bianchi', phone: '393331234569', customFields: { DATADINASCITA: '31/02/1980' } },
+    { name: 'Nome', surname: 'Cognome', phone: '393331234568', customFields: { DATADINASCITA: '15/02/1980' } },
+    { name: 'Nome Non Valido', surname: 'Cognome Non Valido', phone: '393331234569', customFields: { DATADINASCITA: '31/02/1980' } },
     { name: 'Senza', surname: 'Data', phone: '393331234570', customFields: {} },
   ];
 
@@ -62,7 +62,7 @@ test('finds matches and reports invalid populated dates', () => {
   assert.equal(result.matches.length, 1);
   assert.equal(result.matches[0].name, 'Danilo');
   assert.equal(result.invalid.length, 1);
-  assert.equal(result.invalid[0].name, 'Luca');
+  assert.equal(result.invalid[0].name, 'Nome Non Valido');
   assert.equal(birthdayDonorKey(result.matches[0]), '393331234567:danilo corsi');
 });
 

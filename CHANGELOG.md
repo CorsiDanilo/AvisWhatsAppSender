@@ -13,7 +13,7 @@ Importante release di ampliamento che introduce il supporto completo ai cognomi 
 
 ### Added
 
-- **Riconoscimento Avanzato Cognome e Nome (Split Strategy)**: nuova strategia di estrazione predefinita per colonna unica (`lastWordIsName`) che estrae l'ultima parola come nome (`[nome]`) e le parole precedenti come cognome composto (`[cognome]`), risolvendo in automatico cognomi come *De Bonis*, *Di Girolamo*, *Di Trapano*.
+- **Riconoscimento Avanzato Cognome e Nome (Split Strategy)**: nuova strategia di estrazione predefinita per colonna unica (`lastWordIsName`) che estrae l'ultima parola come nome (`[nome]`) e le parole precedenti come cognome composto (`[cognome]`), risolvendo in automatico cognomi composti come *Cognome Composto*.
 - **Opzione di Split Selezionabile nell'Importazione**: modale di importazione Excel/CSV aggiornato con selezione tra *"Ultima parola = Nome"* (predefinita) e *"Prima parola = Cognome"* (per donatori con cognome singolo e doppi nomi) con aggiornamento istantaneo dell'anteprima a 5 righe.
 - **Ricerca e Suggerimenti Live nell'Anteprima Step 2**: campo di ricerca rapida per nome/cognome/telefono con menu a discesa contestuale che mostra in tempo reale l'anteprima del messaggio personalizzato e supporta la navigazione da tastiera (`▲`/`▼`/`Invio`/`Esc`), oltre ai controlli freccia `◀` `▶`.
 - **Stima Tempo Residuo in Tempo Reale (Live ETA)**: indicatore dinamico durante l'invio che calcola ore e minuti mancanti in base ai contatti rimanenti, ritardi configurati e pause programmate (con badge dedicato in stato di pausa).
@@ -24,7 +24,7 @@ Importante release di ampliamento che introduce il supporto completo ai cognomi 
 
 ### Changed
 
-- **Capitalizzazione Intelligente Nomi Composti**: aggiornato il motore di render dei template per capitalizzare correttamente tutte le parole dei cognomi composti (es. *De Bonis* anziché *De bonis*).
+- **Capitalizzazione Intelligente Nomi Composti**: aggiornato il motore di render dei template per capitalizzare correttamente tutte le parole dei cognomi composti (es. *Cognome Composto* anziché *Cognome composto*).
 - **Perfezionamento Calcolo ETA**: escluso l'intervallo di attesa successivo all'ultimo messaggio e integrato l'overhead di digitazione/invio per una stima oraria accurata.
 - **Accessibilità & Riduzione Movimento**: introdotta la media query `@media (prefers-reduced-motion: reduce)` per il monitoraggio ETA.
 - **Semplificazione Step 3 (Riepilogo)**: rimossa la scheda ridondante dello stato connessione WhatsApp da Step 3 e aggiunta modifica rapida (`✏️ Modifica`).
@@ -35,6 +35,8 @@ Importante release di ampliamento che introduce il supporto completo ai cognomi 
 - **Pulsante Schermata Principale su Arresto Sessione**: risolta la mancata risposta del pulsante "← Ritorna alla schermata principale" dopo l'arresto manuale ("Ferma sessione") o il completamento della coda.
 - **Ripristino Dashboard su Riconnessione**: ripristino automatico e sicuro della vista dei risultati in caso di disconnessione o riavvio dell'applicazione con sessione pregressa.
 - **Validazione e Normalizzazione Numeri**: utility condivisa frontend per la validazione e l'aggiunta automatica del prefisso internazionale italiano (+39).
+- **Esportazione Campi Personalizzati**: preservati correttamente i valori validi `0` e `false` nei file CSV degli esiti.
+- **Reset Sessione WhatsApp**: la coda viene messa in pausa prima della distruzione del client durante il reset.
 
 Full Changelog: [https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.1.0...v1.2.0](https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.1.0...v1.2.0)
 

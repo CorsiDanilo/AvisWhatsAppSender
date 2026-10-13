@@ -9,7 +9,7 @@ export function WelcomeModal({ onStartTour, onSkip }) {
         <h2 id="welcome-title">Benvenuto nell'applicazione!</h2>
         <p className="welcome-description">
           Vuoi fare una breve panoramica interattiva guidata delle funzionalità?
-          Potrai provare tutte le schermate in <strong>modalità simulata protetta</strong>, toccando con mano la gestione delle liste, i messaggi personalizzati e la dashboard di invio <strong>senza inviare alcun messaggio reale</strong>.
+          Potrai provare il flusso principale in <strong>modalità simulata protetta</strong>, toccando con mano la gestione delle liste, i messaggi personalizzati e la dashboard di invio, con una panoramica delle funzioni di recupero e gestione disponibili nelle Impostazioni, <strong>senza inviare alcun messaggio reale</strong>.
         </p>
 
         <div className="welcome-features-list">
@@ -32,6 +32,20 @@ export function WelcomeModal({ onStartTour, onSkip }) {
             <div>
               <strong>Ritmo Anti-Ban & Report</strong>
               <small>Intervalli intelligenti ed esito esportato su Desktop</small>
+            </div>
+          </div>
+          <div className="welcome-feature-item">
+            <span>🎂</span>
+            <div>
+              <strong>Compleanni & Notifiche</strong>
+              <small>Controllo manuale, avvisi persistenti e preparazione guidata</small>
+            </div>
+          </div>
+          <div className="welcome-feature-item">
+            <span>🔧</span>
+            <div>
+              <strong>Recupero & Aggiornamenti</strong>
+              <small>Riconnessione WhatsApp, diagnostica e aggiornamenti da GitHub</small>
             </div>
           </div>
         </div>

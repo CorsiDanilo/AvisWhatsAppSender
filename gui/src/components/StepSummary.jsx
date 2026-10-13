@@ -5,8 +5,8 @@ import { normalizeReportPhone, formatReportPhoneDisplay } from './reportRecipien
 function previewMessage(message, donor) {
   if (!donor) return message
   return message
-    .replaceAll('[nome]', donor.name || 'Mario')
-    .replaceAll('[cognome]', donor.surname || 'Rossi')
+    .replaceAll('[nome]', donor.name || 'Nome')
+    .replaceAll('[cognome]', donor.surname || 'Cognome')
 }
 
 export default function StepSummary({

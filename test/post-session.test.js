@@ -32,7 +32,7 @@ test('createPostSessionManager invia il messaggio ai numeri destinatari configur
 
   const manager = createPostSessionManager({
     getClient: () => mockClient,
-    getState: () => ({ fileName: 'Test.csv' }),
+    getState: () => ({ fileName: 'Test.csv', connection: 'ready' }),
   });
 
   await manager.sendSessionReports({
@@ -53,6 +53,52 @@ test('createPostSessionManager invia il messaggio ai numeri destinatari configur
   assert.equal(sentMessages[0].to, '393331234567@c.us');
   assert.equal(sentMessages[1].to, '393409876543@c.us');
   assert.ok(sentMessages[0].text.includes('Inviati con successo: *5*'));
+});
+
+test('createPostSessionManager non tenta il riepilogo quando WhatsApp non è pronto', async () => {
+  let sendCalls = 0;
+  const events = [];
+  const manager = createPostSessionManager({
+    getClient: () => ({ sendMessage: async () => { sendCalls += 1; } }),
+    getState: () => ({ connection: 'disconnected' }),
+    audit: (_level, event) => events.push(event),
+  });
+
+  await manager.sendSessionReports({
+    sent: 1,
+    failed: 0,
+    skipped: 0,
+    activeSession: { reportRecipients: [{ phone: '393331234567', enabled: true }] },
+  });
+
+  assert.equal(sendCalls, 0);
+  assert.ok(events.includes('post_session.report_skipped_not_ready'));
+});
+
+test('createPostSessionManager marca come incerto un timeout del riepilogo', async () => {
+  const events = [];
+  const errors = [];
+  const manager = createPostSessionManager({
+    getClient: () => ({ sendMessage: async () => new Promise(() => {}) }),
+    getState: () => ({ connection: 'ready' }),
+    reportSendTimeoutMs: 5,
+    audit: (_level, event) => events.push(event),
+    logError: (event) => errors.push(event),
+  });
+
+  const result = await Promise.race([
+    manager.sendSessionReports({
+      sent: 1,
+      failed: 0,
+      skipped: 0,
+      activeSession: { reportRecipients: [{ phone: '393331234567', enabled: true }] },
+    }).then(() => 'completed'),
+    new Promise((resolve) => setTimeout(() => resolve('hung'), 50)),
+  ]);
+
+  assert.equal(result, 'completed');
+  assert.ok(events.includes('post_session.report_uncertain'));
+  assert.ok(errors.includes('post_session.report_failed'));
 });
 
 test('createPostSessionManager pianifica e consente di annullare l’azione programmata', () => {

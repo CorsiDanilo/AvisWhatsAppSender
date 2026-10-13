@@ -29,7 +29,8 @@ const {
   updateDonor,
 } = require('../sender/data');
 const { createImagePayload, inspectImage } = require('../sender/media');
-const { createLogger } = require('../sender/logger');
+const { createLogger, dateFile } = require('../sender/logger');
+const { maskPhone, redactDiagnosticText } = require('../sender/diagnostics');
 const { deletePreset, loadPresets, upsertPreset } = require('../sender/presets');
 const { writeSessionResult } = require('../sender/results');
 const { DEFAULT_SETTINGS, loadSettings, saveSettings } = require('../sender/settings');
@@ -54,7 +55,9 @@ const {
   openExternalUrl,
 } = require('../sender/developer-report');
 const { SendQueue } = require('../sender/queue');
-const { retryAsync } = require('../sender/retry');
+const { withTimeout } = require('../sender/send-timeout');
+const { buildWhatsAppSendOptions } = require('../sender/whatsapp-send-options');
+const { createWhatsAppSessionController } = require('../sender/whatsapp-session');
 const {
   copyPresetAttachment,
   deletePresetAttachment,
@@ -83,7 +86,6 @@ const { createPostSessionManager } = require('../sender/post-session');
 const { handleWindowClose, showWindow } = require('../sender/window-lifecycle');
 const packageInfo = require('../package.json');
 const APP_VERSION = packageInfo.version || app.getVersion();
-const MAX_CONNECTION_ATTEMPTS = 2;
 const APP_ICON_PATH = app.isPackaged
   ? path.join(process.resourcesPath, 'icon.ico')
   : path.join(__dirname, '..', 'build', 'icon.ico');
@@ -99,8 +101,7 @@ let mainWindow;
 let tray;
 let client;
 let clientReady = false;
-let connectionPromise = null;
-let connectionGeneration = 0;
+let whatsappController = null;
 const diagnosticPages = new WeakSet();
 let queue;
 let selectedFile = '';
@@ -123,7 +124,8 @@ const state = {
   qrDataUrl: '',
   donors: [],
   queue: 'idle',
-  progress: { current: 0, total: 0, sent: 0, failed: 0, skipped: 0 },
+  progress: { current: 0, total: 0, sent: 0, failed: 0, skipped: 0, unknown: 0 },
+  queuePauseReason: null,
   logs: [],
   fileName: '',
   filePath: '',
@@ -180,7 +182,14 @@ function audit(level, event, details) {
 }
 
 function errorDetails(error) {
-  return { error: error?.stack || error?.message || String(error) };
+  return { error: redactDiagnosticText(error?.stack || error?.message || String(error)) };
+}
+
+function pauseQueueForConnection(reason) {
+  if (!queue || (state.queue !== 'running' && state.queue !== 'paused')) return;
+  queue.pause(reason);
+  log('Invio messo in pausa: WhatsApp non è pronto.');
+  audit('warn', 'queue.auto_paused_on_connection_issue', { reason });
 }
 
 function attachWhatsAppPageDiagnostics(whatsapp, attempt) {
@@ -284,8 +293,9 @@ function publish() {
 }
 
 function log(message) {
-  state.logs = [...state.logs, `[${new Date().toLocaleTimeString('it-IT')}] ${message}`].slice(-200);
-  audit('info', 'ui.message', { message });
+  const safeMessage = redactDiagnosticText(message);
+  state.logs = [...state.logs, `[${new Date().toLocaleTimeString('it-IT')}] ${safeMessage}`].slice(-200);
+  audit('info', 'ui.message', { message: safeMessage });
   publish();
 }
 
@@ -367,6 +377,7 @@ const postSessionManager = createPostSessionManager({
   publish,
   getState: () => state,
   getClient: () => client,
+  isReady: () => clientReady && state.connection === 'ready',
 });
 
 function syncNotificationState() {
@@ -641,7 +652,8 @@ async function prepareBirthdaySession() {
   state.imagePath = '';
   state.imageDataUrl = '';
   state.queue = 'idle';
-  state.progress = { current: 0, total: matches.length, sent: 0, failed: 0, skipped: 0 };
+  state.progress = { current: 0, total: matches.length, sent: 0, failed: 0, skipped: 0, unknown: 0 };
+  state.queuePauseReason = null;
   state.logs = [];
   state.birthdays = {
     ...state.birthdays,
@@ -760,11 +772,13 @@ function killStaleSessionBrowser() {
   } catch {}
 }
 
-async function destroyClient() {
-  if (client) {
-    const toDestroy = client;
+async function destroyClient(target = client) {
+  const toDestroy = target;
+  if (toDestroy && client === toDestroy) {
     client = null;
     clientReady = false;
+  }
+  if (toDestroy) {
     try {
       await toDestroy.destroy();
     } catch (err) {
@@ -805,74 +819,10 @@ function createClient() {
   });
 
   client = whatsapp;
-
-  whatsapp.on('qr', async (qr) => {
-    if (client !== whatsapp) return;
-    try {
-      const shouldNotify = state.connection !== 'qr';
-      setConnection('qr', await QRCode.toDataURL(qr));
-      log('QR pronto: scansiona il codice con WhatsApp.');
-      if (shouldNotify) notifyUser('QR pronto', 'Il codice QR di WhatsApp è pronto per essere scansionato.');
-    } catch (error) {
-      setConnection('error');
-      log(`Impossibile creare il QR: ${error.message}`);
-      notifyUser('Errore WhatsApp', notificationErrorBody(error, 'whatsapp'));
-    }
-  });
-  whatsapp.on('authenticated', () => {
-    if (client !== whatsapp) return;
-    setConnection('authenticated');
-    log('WhatsApp autenticato.');
-    audit('info', 'whatsapp.authenticated');
-  });
-  whatsapp.on('ready', () => {
-    if (client !== whatsapp) return;
-    const wasReady = clientReady || state.connection === 'ready';
-    clientReady = true;
-    setConnection('ready');
-    if (!wasReady) {
-      notifyUser('WhatsApp collegato', 'WhatsApp è collegato e pronto per l’invio dei messaggi.');
-    }
-    log('WhatsApp pronto per l’invio.');
-  });
-  whatsapp.on('auth_failure', (message) => {
-    if (client !== whatsapp) return;
-    clientReady = false;
-    setConnection('error');
-    logError('whatsapp.auth_failure', new Error(message));
-    notifyUser('Errore WhatsApp', notificationErrorBody(message, 'whatsapp'));
-  });
-  whatsapp.on('disconnected', (reason) => {
-    if (client !== whatsapp) return;
-    const wasReady = state.connection === 'ready';
-    clientReady = false;
-    setConnection('disconnected');
-    log(`WhatsApp disconnesso: ${reason}`);
-    audit('warn', 'whatsapp.disconnected', { reason: String(reason) });
-    if (wasReady) notifyUser('WhatsApp disconnesso', 'La sessione WhatsApp è stata disconnessa.');
-  });
-
   return whatsapp;
 }
 
-async function connectClient() {
-  if (state.connection === 'connecting' || state.connection === 'ready' || state.connection === 'authenticated') {
-    return snapshot();
-  }
-  if (connectionPromise) return connectionPromise;
-  return startClientConnection('whatsapp.connecting', 'whatsapp.connect_failed');
-}
-
-async function reconnectClient() {
-  if (connectionPromise) return connectionPromise;
-  log('Rigenerazione del codice QR e riconnessione a WhatsApp...');
-  return startClientConnection('whatsapp.reconnecting', 'whatsapp.reconnect_failed');
-}
-
-async function resetWhatsAppSession() {
-  connectionGeneration += 1;
-  connectionPromise = null;
-  await destroyClient();
+async function clearWhatsAppSession() {
   const sessionDir = path.join(app.getPath('userData'), 'whatsapp-session');
   try {
     if (fs.existsSync(sessionDir)) {
@@ -881,62 +831,49 @@ async function resetWhatsAppSession() {
   } catch (err) {
     audit('warn', 'whatsapp.session_cleanup_failed', errorDetails(err));
   }
-  setConnection('disconnected', '');
-  log('Sessione WhatsApp azzerata. Rigenerazione del codice QR...');
-  return reconnectClient();
 }
 
-function startClientConnection(startEvent, failureEvent) {
-  if (connectionPromise) return connectionPromise;
-  const generation = ++connectionGeneration;
-  const isCurrent = () => generation === connectionGeneration;
-  let lastAttempt = 0;
-
-  const promise = retryAsync(async (attempt) => {
-    if (!isCurrent()) throw new Error('Tentativo di connessione annullato');
-    lastAttempt = attempt;
-    await destroyClient();
-    if (!isCurrent()) throw new Error('Tentativo di connessione annullato');
-    setConnection('connecting', '');
-    audit('info', startEvent, { attempt });
-    const whatsapp = createClient();
-    watchWhatsAppPage(whatsapp, attempt).catch((error) => {
+whatsappController = createWhatsAppSessionController({
+  createClient,
+  destroyClient,
+  renderQr: (qr) => QRCode.toDataURL(qr),
+  setConnection: (connection, qrDataUrl = '') => {
+    clientReady = connection === 'ready';
+    setConnection(connection, qrDataUrl);
+  },
+  pauseQueue: pauseQueueForConnection,
+  audit,
+  log,
+  notify: notifyUser,
+  onClientCreated: (nextClient, attempt) => {
+    watchWhatsAppPage(nextClient, attempt).catch((error) => {
       audit('warn', 'whatsapp.browser_diagnostics_failed', {
         attempt,
         error: errorDetails(error),
       });
     });
-    await whatsapp.initialize();
-    if (!isCurrent()) throw new Error('Tentativo di connessione annullato');
-    return snapshot();
-  }, {
-    attempts: MAX_CONNECTION_ATTEMPTS,
-    delayMs: 1500,
-    shouldRetry: () => isCurrent(),
-    onRetry: async (error, nextAttempt) => {
-      if (!isCurrent()) return;
-      await logWhatsAppPageSnapshot(client, error, nextAttempt - 1);
-      log(`Connessione WhatsApp: nuovo tentativo ${nextAttempt}/${MAX_CONNECTION_ATTEMPTS}...`);
-      audit('warn', 'whatsapp.retry', {
-        attempt: nextAttempt,
-        error: errorDetails(error),
-      });
-    },
-  })
-    .catch(async (error) => {
-      if (!isCurrent()) return snapshot();
-      await logWhatsAppPageSnapshot(client, error, lastAttempt);
-      setConnection('error');
-      logError(failureEvent, error);
-      await destroyClient();
-      throw error;
-    })
-    .finally(() => {
-      if (connectionPromise === promise) connectionPromise = null;
+  },
+  onFailure: (error, attempt, failureEvent) => {
+    logWhatsAppPageSnapshot(client, error, attempt).catch((snapshotError) => {
+      audit('warn', 'whatsapp.browser_snapshot_failed', errorDetails(snapshotError));
     });
+    logError(failureEvent, error);
+  },
+});
+whatsappController.setSessionResetter(clearWhatsAppSession);
 
-  connectionPromise = promise;
-  return promise;
+async function connectClient() {
+  return whatsappController.connect();
+}
+
+async function reconnectClient() {
+  log('Riavvio del browser e ricaricamento della sessione WhatsApp (nessun nuovo login richiesto se la sessione è valida)...');
+  return whatsappController.reconnect();
+}
+
+async function resetWhatsAppSession() {
+  log('Sessione WhatsApp azzerata. Rigenerazione del codice QR...');
+  return whatsappController.reset();
 }
 
 function optionNumber(value, fallback, minimum, maximum) {
@@ -945,26 +882,91 @@ function optionNumber(value, fallback, minimum, maximum) {
   return Math.min(maximum, Math.max(minimum, Math.round(number)));
 }
 
+const TYPING_TIMEOUT_MS = 5000;
+const SEND_TIMEOUT_MS = 45000;
+
+function ensureClientReadyForSend() {
+  if (whatsappController) {
+    whatsappController.ensureReady();
+    return;
+  }
+  if (!client || !clientReady || state.connection !== 'ready') {
+    const error = new Error('WhatsApp non è pronto per l’invio.');
+    error.code = 'WHATSAPP_NOT_READY';
+    throw error;
+  }
+}
+
+async function sendMessageWithTimeout(operation, label, onLateResolve, onLateReject) {
+  try {
+    return await withTimeout(operation, SEND_TIMEOUT_MS, label, { onLateResolve, onLateReject });
+  } catch (error) {
+    if (error?.code !== 'SEND_TIMEOUT' && (!clientReady || state.connection !== 'ready')) {
+      error.code = 'SEND_UNCERTAIN';
+    }
+    throw error;
+  }
+}
+
 async function sendToDonor(donor, message, imagePath) {
   const chatId = `${donor.phone}@c.us`;
+  const maskedPhone = maskPhone(donor.phone);
+  audit('info', 'queue.send_attempt', { phone: maskedPhone });
+  ensureClientReadyForSend();
   try {
-    const chat = await client.getChatById(chatId);
+    const chat = await withTimeout(
+      () => client.getChatById(chatId),
+      TYPING_TIMEOUT_MS,
+      'getChatById',
+      {
+        onLateResolve: () => audit('info', 'queue.typing_indicator_late_success', { phone: maskedPhone }),
+        onLateReject: (error) => audit('warn', 'queue.typing_indicator_late_failure', {
+          phone: maskedPhone,
+          error: redactDiagnosticText(error?.message || error),
+        }),
+      },
+    );
     await chat.sendStateTyping();
     await new Promise((resolve) => setTimeout(resolve, Math.min(4000, Math.max(1000, message.length * 25))));
-  } catch {
+  } catch (e) {
     // Some valid numbers do not have a retrievable chat until the first message.
+    audit('warn', 'queue.typing_indicator_failed', {
+      phone: maskedPhone,
+      error: redactDiagnosticText(e?.message || e),
+    });
   }
+  ensureClientReadyForSend();
   if (imagePath) {
     const payload = createImagePayload(imagePath, message, MessageMedia);
-    await client.sendMessage(chatId, payload.media, payload.options);
+    await sendMessageWithTimeout(
+      () => client.sendMessage(chatId, payload.media, buildWhatsAppSendOptions(payload.options)),
+      'sendMessage(media)',
+      () => audit('warn', 'queue.send_late_success', { phone: maskedPhone, operation: 'media' }),
+      (error) => audit('warn', 'queue.send_late_failure', {
+        phone: maskedPhone,
+        operation: 'media',
+        error: redactDiagnosticText(error?.message || error),
+      }),
+    );
   } else {
-    await client.sendMessage(chatId, message);
+    await sendMessageWithTimeout(
+      () => client.sendMessage(chatId, message, buildWhatsAppSendOptions()),
+      'sendMessage(text)',
+      () => audit('warn', 'queue.send_late_success', { phone: maskedPhone, operation: 'text' }),
+      (error) => audit('warn', 'queue.send_late_failure', {
+        phone: maskedPhone,
+        operation: 'text',
+        error: redactDiagnosticText(error?.message || error),
+      }),
+    );
   }
+  audit('info', 'queue.send_success', { phone: maskedPhone });
 }
 
 function attachQueueListeners() {
   queue.on('state', (value) => {
     state.queue = value;
+    state.queuePauseReason = queue.pauseReason || null;
     publish();
   });
   queue.on('log', log);
@@ -973,22 +975,46 @@ function attachQueueListeners() {
     publish();
   });
   queue.on('item', ({ donor }) => {
-    const index = state.donors.findIndex((item) => item.phone === donor.phone && item.name === donor.name);
-    if (index >= 0) state.donors[index] = { ...donor };
+    const donorIndex = state.donors.findIndex((item) => item.phone === donor.phone && item.name === donor.name);
+    if (donorIndex >= 0) state.donors[donorIndex] = { ...donor };
+    // Scrivi su file di log il risultato del singolo invio
+    if (donor.status === 'sent') {
+      audit('info', 'queue.item_sent', { phone: maskPhone(donor.phone) });
+    } else if (donor.status === 'failed') {
+      audit('warn', 'queue.item_failed', {
+        phone: maskPhone(donor.phone),
+        error: redactDiagnosticText(donor.error),
+      });
+    } else if (donor.status === 'skipped') {
+      audit('info', 'queue.item_skipped', { phone: maskPhone(donor.phone) });
+    } else if (donor.status === 'unknown') {
+      audit('warn', 'queue.item_unknown', {
+        phone: maskPhone(donor.phone),
+        error: redactDiagnosticText(donor.error),
+      });
+    }
     publish();
   });
-  queue.on('error', ({ donor, error }) => logError('queue.send_failed', error, { donor: donor.name || 'Senza nome' }));
-  queue.on('completed', async ({ sent, failed, skipped }) => {
-    log(`Coda completata: ${sent} inviati, ${failed} falliti, ${skipped} saltati.`);
-    notifyUser('Invio completato', `${sent} inviati, ${failed} falliti, ${skipped} saltati.`);
-    writeOutcome('completed', { sent, failed, skipped });
+  queue.on('uncertain', ({ donor, error }) => {
+    log(`Esito non confermato per il destinatario ${maskPhone(donor.phone)}. Coda in pausa.`);
+    notifyUser('Invio da verificare', 'Un messaggio potrebbe essere stato inviato: verifica WhatsApp prima di riprendere.');
+    audit('warn', 'queue.send_uncertain', {
+      phone: maskPhone(donor.phone),
+      error: redactDiagnosticText(error?.message || error),
+    });
+  });
+  queue.on('error', ({ donor, error }) => logError('queue.send_failed', error, { phone: maskPhone(donor.phone) }));
+  queue.on('completed', async ({ sent, failed, skipped, unknown }) => {
+    log(`Coda completata: ${sent} inviati, ${failed} falliti, ${skipped} saltati, ${unknown} da verificare.`);
+    notifyUser('Invio completato', `${sent} inviati, ${failed} falliti, ${skipped} saltati, ${unknown} da verificare.`);
+    writeOutcome('completed', { sent, failed, skipped, unknown });
 
     const hasReportRecipients = Array.isArray(activeSession?.reportRecipients)
       ? activeSession.reportRecipients.some((r) => r.enabled !== false && r.phone)
       : (state.settings?.reportRecipients || []).some((r) => r.enabled !== false && r.phone);
 
     if (hasReportRecipients) {
-      await postSessionManager.sendSessionReports({ sent, failed, skipped, activeSession });
+      await postSessionManager.sendSessionReports({ sent, failed, skipped, unknown, activeSession });
     }
     if (activeSession?.postSessionAction && activeSession.postSessionAction !== 'none') {
       postSessionManager.scheduleAction(activeSession.postSessionAction);
@@ -1072,7 +1098,7 @@ async function loadCsvMapped(filePath, sheetName, mapping) {
   state.fileName = path.basename(filePath);
   state.sheetName = sheetName || 'CSV';
   state.donors = await parseWithMapping(filePath, sheetName, mapping);
-  state.progress = { current: 0, total: state.donors.length, sent: 0, failed: 0, skipped: 0 };
+  state.progress = { current: 0, total: state.donors.length, sent: 0, failed: 0, skipped: 0, unknown: 0 };
   state.logs = [];
   log(`Caricati ${state.donors.length} destinatari da ${state.fileName}.`);
   audit('info', 'recipients.loaded', { fileName: state.fileName, count: state.donors.length, mapping });
@@ -1235,7 +1261,8 @@ function resetSession() {
   state.imagePath = '';
   state.imageDataUrl = '';
   state.queue = 'idle';
-  state.progress = { current: 0, total: 0, sent: 0, failed: 0, skipped: 0 };
+  state.progress = { current: 0, total: 0, sent: 0, failed: 0, skipped: 0, unknown: 0 };
+  state.queuePauseReason = null;
   state.logs = [];
   state.lastOutcomeDir = '';
   audit('info', 'session.reset');
@@ -1348,7 +1375,7 @@ async function sendDeveloperReport(options = '') {
   const devEmail = DEVELOPER_REPORT_RECIPIENT;
   const appVersion = app.getVersion ? app.getVersion() : '1.0.0';
   const logDir = getEffectiveLogDir();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = dateFile();
   const logPath = path.join(logDir, `${today}.log`);
   const txtPath = path.join(logDir, `log_${today}.txt`);
   const emlPath = path.join(logDir, `segnalazione_${today}.eml`);
@@ -1491,6 +1518,12 @@ async function startQueue(options = {}) {
     throw new Error('L’immagine selezionata non è più disponibile.');
   }
   const imagePath = selectedImagePath;
+  const unresolvedRecipients = state.donors.filter(
+    (donor) => donor.selected !== false && donor.status === 'unknown',
+  );
+  if (unresolvedRecipients.length > 0) {
+    throw new Error('Esistono destinatari con invio non confermato. Verifica l’esito prima di avviare una nuova sessione.');
+  }
   const selectedDonors = state.donors.filter((donor) => donor.selected !== false);
   if (!selectedDonors.length) throw new Error('Seleziona almeno un destinatario.');
   state.settings = saveSettings(settingsPath, { ...state.settings, ...options });
@@ -1518,7 +1551,8 @@ async function startQueue(options = {}) {
     pauseAfter: optionNumber(options.pauseAfter, 35, 0, 1000),
     pauseMs: optionNumber(options.pauseMs, 15 * 60 * 1000, 0, 60 * 60 * 1000),
   });
-  state.progress = { current: 0, total: selectedDonors.length, sent: 0, failed: 0, skipped: 0 };
+  state.progress = { current: 0, total: selectedDonors.length, sent: 0, failed: 0, skipped: 0, unknown: 0 };
+  state.queuePauseReason = null;
   attachQueueListeners();
   log('Coda avviata.');
   notifyUser('Invio avviato', `${selectedDonors.length} destinatari in coda.`);
@@ -1658,11 +1692,15 @@ registerHandler('sender:save-preset', (preset) => savePreset(preset));
 registerHandler('sender:delete-preset', (name) => removePreset(name));
 registerHandler('sender:reset', () => resetSession());
 registerHandler('sender:pause', () => {
-  queue?.pause();
+  queue?.pause('manual');
   audit('info', 'queue.paused');
   return snapshot();
 });
 registerHandler('sender:resume', () => {
+  if (!queue || state.queue !== 'paused') return snapshot();
+  if (!clientReady || state.connection !== 'ready') {
+    throw new Error('Attendi che WhatsApp sia nuovamente pronto prima di riprendere l’invio.');
+  }
   queue?.resume();
   audit('info', 'queue.resumed');
   return snapshot();

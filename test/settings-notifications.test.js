@@ -1,6 +1,9 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const test = require('node:test');
-const { DEFAULT_SETTINGS, normalizeSettings } = require('../sender/settings');
+const { DEFAULT_SETTINGS, loadSettings, normalizeSettings, saveSettings } = require('../sender/settings');
 
 test('le notifiche Windows sono attive di default', () => {
   assert.equal(DEFAULT_SETTINGS.notificationsEnabled, true);
@@ -47,4 +50,21 @@ test('reportRecipients ha valore predefinito array vuoto e viene normalizzato', 
   assert.equal(normalized.reportRecipients[1].label, 'Segreteria');
   assert.equal(normalized.reportRecipients[1].phone, '393409876543');
   assert.equal(normalized.reportRecipients[1].enabled, false);
+});
+
+test('loadSettings e saveSettings gestiscono filesystem, valori fuori limite e file corrotti', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'avis-settings-test-'));
+  try {
+    const filePath = path.join(directory, 'nested', 'settings.json');
+    assert.equal(loadSettings(filePath).minDelayMs, DEFAULT_SETTINGS.minDelayMs);
+    const saved = saveSettings(filePath, { minDelayMs: -1, maxDelayMs: 1, outputDir: '  C:\\AVIS  ' });
+    assert.equal(saved.minDelayMs, 0);
+    assert.equal(saved.maxDelayMs, 1);
+    assert.equal(saved.outputDir, 'C:\\AVIS');
+    assert.deepEqual(loadSettings(filePath), saved);
+    fs.writeFileSync(filePath, '{bad', 'utf8');
+    assert.deepEqual(loadSettings(filePath), DEFAULT_SETTINGS);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });

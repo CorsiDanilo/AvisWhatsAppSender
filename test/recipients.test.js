@@ -22,56 +22,56 @@ function temporaryCsv(contents) {
 }
 
 test('normalizes name parts without losing apostrophes or hyphens', () => {
-  assert.equal(normalizeNamePart("  D'ANGELO  "), "D'Angelo");
-  assert.equal(normalizeNamePart('ROSSI-BIANCHI'), 'Rossi-Bianchi');
+  assert.equal(normalizeNamePart("  C'EXAMPLE  "), "C'Example");
+  assert.equal(normalizeNamePart('COGNOME-ALTERNATIVO'), 'Cognome-Alternativo');
 });
 
 test('splits a full name with default lastWordIsName strategy (compound surnames)', () => {
-  assert.deepEqual(splitFullName('  DE   BONIS   MARIO '), {
-    name: 'Mario',
-    givenNames: 'Mario',
-    surname: 'De Bonis',
+  assert.deepEqual(splitFullName('  COGNOME   COMPOSTO   NOME '), {
+    name: 'Nome',
+    givenNames: 'Nome',
+    surname: 'Cognome Composto',
     warning: '',
   });
-  assert.deepEqual(splitFullName('DI TRAPANO VITTORIO'), {
-    name: 'Vittorio',
-    givenNames: 'Vittorio',
-    surname: 'Di Trapano',
+  assert.deepEqual(splitFullName('COGNOME SECONDO NOME'), {
+    name: 'Nome',
+    givenNames: 'Nome',
+    surname: 'Cognome Secondo',
     warning: '',
   });
-  assert.deepEqual(splitFullName('DI GIROLAMO LUCIANO'), {
-    name: 'Luciano',
-    givenNames: 'Luciano',
-    surname: 'Di Girolamo',
+  assert.deepEqual(splitFullName('COGNOME TERZO NOME'), {
+    name: 'Nome',
+    givenNames: 'Nome',
+    surname: 'Cognome Terzo',
     warning: '',
   });
-  assert.deepEqual(splitFullName('ROSSI MARIO'), {
-    name: 'Mario',
-    givenNames: 'Mario',
-    surname: 'Rossi',
+  assert.deepEqual(splitFullName('COGNOME NOME'), {
+    name: 'Nome',
+    givenNames: 'Nome',
+    surname: 'Cognome',
     warning: '',
   });
 });
 
 test('splits a full name with firstWordIsSurname strategy (multiple given names)', () => {
-  assert.deepEqual(splitFullName('  ROSSI   MARIA   ELENA ', 'firstWordIsSurname'), {
-    name: 'Maria',
-    givenNames: 'Maria Elena',
-    surname: 'Rossi',
+  assert.deepEqual(splitFullName('  COGNOME   NOME   SECONDO ', 'firstWordIsSurname'), {
+    name: 'Nome',
+    givenNames: 'Nome Secondo',
+    surname: 'Cognome',
     warning: '',
   });
-  assert.deepEqual(splitFullName('ARON ALINA LACRAMIORA', 'firstWordIsSurname'), {
-    name: 'Alina',
-    givenNames: 'Alina Lacramiora',
-    surname: 'Aron',
+  assert.deepEqual(splitFullName('COGNOME ALTERNATIVO NOME TERZO', 'firstWordIsSurname'), {
+    name: 'Alternativo',
+    givenNames: 'Alternativo Nome Terzo',
+    surname: 'Cognome',
     warning: '',
   });
 });
 
 test('keeps a one-word name and reports a non-blocking warning', () => {
-  assert.deepEqual(splitFullName('MADONNA'), {
-    name: 'Madonna',
-    givenNames: 'Madonna',
+  assert.deepEqual(splitFullName('NOME'), {
+    name: 'Nome',
+    givenNames: 'Nome',
     surname: '',
     warning: 'Cognome non rilevato',
   });
@@ -79,7 +79,7 @@ test('keeps a one-word name and reports a non-blocking warning', () => {
 
 test('detects and parses the known AVIS columns without changing the source values', async () => {
   const { directory, filePath } = temporaryCsv(
-    'COGNOMEENOME,DATADINASCITA,CELLULARE\nDE BONIS MARIO,01/02/1980,+393331234567\n'
+    'COGNOMEENOME,DATADINASCITA,CELLULARE\nCOGNOME COMPOSTO NOME,01/02/1980,+393331234567\n'
   );
 
   try {
@@ -106,17 +106,17 @@ test('detects and parses the known AVIS columns without changing the source valu
         customFields: donor.customFields,
       },
       {
-        name: 'Mario',
-        givenNames: 'Mario',
-        surname: 'De Bonis',
+        name: 'Nome',
+        givenNames: 'Nome',
+        surname: 'Cognome Composto',
         rawPhone: '+393331234567',
         phone: '393331234567',
         valid: true,
         customFields: { DATADINASCITA: '01/02/1980' },
       }
     );
-    assert.equal(renderTemplate('Ciao [nome] [cognome]', donor), 'Ciao Mario De Bonis');
-    assert.equal(fs.readFileSync(filePath, 'utf8'), 'COGNOMEENOME,DATADINASCITA,CELLULARE\nDE BONIS MARIO,01/02/1980,+393331234567\n');
+    assert.equal(renderTemplate('Ciao [nome] [cognome]', donor), 'Ciao Nome Cognome Composto');
+    assert.equal(fs.readFileSync(filePath, 'utf8'), 'COGNOMEENOME,DATADINASCITA,CELLULARE\nCOGNOME COMPOSTO NOME,01/02/1980,+393331234567\n');
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
@@ -124,7 +124,7 @@ test('detects and parses the known AVIS columns without changing the source valu
 
 test('parses with custom splitStrategy firstWordIsSurname when specified in mapping', async () => {
   const { directory, filePath } = temporaryCsv(
-    'COGNOMEENOME,DATADINASCITA,CELLULARE\nROSSI MARIA ELENA,01/02/1980,+393331234567\n'
+    'COGNOMEENOME,DATADINASCITA,CELLULARE\nCOGNOME NOME SECONDO,01/02/1980,+393331234567\n'
   );
 
   try {
@@ -135,10 +135,10 @@ test('parses with custom splitStrategy firstWordIsSurname when specified in mapp
       customFields: ['DATADINASCITA'],
     });
 
-    assert.equal(donor.name, 'Maria');
-    assert.equal(donor.givenNames, 'Maria Elena');
-    assert.equal(donor.surname, 'Rossi');
-    assert.equal(renderTemplate('Ciao [nome] [cognome]', donor), 'Ciao Maria Rossi');
+    assert.equal(donor.name, 'Nome');
+    assert.equal(donor.givenNames, 'Nome Secondo');
+    assert.equal(donor.surname, 'Cognome');
+    assert.equal(renderTemplate('Ciao [nome] [cognome]', donor), 'Ciao Nome Cognome');
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
@@ -146,9 +146,9 @@ test('parses with custom splitStrategy firstWordIsSurname when specified in mapp
 
 test('updates editable recipient fields and recalculates phone validity', () => {
   const donor = {
-    name: 'Maria',
-    givenNames: 'Maria Elena',
-    surname: 'Rossi',
+    name: 'Nome',
+    givenNames: 'Nome Secondo',
+    surname: 'Cognome',
     rawPhone: '+393331234567',
     phone: '393331234567',
     valid: true,
@@ -160,14 +160,14 @@ test('updates editable recipient fields and recalculates phone validity', () => 
   };
 
   assert.deepEqual(updateDonor(donor, {
-    name: 'ELENA',
-    surname: "D'ANGELO",
+    name: 'NOME ALTERNATIVO',
+    surname: "C'EXAMPLE",
     phone: '123',
     customFields: { DATADINASCITA: '02/03/1981' },
   }), {
-    name: 'Elena',
-    givenNames: 'Elena',
-    surname: "D'Angelo",
+    name: 'Nome',
+    givenNames: 'Nome Alternativo',
+    surname: "C'Example",
     rawPhone: '123',
     phone: '',
     valid: false,
@@ -181,14 +181,14 @@ test('updates editable recipient fields and recalculates phone validity', () => 
 
 test('creates a selected pending donor with all current custom fields', () => {
   assert.deepEqual(createManualDonor({
-    name: 'LUCA',
-    surname: 'BIANCHI',
+    name: 'NOME',
+    surname: 'COGNOME',
     phone: '3331234567',
     customFields: { DATADINASCITA: '04/05/1990' },
   }, ['DATADINASCITA', 'Gruppo']), {
-    name: 'Luca',
-    givenNames: 'Luca',
-    surname: 'Bianchi',
+    name: 'Nome',
+    givenNames: 'Nome',
+    surname: 'Cognome',
     rawPhone: '3331234567',
     phone: '393331234567',
     valid: true,
@@ -202,7 +202,7 @@ test('creates a selected pending donor with all current custom fields', () => {
 
 test('detects and parses CSV files delimited by semicolon', async () => {
   const { directory, filePath } = temporaryCsv(
-    'COGNOMEENOME;DATADINASCITA;CELLULARE\nROSSI MARIO;14/02/1990;3331234567\n'
+    'COGNOMEENOME;DATADINASCITA;CELLULARE\nCOGNOME NOME;14/02/1990;3331234567\n'
   );
 
   try {
@@ -212,8 +212,8 @@ test('detects and parses CSV files delimited by semicolon', async () => {
     assert.deepEqual(inspection.detectedMapping.customFields, ['DATADINASCITA']);
 
     const [donor] = await parseWithMapping(filePath, 'CSV', inspection.detectedMapping);
-    assert.equal(donor.name, 'Mario');
-    assert.equal(donor.surname, 'Rossi');
+    assert.equal(donor.name, 'Nome');
+    assert.equal(donor.surname, 'Cognome');
     assert.equal(donor.phone, '393331234567');
     assert.equal(donor.customFields.DATADINASCITA, '14/02/1990');
   } finally {
@@ -231,7 +231,7 @@ test('reads Excel dates formatted in Italian dd/mm/yyyy format', async () => {
     'A1': { t: 's', v: 'COGNOMEENOME' },
     'B1': { t: 's', v: 'DATADINASCITA' },
     'C1': { t: 's', v: 'CELLULARE' },
-    'A2': { t: 's', v: 'ROSSI MARIO' },
+    'A2': { t: 's', v: 'COGNOME NOME' },
     'B2': { t: 'n', v: 33171, z: XLSX.SSF._table[14] }, // 25 Oct 1990
     'C2': { t: 's', v: '3331234567' }
   };

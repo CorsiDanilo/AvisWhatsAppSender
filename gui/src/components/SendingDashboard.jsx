@@ -9,6 +9,7 @@ export default function SendingDashboard({
   call,
   api,
   onBackToEdit,
+  connectionState,
 }) {
   const logContainerRef = useRef(null)
 
@@ -21,6 +22,10 @@ export default function SendingDashboard({
 
   const isCompleted = state.queue === 'completed'
   const isStopped = state.queue === 'stopped'
+  const connectionReady = connectionState === 'ready'
+  const pauseReason = state.queuePauseReason
+  const isConnectionPaused = pauseReason?.startsWith('disconnected') || pauseReason?.startsWith('connection:') || pauseReason === 'qr' || pauseReason === 'auth-failure' || pauseReason === 'qr-generation-error'
+  const isSendUncertain = pauseReason === 'send-uncertain'
   const percent = state.progress.total
     ? Math.round((state.progress.current / state.progress.total) * 100)
     : 0
@@ -46,7 +51,7 @@ export default function SendingDashboard({
     const pauseMinutes = settings.pauseMinutes ?? 15
     const pauseSec = pauseMinutes * 60
 
-    const alreadySent = (state.progress.sent || 0) + (state.progress.failed || 0)
+    const alreadySent = (state.progress.sent || 0) + (state.progress.failed || 0) + (state.progress.unknown || 0)
     const sendOverheadSec = 2
     let remainingSec = pendingValid * sendOverheadSec
     for (let i = 0; i < pendingValid; i++) {
@@ -92,6 +97,21 @@ export default function SendingDashboard({
         </div>
       </div>
 
+      {/* Banner disconnessione WhatsApp durante l'invio */}
+      {isPaused && (isConnectionPaused || isSendUncertain) && (
+        <div className="disconnect-alert-banner">
+          <span className="disconnect-alert-icon">{isSendUncertain ? '🔎' : '⚠️'}</span>
+          <div className="disconnect-alert-text">
+            <strong>{isSendUncertain ? 'Esito di un invio da verificare' : 'WhatsApp non è pronto'}</strong>
+            <p>
+              {isSendUncertain
+                ? 'Un messaggio potrebbe essere stato inviato. Verifica WhatsApp e poi premi Riprendi invio per continuare senza ritentare quel destinatario.'
+                : 'L’invio è stato messo in pausa automaticamente. Riconnetti WhatsApp dalla schermata principale e attendi lo stato pronto prima di riprendere.'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Stats row */}
       <div className="stats-grid">
         <div className="stat-card">
@@ -115,9 +135,10 @@ export default function SendingDashboard({
           <span>Falliti / Saltati</span>
           <strong>
             {(state.progress.failed || counts.failed || 0) +
-              (state.progress.skipped || counts.skipped || 0)}
+              (state.progress.skipped || counts.skipped || 0) +
+              (state.progress.unknown || counts.unknown || 0)}
           </strong>
-          <small>problemi o non validi</small>
+          <small>problemi o da verificare</small>
         </div>
       </div>
 
@@ -179,6 +200,8 @@ export default function SendingDashboard({
               type="button"
               className="button button-primary control-btn"
               onClick={() => call(() => api.resume())}
+              disabled={!connectionReady}
+              title={connectionReady ? 'Riprendi l’invio' : 'Attendi che WhatsApp sia pronto'}
             >
               ▶ Riprendi invio
             </button>
@@ -306,6 +329,8 @@ export default function SendingDashboard({
                       ? '✓ Inviato'
                       : donor.status === 'skipped'
                       ? 'Scartato'
+                      : donor.status === 'unknown'
+                      ? '⚠ Da verificare'
                       : '✕ Fallito'}
                   </span>
                 </div>

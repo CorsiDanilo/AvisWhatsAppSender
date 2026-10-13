@@ -254,7 +254,7 @@ export default function ExcelPreviewModal({
                             checked={splitStrategy === 'lastWordIsName'}
                             onChange={() => setSplitStrategy('lastWordIsName')}
                           />
-                          <span><strong>Ultima parola = Nome</strong> (es. 'DE BONIS' + 'Mario')</span>
+                          <span><strong>Ultima parola = Nome</strong> (es. 'COGNOME COMPOSTO' + 'Nome')</span>
                         </label>
                         <label className={`excel-strategy-radio ${splitStrategy === 'firstWordIsSurname' ? 'active' : ''}`}>
                           <input
@@ -264,7 +264,7 @@ export default function ExcelPreviewModal({
                             checked={splitStrategy === 'firstWordIsSurname'}
                             onChange={() => setSplitStrategy('firstWordIsSurname')}
                           />
-                          <span><strong>Prima parola = Cognome</strong> (es. 'ROSSI' + 'Maria Elena')</span>
+                          <span><strong>Prima parola = Cognome</strong> (es. 'COGNOME' + 'Nome Secondo')</span>
                         </label>
                       </div>
                     )}

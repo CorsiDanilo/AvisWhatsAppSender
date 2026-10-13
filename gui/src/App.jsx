@@ -43,7 +43,7 @@ const initialState = {
   qrDataUrl: '',
   donors: [],
   queue: 'idle',
-  progress: { current: 0, total: 0, sent: 0, failed: 0, skipped: 0 },
+  progress: { current: 0, total: 0, sent: 0, failed: 0, skipped: 0, unknown: 0 },
   logs: [],
   fileName: '',
   filePath: '',
@@ -305,7 +305,7 @@ if (!api?.onOpenBirthdays) return undefined
       qrDataUrl: '',
       donors: TUTORIAL_DONORS.map((d) => ({ ...d })),
       queue: 'idle',
-      progress: { current: 0, total: 4, sent: 0, failed: 0, skipped: 1 },
+      progress: { current: 0, total: 4, sent: 0, failed: 0, skipped: 1, unknown: 0 },
       logs: ['[TUTORIAL] Dati di esempio caricati con successo.'],
       fileName: 'Donatori_AVIS_Ottobre.xlsx',
       filePath: 'C:\\Users\\AVIS\\Desktop\\Donatori_AVIS_Ottobre.xlsx',
@@ -353,7 +353,7 @@ if (!api?.onOpenBirthdays) return undefined
     setState((prev) => ({
       ...prev,
       queue: 'running',
-      progress: { current: 0, total: 4, sent: 0, failed: 0, skipped: 1 },
+      progress: { current: 0, total: 4, sent: 0, failed: 0, skipped: 1, unknown: 0 },
       logs: ['[SIMULAZIONE] Inizio sessione demo in modalità protetta. Nessun messaggio reale inviato a WhatsApp.'],
       donors: TUTORIAL_DONORS.map((d) => ({
         ...d,
@@ -875,6 +875,7 @@ if (!api?.onOpenBirthdays) return undefined
             isPaused={isPaused}
             call={call}
             api={effectiveApi}
+            connectionState={state.connection}
             onBackToEdit={() => {
               setManualSendingView(false)
               setCurrentStep(3)
@@ -1059,6 +1060,5 @@ if (!api?.onOpenBirthdays) return undefined
 }
 
 export default App
-
 
 

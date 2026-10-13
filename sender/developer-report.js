@@ -1,3 +1,5 @@
+const { dateFile } = require('./logger');
+
 const DEVELOPER_REPORT_RECIPIENT = 'danilo.corsi@outlook.it';
 
 function buildDeveloperReport({
@@ -6,7 +8,7 @@ function buildDeveloperReport({
   connection = 'non connesso',
   errorContext = '',
   todayLogContent = '',
-  todayDate = new Date().toISOString().slice(0, 10),
+  todayDate = dateFile(),
   nowDate = new Date(),
 } = {}) {
   const fullLog = (todayLogContent && typeof todayLogContent === 'string' && todayLogContent.trim())

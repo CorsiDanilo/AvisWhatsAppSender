@@ -1,9 +1,13 @@
 const { exec } = require('node:child_process');
+const { maskPhone, redactDiagnosticText } = require('./diagnostics');
+const { withTimeout } = require('./send-timeout');
+const { buildWhatsAppSendOptions } = require('./whatsapp-send-options');
 
 function buildSelfReportMessage({
   sent = 0,
   failed = 0,
   skipped = 0,
+  unknown = 0,
   fileName = '',
   presetName = '',
   date = new Date(),
@@ -33,6 +37,7 @@ function buildSelfReportMessage({
     `✅ Inviati con successo: *${sent}*`,
     `❌ Falliti: *${failed}*`,
     `⚠️ Saltati (non validi): *${skipped}*`,
+    `🔎 Da verificare: *${unknown}*`,
   ];
 
   if (actionText) {
@@ -50,13 +55,15 @@ function createPostSessionManager({
   publish = () => {},
   getState = () => ({}),
   getClient = () => null,
+  isReady = () => getState().connection === 'ready',
+  reportSendTimeoutMs = 45000,
   execCommand = exec,
   countdownSeconds = 60,
 } = {}) {
   let timer = null;
   let interval = null;
 
-  async function sendSessionReports({ sent, failed, skipped, activeSession }) {
+  async function sendSessionReports({ sent, failed, skipped, unknown = 0, activeSession }) {
     const client = getClient();
     if (!client) {
       log('Impossibile inviare il riepilogo: client WhatsApp non disponibile.');
@@ -64,6 +71,11 @@ function createPostSessionManager({
     }
 
     const currentState = getState();
+    if (!isReady()) {
+      log('Riepilogo non inviato: WhatsApp non è pronto.');
+      audit('warn', 'post_session.report_skipped_not_ready', { connection: currentState.connection });
+      return;
+    }
     const configuredRecipients = Array.isArray(activeSession?.reportRecipients)
       ? activeSession.reportRecipients
       : (currentState.settings?.reportRecipients || []);
@@ -78,6 +90,7 @@ function createPostSessionManager({
       sent,
       failed,
       skipped,
+      unknown,
       fileName: currentState.fileName || '',
       presetName: activeSession?.presetName || '',
       date: new Date(),
@@ -89,12 +102,29 @@ function createPostSessionManager({
       if (!cleanPhone) continue;
       const chatId = `${cleanPhone}@c.us`;
       try {
-        await client.sendMessage(chatId, text);
-        log(`Riepilogo inviato su WhatsApp a: ${recipient.label || 'Destinatario'} (${cleanPhone}).`);
-        audit('info', 'post_session.report_sent', { recipient: chatId, label: recipient.label, sent, failed, skipped });
+        await withTimeout(
+          () => client.sendMessage(chatId, text, buildWhatsAppSendOptions()),
+          reportSendTimeoutMs,
+          'postSession.sendMessage',
+        );
+        log(`Riepilogo inviato su WhatsApp a: ${recipient.label || 'Destinatario'} (${maskPhone(cleanPhone)}).`);
+        audit('info', 'post_session.report_sent', {
+          recipient: maskPhone(cleanPhone),
+          label: recipient.label,
+          sent,
+          failed,
+          skipped,
+          unknown,
+        });
       } catch (error) {
-        logError('post_session.report_failed', error, { recipient: chatId, label: recipient.label });
-        log(`Invio riepilogo non riuscito a ${recipient.label || cleanPhone}: ${error.message || error}`);
+        logError('post_session.report_failed', error, { recipient: maskPhone(cleanPhone), label: recipient.label });
+        if (error?.code === 'SEND_TIMEOUT') {
+          audit('warn', 'post_session.report_uncertain', {
+            recipient: maskPhone(cleanPhone),
+            label: recipient.label,
+          });
+        }
+        log(`Invio riepilogo non riuscito al destinatario ${maskPhone(cleanPhone)}: ${redactDiagnosticText(error.message || error)}`);
       }
     }
   }

@@ -24,7 +24,7 @@ export default function Guide({ onClose, onStartTutorial }) {
               <div className="guide-tutorial-cta-body">
                 <strong>Preferisci una prova pratica guidata?</strong>
                 <p>
-                  Avvia il <strong>Tutorial Interattivo</strong> per provare tutte le schermate e la dashboard di invio in modalità simulata protetta, senza inviare alcun messaggio reale.
+                  Avvia il <strong>Tutorial Interattivo</strong> per provare il flusso completo di invio e conoscere le funzioni di recupero, compleanni, notifiche, diagnostica e aggiornamento in modalità simulata protetta, senza inviare alcun messaggio reale.
                 </p>
                 <button
                   type="button"
@@ -51,12 +51,14 @@ export default function Guide({ onClose, onStartTutorial }) {
 
           <h3>2. Mappatura intelligente delle colonne</h3>
           <p>
-            Al caricamento del file, si apre automaticamente la finestra di anteprima dei dati con le prime 10 righe.
+            Al caricamento del file, si apre automaticamente la finestra di anteprima dei dati con le prime 5 righe.
             Il sistema riconosce in automatico i nomi delle intestazioni più comuni (es. <em>Cellulare</em>, <em>Telefono</em>, <em>Mobile</em>, <em>Nominativo</em>). Puoi:
           </p>
           <ul>
             <li>Assegnare la colonna obbligatoria per il <strong>Telefono</strong>.</li>
             <li>Assegnare le colonne per <strong>Nome</strong> e <strong>Cognome</strong>.</li>
+            <li>Quando nome e cognome sono nella stessa colonna, scegliere la strategia: ultima parola come nome oppure prima parola come cognome.</li>
+            <li>Controllare gli avvisi sulle righe senza cognome rilevabile e correggerle dopo l'importazione, se necessario.</li>
             <li>Selezionare colonne personalizzate aggiuntive (es. <em>Gruppo</em>): i loro valori diventeranno utilizzabili come tag dinamici nel testo (es. <code>[Gruppo]</code>).</li>
             <li>In qualsiasi momento, puoi riaprire la configurazione cliccando su <strong>“Riconfigura colonne”</strong> nello Step 1.</li>
           </ul>
@@ -95,7 +97,7 @@ export default function Guide({ onClose, onStartTutorial }) {
             <strong>Sessione persistente:</strong> Il collegamento rimane memorizzato nella cartella dati dell'applicazione. Ai successivi avvii, l'app si riconnetterà in automatico senza richiedere nuovamente la scansione del QR code.
           </div>
           <div className="guide-note">
-            <strong>Problemi di collegamento:</strong> dalla finestra QR puoi usare <strong>“Azzera sessione”</strong> per eliminare le credenziali locali e generare un nuovo codice QR.
+            <strong>Problemi di collegamento:</strong> dalla finestra QR puoi usare <strong>“Riconnetti WhatsApp”</strong> per riavviare il browser e ricaricare la sessione esistente, oppure <strong>“Azzera sessione”</strong> per eliminare le credenziali locali e generare un nuovo codice QR. L'app ritenta automaticamente gli errori iniziali di connessione; se WhatsApp si disconnette durante l'invio, la coda viene messa in pausa.
           </div>
 
           <h3>6. Modelli, preset e tag dinamici</h3>
@@ -106,8 +108,8 @@ export default function Guide({ onClose, onStartTutorial }) {
             Puoi personalizzare ogni messaggio inserendo:
           </p>
           <ul>
-            <li><code>[nome]</code>: sostituito con il nome del donatore (o con "Donatore" se mancante).</li>
-            <li><code>[cognome]</code>: sostituito con il cognome del donatore.</li>
+            <li><code>[nome]</code>: sostituito con il nome importato del donatore; se manca, nell'invio resta vuoto e l'anteprima usa il fallback neutro "Nome".</li>
+            <li><code>[cognome]</code>: sostituito con il cognome importato; se manca, nell'invio resta vuoto e l'anteprima usa il fallback neutro "Cognome".</li>
             <li>Qualsiasi tag mappato dalle colonne Excel personalizzate (es. <code>[Gruppo]</code>, <code>[DataUltima]</code>).</li>
           </ul>
           <p>
@@ -126,6 +128,7 @@ export default function Guide({ onClose, onStartTutorial }) {
             <li>All'avvio l'app controlla la lista e, se trova compleanni, mostra una notifica Windows e un pallino rosso sul pulsante <strong>🎂 Compleanni</strong>.</li>
             <li>Puoi controllare la lista in qualsiasi momento dalla barra superiore o dall'icona nell'area di notifica di Windows.</li>
             <li>Con <strong>Prepara gli auguri</strong> vengono importati soltanto i donatori interessati e viene caricato il preset selezionato.</li>
+            <li>Le righe con date non valide vengono segnalate senza bloccare la preparazione degli auguri validi.</li>
           </ul>
           <div className="guide-note">
             <strong>Invio sempre manuale:</strong> il promemoria non invia messaggi da solo. Prima dell'invio puoi controllare o modificare destinatari, testo, allegato e riepilogo come per ogni altra sessione.
@@ -168,13 +171,16 @@ export default function Guide({ onClose, onStartTutorial }) {
           </p>
           <ul>
             <li><strong>Barra di avanzamento percentuale</strong> e indicazione del donatore attualmente in lavorazione.</li>
-            <li><strong>Contatori in tempo reale:</strong> inviati con successo, in attesa, falliti o scartati.</li>
+            <li><strong>Contatori in tempo reale:</strong> inviati con successo, in attesa, falliti, scartati o con esito da verificare.</li>
             <li><strong>Tempo rimanente stimato</strong> (⏱) calcolato in tempo reale in base al numero di destinatari in attesa e al ritmo configurato.</li>
             <li><strong>Comandi di controllo:</strong> puoi mettere la sessione in <strong>Pausa</strong>, <strong>Riprendere</strong> o <strong>Fermare</strong> l’invio in qualsiasi momento.</li>
-            <li><strong>Log diagnostici live:</strong> eventi e comunicazioni di rete visualizzati in tempo reale (gli errori vengono evidenziati in rosso).</li>
+            <li><strong>Log di trasmissione live:</strong> eventi operativi e errori visualizzati in tempo reale; i dettagli tecnici del browser, delle richieste di rete e dei timeout vengono invece salvati nei log diagnostici giornalieri.</li>
           </ul>
           <div className="guide-note">
             <strong>Countdown sicurezza post-invio:</strong> se hai scelto di spegnere, ibernare o sospendere il PC, al termine apparirà un banner con un conto alla rovescia di 60 secondi prima dell’esecuzione. Puoi annullare in qualsiasi momento con <strong>“❌ Annulla operazione”</strong>.
+          </div>
+          <div className="guide-note">
+            <strong>Invio da verificare:</strong> se un timeout o una disconnessione avviene mentre WhatsApp sta confermando un messaggio, il destinatario viene marcato come <strong>Da verificare</strong> perché il messaggio potrebbe essere già partito. La coda si ferma automaticamente: controlla WhatsApp, poi riprendi senza ritentare quel destinatario. Una nuova sessione resta bloccata finché l'esito non viene verificato.
           </div>
           <div className="guide-note">
             Al termine o all’interruzione, la dashboard rimane visibile con il riepilogo finale. Clicca <strong>“← Ritorna alla schermata principale”</strong> per tornare al wizard e impostare un nuovo invio.
@@ -185,8 +191,9 @@ export default function Guide({ onClose, onStartTutorial }) {
             Al termine dell'invio (o in caso di interruzione), l'applicazione crea automaticamente una cartella datata contenente i report completi:
           </p>
           <ul>
-            <li><code>esito.csv</code>: foglio di calcolo con tutti i dettagli, orario di invio ed esito di ciascun contatto (inviato, scartato, errore).</li>
+            <li><code>esito.csv</code>: foglio di calcolo con nome, cognome, telefono, selezione, stato, errore o motivo e campi personalizzati di ciascun contatto.</li>
             <li><code>esito.json</code>: report strutturato leggibile da sistemi gestionali.</li>
+            <li><code>esito_falliti.csv</code>: viene creato quando necessario e raccoglie i contatti falliti, scartati o con invio da verificare.</li>
           </ul>
           <p>
             Un comodo pulsante <strong>“📁 Apri esito in Esplora Risorse”</strong> consente di aprire direttamente la cartella generata senza doverla cercare manualmente.
@@ -214,7 +221,7 @@ export default function Guide({ onClose, onStartTutorial }) {
           </ul>
 
           <p>
-            Il pulsante <strong>🔔</strong> nella barra superiore apre il centro notifiche: gli avvisi restano disponibili, possono essere segnati come letti o non letti e quelli letti vengono raccolti nella scheda <strong>Già lette</strong>.
+            Il pulsante <strong>🔔</strong> nella barra superiore apre il <strong>Centro notifiche</strong>: gli avvisi restano disponibili, possono essere segnati come letti o non letti, eliminati singolarmente o svuotati tutti insieme, e quelli letti vengono raccolti nella scheda <strong>Già lette</strong>. Le notifiche compleanno possono anche riportarti direttamente alla preparazione degli auguri.
           </p>
 
           <h3>14. Aggiornamenti automatici da GitHub</h3>

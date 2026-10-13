@@ -25,6 +25,7 @@ class SendQueue extends EventEmitter {
     this.pauseAfter = pauseAfter;
     this.pauseMs = pauseMs;
     this.state = 'idle';
+    this.pauseReason = null;
     this._runPromise = null;
     this._resumeWaiters = [];
   }
@@ -37,9 +38,15 @@ class SendQueue extends EventEmitter {
     return this._runPromise;
   }
 
-  pause() {
+  pause(reason = 'manual') {
+    if (this.state === 'paused') {
+      if (this.pauseReason !== 'send-uncertain') this.pauseReason = reason;
+      this.emit('state', this.state);
+      return;
+    }
     if (this.state !== 'running') return;
     this.state = 'paused';
+    this.pauseReason = reason;
     this.emit('paused');
     this.emit('state', this.state);
   }
@@ -47,6 +54,7 @@ class SendQueue extends EventEmitter {
   resume() {
     if (this.state !== 'paused') return;
     this.state = 'running';
+    this.pauseReason = null;
     this.emit('state', this.state);
     for (const resolve of this._resumeWaiters.splice(0)) resolve();
   }
@@ -54,6 +62,7 @@ class SendQueue extends EventEmitter {
   stop() {
     if (this.state === 'completed' || this.state === 'stopped') return;
     this.state = 'stopped';
+    this.pauseReason = null;
     this.emit('state', this.state);
     this.emit('stopped');
     for (const resolve of this._resumeWaiters.splice(0)) resolve();
@@ -87,6 +96,7 @@ class SendQueue extends EventEmitter {
     let sent = 0;
     let failed = 0;
     let skipped = 0;
+    let unknown = 0;
 
     for (let index = 0; index < this.items.length; index += 1) {
       const donor = this.items[index];
@@ -96,13 +106,13 @@ class SendQueue extends EventEmitter {
         donor.status = 'skipped';
         skipped += 1;
         this.emit('item', { donor, index, total: this.items.length });
-        this.emit('progress', { current: index + 1, total: this.items.length, sent, failed, skipped });
+        this.emit('progress', { current: index + 1, total: this.items.length, sent, failed, skipped, unknown });
         continue;
       }
 
       if (donor.status === 'sent') {
         this.emit('item', { donor, index, total: this.items.length });
-        this.emit('progress', { current: index + 1, total: this.items.length, sent, failed, skipped });
+        this.emit('progress', { current: index + 1, total: this.items.length, sent, failed, skipped, unknown });
         continue;
       }
 
@@ -113,17 +123,26 @@ class SendQueue extends EventEmitter {
         await this.send(donor, message);
         donor.status = 'sent';
         sent += 1;
-        this.emit('log', `Messaggio inviato a ${donor.name || donor.phone}`);
+        this.emit('log', `Messaggio inviato al destinatario ${index + 1}/${this.items.length}.`);
       } catch (error) {
-        donor.status = 'failed';
-        donor.error = error.message;
-        failed += 1;
-        this.emit('error', { donor, error });
+        donor.error = error?.message || String(error);
+        if (error?.code === 'SEND_TIMEOUT' || error?.code === 'SEND_UNCERTAIN') {
+          donor.status = 'unknown';
+          unknown += 1;
+          this.pause('send-uncertain');
+          this.emit('uncertain', { donor, error, index, total: this.items.length });
+        } else {
+          donor.status = 'failed';
+          failed += 1;
+          this.emit('error', { donor, error, index, total: this.items.length });
+        }
       }
 
       this.emit('item', { donor, index, total: this.items.length });
-      this.emit('progress', { current: index + 1, total: this.items.length, sent, failed, skipped });
-      if (this.state === 'stopped' || index === this.items.length - 1) break;
+      this.emit('progress', { current: index + 1, total: this.items.length, sent, failed, skipped, unknown });
+      if (this.state === 'stopped') break;
+      if (this.state === 'paused' && !(await this._waitUntilRunning())) break;
+      if (index === this.items.length - 1) break;
 
       if (this.pauseAfter > 0 && (sent + failed) % this.pauseAfter === 0) {
         this.emit('log', `Pausa automatica di ${Math.round(this.pauseMs / 60000)} minuti`);
@@ -136,7 +155,7 @@ class SendQueue extends EventEmitter {
     if (this.state !== 'stopped') {
       this.state = 'completed';
       this.emit('state', this.state);
-      this.emit('completed', { sent, failed, skipped });
+      this.emit('completed', { sent, failed, skipped, unknown });
     }
   }
 }

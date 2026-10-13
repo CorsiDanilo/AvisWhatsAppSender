@@ -4,8 +4,8 @@ import { formatEstimatedDuration } from './duration.mjs'
 function previewMessage(message, donor) {
   if (!donor) return message
   let result = message
-    .replaceAll('[nome]', donor.name || 'Mario')
-    .replaceAll('[cognome]', donor.surname || 'Rossi')
+    .replaceAll('[nome]', donor.name || 'Nome')
+    .replaceAll('[cognome]', donor.surname || 'Cognome')
   if (donor.customFields) {
     for (const [key, value] of Object.entries(donor.customFields)) {
       result = result.replaceAll(`[${key}]`, value)
@@ -252,7 +252,7 @@ export default function StepComposer({
                   <input
                     type="text"
                     className="preview-search-input"
-                    placeholder="🔍 Cerca donatore per verificare il messaggio (es. Trapano, De Bonis)..."
+                    placeholder="🔍 Cerca donatore per verificare il messaggio (es. nome o cognome)..."
                     value={previewSearch}
                     onFocus={() => {
                       if (previewSearch.trim().length > 0) setShowSuggestions(true)

@@ -75,11 +75,23 @@ export default function QrModal({ isOpen, onClose, state, api, call }) {
                 </div>
               </div>
             </div>
-          ) : isConnecting || regenerating ? (
+          ) : regenerating ? (
             <div className="qr-loading-box">
               <div className="qr-spinner" />
-              <h3>Generazione del codice QR in corso…</h3>
-              <p className="muted">Avvio del browser e richiesta della sessione WhatsApp…</p>
+              <h3>Riconnessione a WhatsApp in corso…</h3>
+              <p className="muted">Il browser viene chiuso e riaperto. Non è necessario effettuare nuovamente il login.</p>
+            </div>
+          ) : resetting ? (
+            <div className="qr-loading-box">
+              <div className="qr-spinner" />
+              <h3>Azzeramento sessione in corso…</h3>
+              <p className="muted">Eliminazione dei dati di sessione locali e preparazione di un nuovo codice QR…</p>
+            </div>
+          ) : isConnecting ? (
+            <div className="qr-loading-box">
+              <div className="qr-spinner" />
+              <h3>Connessione a WhatsApp in corso…</h3>
+              <p className="muted">Verifica della sessione memorizzata nel browser…</p>
             </div>
           ) : state.connection === 'ready' || state.connection === 'authenticated' ? (
             <div className="qr-success-box">
@@ -102,6 +114,7 @@ export default function QrModal({ isOpen, onClose, state, api, call }) {
               className="button button-secondary regenerate-qr-btn"
               onClick={handleRegenerate}
               disabled={regenerating || resetting}
+              title="Riavvia il browser e ricarica la sessione WhatsApp esistente (non è necessario effettuare nuovamente il login)"
             >
               <span>🔄</span> {regenerating ? 'Riconnessione in corso…' : 'Riconnetti WhatsApp'}
             </button>

@@ -17,8 +17,8 @@ test('recipient editor exposes all imported custom fields in a stable order', as
 test('recipient editor creates editable drafts without mutating the donor', async () => {
   const { createRecipientDraft } = await import(moduleUrl);
   const donor = {
-    name: 'Maria',
-    surname: 'Rossi',
+    name: 'Nome',
+    surname: 'Cognome',
     rawPhone: '+393331234567',
     customFields: { DATADINASCITA: '01/02/1980' },
   };
@@ -26,9 +26,9 @@ test('recipient editor creates editable drafts without mutating the donor', asyn
   const draft = createRecipientDraft(donor, ['DATADINASCITA', 'Gruppo']);
 
   assert.deepEqual(draft, {
-    name: 'Maria',
-    givenNames: 'Maria',
-    surname: 'Rossi',
+    name: 'Nome',
+    givenNames: 'Nome',
+    surname: 'Cognome',
     phone: '+393331234567',
     customFields: { DATADINASCITA: '01/02/1980', Gruppo: '' },
   });
@@ -49,15 +49,15 @@ test('recipient editor creates an empty manual draft with selected fields', asyn
 test('saving an unchanged editor draft preserves all given names', async () => {
   const { createRecipientDraft } = await import(moduleUrl);
   const donor = {
-    name: 'Maria',
-    givenNames: 'Maria Elena',
-    surname: 'Rossi',
+    name: 'Nome',
+    givenNames: 'Nome Secondo',
+    surname: 'Cognome',
     rawPhone: '+393331234567',
     customFields: {},
   };
 
   const updated = updateDonor(donor, createRecipientDraft(donor));
 
-  assert.equal(updated.name, 'Maria');
-  assert.equal(updated.givenNames, 'Maria Elena');
+  assert.equal(updated.name, 'Nome');
+  assert.equal(updated.givenNames, 'Nome Secondo');
 });

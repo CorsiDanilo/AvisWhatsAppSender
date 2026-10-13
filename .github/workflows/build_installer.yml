@@ -40,6 +40,33 @@ jobs:
           node-version: 20
           cache: 'npm'
 
+      - name: Prepare release notes from CHANGELOG.md
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const tag = process.env.TAG_NAME;
+          const version = tag.replace(/^v/, '');
+          const changelog = fs.readFileSync('CHANGELOG.md', 'utf8').replace(/\r\n/g, '\n');
+          const heading = `## [${version}]`;
+          const start = changelog.indexOf(heading);
+
+          if (start === -1) {
+            throw new Error(`Sezione ${heading} non trovata in CHANGELOG.md`);
+          }
+
+          const nextSection = changelog.slice(start + heading.length).search(/\n## \[/);
+          const section = nextSection === -1
+            ? changelog.slice(start)
+            : changelog.slice(start, start + heading.length + nextSection);
+
+          fs.writeFileSync('release-notes.md', `${section.trim()}\n`, 'utf8');
+          NODE
+
       - name: Install dependencies
         run: |
           npm ci
@@ -72,7 +99,8 @@ jobs:
         # Pinnato a SHA immutabile per prevenire supply-chain attacks (v2.6.2 = ultima v2)
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
-          generate_release_notes: true
+          generate_release_notes: false
+          body_path: release-notes.md
           files: |
             dist/*.exe
             dist/latest.yml
