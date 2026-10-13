@@ -5,80 +5,36 @@ All notable changes to the **AVIS WhatsApp Sender** project will be documented i
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
-
-## [1.2.2] - 2026-10-13
+## [1.2.0] - 2026-10-13
 
 ### Summary
 
-Release di correzione e rifinitura con ripristino dell'interazione con la dashboard di invio, stima del tempo residuo in tempo reale (Live ETA) e aggiornamento completo della documentazione.
+Importante release di ampliamento che introduce il supporto completo ai cognomi composti con strategia di split selezionabile e suggerimenti live nell'anteprima, stima del tempo residuo in tempo reale (Live ETA), report sessione WhatsApp per destinatari multipli con rubrica, automazioni di spegnimento/sospensione post-invio e riorganizzazione delle impostazioni generali.
 
 ### Added
 
-- **Stima Tempo Residuo in Tempo Reale (Live ETA)**: indicatore dinamico durante l'invio che stima i minuti/ore mancanti in base ai contatti in attesa, ritardi configurati e pause programmate (con badge informativo dedicato anche in stato di pausa).
+- **Riconoscimento Avanzato Cognome e Nome (Split Strategy)**: nuova strategia di estrazione predefinita per colonna unica (`lastWordIsName`) che estrae l'ultima parola come nome (`[nome]`) e le parole precedenti come cognome composto (`[cognome]`), risolvendo in automatico cognomi come *De Bonis*, *Di Girolamo*, *Di Trapano*.
+- **Opzione di Split Selezionabile nell'Importazione**: modale di importazione Excel/CSV aggiornato con selezione tra *"Ultima parola = Nome"* (predefinita) e *"Prima parola = Cognome"* (per donatori con cognome singolo e doppi nomi) con aggiornamento istantaneo dell'anteprima a 5 righe.
+- **Ricerca e Suggerimenti Live nell'Anteprima Step 2**: campo di ricerca rapida per nome/cognome/telefono con menu a discesa contestuale che mostra in tempo reale l'anteprima del messaggio personalizzato e supporta la navigazione da tastiera (`▲`/`▼`/`Invio`/`Esc`), oltre ai controlli freccia `◀` `▶`.
+- **Stima Tempo Residuo in Tempo Reale (Live ETA)**: indicatore dinamico durante l'invio che calcola ore e minuti mancanti in base ai contatti rimanenti, ritardi configurati e pause programmate (con badge dedicato in stato di pausa).
+- **Destinatari Multipli Report WhatsApp**: configurazione nella scheda "Generali" di una rubrica con uno o più numeri etichettati (es. Presidente, Segreteria) a cui inviare il riepilogo a fine sessione.
+- **Selezione Rapida Report e Azioni per Sessione**: chip interattivi nello Step 3 (Riepilogo) per attivare/disattivare al volo i destinatari del report e selezionare l'azione post-invio per il PC specifica per la singola sessione.
+- **Automazioni di Fine Sessione**: opzione per spegnere, sospendere o ibernare automaticamente il PC al termine dell'invio, con banner interattivo e conto alla rovescia di 60 secondi annullabile in qualsiasi momento.
+- **Scheda "Generali" nelle Impostazioni**: riorganizzazione dell'interfaccia con raggruppamento chiaro per sistema (avvio automatico Windows, notifiche), rubrica report, automazioni PC e cartelle di archiviazione.
+
+### Changed
+
+- **Capitalizzazione Intelligente Nomi Composti**: aggiornato il motore di render dei template per capitalizzare correttamente tutte le parole dei cognomi composti (es. *De Bonis* anziché *De bonis*).
+- **Perfezionamento Calcolo ETA**: escluso l'intervallo di attesa successivo all'ultimo messaggio e integrato l'overhead di digitazione/invio per una stima oraria accurata.
+- **Accessibilità & Riduzione Movimento**: introdotta la media query `@media (prefers-reduced-motion: reduce)` per il monitoraggio ETA.
+- **Semplificazione Step 3 (Riepilogo)**: rimossa la scheda ridondante dello stato connessione WhatsApp da Step 3 e aggiunta modifica rapida (`✏️ Modifica`).
+- **Aggiornamento Documentazione**: sincronizzati la Guida interna (sezioni 10, 11 e 13), il tutorial interattivo e il README con tutte le ultime funzionalità.
 
 ### Fixed
 
-- **Pulsante Schermata Principale su Arresto Sessione**: risolto il problema di mancata risposta del pulsante "← Ritorna alla schermata principale" dopo l'arresto manuale ("Ferma sessione") o il completamento della coda.
+- **Pulsante Schermata Principale su Arresto Sessione**: risolta la mancata risposta del pulsante "← Ritorna alla schermata principale" dopo l'arresto manuale ("Ferma sessione") o il completamento della coda.
 - **Ripristino Dashboard su Riconnessione**: ripristino automatico e sicuro della vista dei risultati in caso di disconnessione o riavvio dell'applicazione con sessione pregressa.
-
-### Changed
-
-- **Perfezionamento Calcolo ETA**: escluso l'intervallo di ritardo successivo all'ultimo messaggio e integrato l'overhead di digitazione/invio per una stima oraria più accurata.
-- **Accessibilità Animazioni**: introdotta la media query `@media (prefers-reduced-motion: reduce)` per il badge di monitoraggio ETA.
-- **Aggiornamento Documentazione**: sincronizzati la Guida interna (sezioni 10, 11 e 13), il tutorial interattivo e il README con tutte le ultime funzionalità introdotte.
-
-Full Changelog: [https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.2.1...v1.2.2](https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.2.1...v1.2.2)
-
----
-
-## [1.2.1] - 2026-10-12
-
-### Summary
-
-Supporto per destinatari multipli del report finale WhatsApp con etichetta (sostituzione dell'invio fisso a "Tu"), configurazione della rubrica nelle impostazioni con selezione per singola sessione nel riepilogo, allineamento visivo e restyling delle impostazioni compleanni.
-
-### Added
-
-- **Destinatari Multipli Report WhatsApp**: possibilità di aggiungere e gestire nella scheda "Generali" uno o più numeri con etichetta (es. Presidente, Segreteria) a cui recapitare automaticamente il resoconto di fine sessione.
-- **Selezione Rapida per Sessione**: chip interattivi nello Step 3 (Riepilogo) per attivare/disattivare i destinatari per il singolo invio e form rapido per aggiungere nuovi numeri al volo.
-- **Azione Post-Invio per Sessione**: selezione dell'azione finale per il PC direttamente nello Step 3 coordinata con le impostazioni ma valida esclusivamente per l'invio corrente.
-
-### Changed
-
-- **Rimozione Invio a "Tu"**: eliminato il vecchio invio automatico al mittente personale in favore della nuova gestione rubrica personalizzabile.
-- **Restyling Impostazioni Compleanni**: card allineate in altezza e menu a discesa del modello predefinito aggiornato con design verde a pillola.
-
-### Fixed
-
-- **Normalizzazione Numeri**: utility condivisa frontend per la validazione e l'aggiunta automatica del prefisso internazionale italiano (+39).
-- **Refactoring CSS**: rimossi gli stili inline in favore di classi stylesheet dedicate.
-
-Full Changelog: [https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.2.0...v1.2.1](https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.2.0...v1.2.1)
-
----
-
-## [1.2.0] - 2026-10-12
-
-### Summary
-
-Release di ampliamento incentrata sull’automazione post-invio, sull'invio del resoconto su WhatsApp alla chat personale, sulla riorganizzazione delle impostazioni generali e sullo snellimento dell'interfaccia di riepilogo.
-
-### Added
-
-- **Automazioni di Fine Sessione**: opzione per spegnere, ibernare o sospendere automaticamente il PC al termine dell'invio.
-- **Conto alla Rovescia di Sicurezza**: banner interattivo con timer di 60 secondi prima dell'esecuzione dell'azione sul PC, annullabile in qualsiasi momento con un clic.
-- **Auto-Riepilogo su WhatsApp**: invio facoltativo del resoconto dell'invio (inviati, falliti, saltati, durata ed eventuali errori) direttamente alla propria chat personale ("Tu").
-- **Scheda "Generali" nelle Impostazioni**: riorganizzazione della sezione con raggruppamento chiaro di sistema (avvio automatico con Windows, notifiche), automazioni post-invio e percorsi di archiviazione.
-
-### Changed
-
-- **Riepilogo Invio (Step 3)**: segue e mostra direttamente le impostazioni generali con collegamento rapido per la modifica (`✏️ Modifica`).
-- **Snellimento Interfaccia**: rimossa la scheda dello stato connessione WhatsApp da Step 3, poiché già monitorata in tempo reale nella barra superiore.
-
-### Fixed
-
-- **Stato Connessione WhatsApp**: unificato lo stato connesso nella barra superiore e garantita l'apertura del modale di gestione al clic.
-- **Riconoscimento Nomi Donatori**: impostata la logica di fallback su "Cognome Nome" per elenchi con colonna unica.
+- **Validazione e Normalizzazione Numeri**: utility condivisa frontend per la validazione e l'aggiunta automatica del prefisso internazionale italiano (+39).
 
 Full Changelog: [https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.1.0...v1.2.0](https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.1.0...v1.2.0)
 

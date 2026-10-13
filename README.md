@@ -2,7 +2,7 @@
 
 Applicazione desktop per le sezioni AVIS che permette di preparare e inviare comunicazioni personalizzate ai donatori tramite WhatsApp Web.
 
-[![Versione](https://img.shields.io/badge/versione-1.2.2-green.svg)](package.json)
+[![Versione](https://img.shields.io/badge/versione-1.2.0-green.svg)](package.json)
 [![Piattaforma](https://img.shields.io/badge/piattaforma-Windows-blue.svg)](https://github.com/CorsiDanilo/AvisWhatsAppSender)
 [![CI Build](https://github.com/CorsiDanilo/AvisWhatsAppSender/actions/workflows/build_installer.yml/badge.svg)](https://github.com/CorsiDanilo/AvisWhatsAppSender/actions)
 
