@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo } from 'react'
+import { useRef, useState, useMemo, useEffect } from 'react'
 import { formatEstimatedDuration } from './duration.mjs'
 
 function previewMessage(message, donor) {
@@ -12,6 +12,13 @@ function previewMessage(message, donor) {
     }
   }
   return result
+}
+
+function formatSnippet(text, maxLen = 75) {
+  if (!text) return ''
+  const single = String(text).replace(/\s+/g, ' ').trim()
+  if (single.length <= maxLen) return single
+  return single.slice(0, maxLen) + '…'
 }
 
 export default function StepComposer({
@@ -31,8 +38,10 @@ export default function StepComposer({
   onOpenSettings,
 }) {
   const messageRef = useRef(null)
+  const searchContainerRef = useRef(null)
   const [previewSearch, setPreviewSearch] = useState('')
   const [previewIndex, setPreviewIndex] = useState(0)
+  const [showSuggestions, setShowSuggestions] = useState(false)
 
   const previewCandidates = useMemo(() => {
     const list = (state.donors || []).filter((d) => d.selected !== false && d.valid)
@@ -50,6 +59,48 @@ export default function StepComposer({
     const safeIdx = Math.min(Math.max(0, previewIndex), previewCandidates.length - 1)
     return previewCandidates[safeIdx]
   }, [previewCandidates, previewIndex, firstSelectedDonor])
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  function handleSelectSuggestion(donor) {
+    const fullName = `${donor.name || ''} ${donor.surname || ''}`.trim()
+    setPreviewSearch(fullName)
+    setPreviewIndex(0)
+    setShowSuggestions(false)
+  }
+
+  function handleSearchKeyDown(e) {
+    if (!showSuggestions || previewCandidates.length === 0) {
+      if (e.key === 'ArrowDown' && previewCandidates.length > 0) {
+        setShowSuggestions(true)
+        e.preventDefault()
+      }
+      return
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setPreviewIndex((prev) => (prev < previewCandidates.length - 1 ? prev + 1 : 0))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setPreviewIndex((prev) => (prev > 0 ? prev - 1 : previewCandidates.length - 1))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (activePreviewDonor) {
+        handleSelectSuggestion(activePreviewDonor)
+      }
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false)
+    }
+  }
 
   function changePreset(name) {
     const preset = (state.presets || []).find((item) => item.name === name)
@@ -197,17 +248,24 @@ export default function StepComposer({
                   )}
                 </div>
 
-                <div className="preview-search-row">
+                <div className="preview-search-row" ref={searchContainerRef}>
                   <input
                     type="text"
                     className="preview-search-input"
                     placeholder="🔍 Cerca donatore per verificare il messaggio (es. Trapano, De Bonis)..."
                     value={previewSearch}
+                    onFocus={() => {
+                      if (previewSearch.trim().length > 0) setShowSuggestions(true)
+                    }}
                     onChange={(e) => {
                       setPreviewSearch(e.target.value)
                       setPreviewIndex(0)
+                      setShowSuggestions(true)
                     }}
+                    onKeyDown={handleSearchKeyDown}
                     aria-label="Cerca donatore per anteprima"
+                    aria-expanded={showSuggestions}
+                    aria-autocomplete="list"
                   />
                   {previewSearch && (
                     <button
@@ -216,11 +274,51 @@ export default function StepComposer({
                       onClick={() => {
                         setPreviewSearch('')
                         setPreviewIndex(0)
+                        setShowSuggestions(false)
                       }}
                       title="Cancella ricerca"
                     >
                       ×
                     </button>
+                  )}
+
+                  {showSuggestions && previewSearch.trim().length > 0 && previewCandidates.length > 0 && (
+                    <div className="preview-suggestions-dropdown" role="listbox">
+                      {previewCandidates.slice(0, 6).map((donor, idx) => {
+                        const isSelected = activePreviewDonor === donor
+                        const renderedSnippet = formatSnippet(previewMessage(message, donor))
+                        return (
+                          <button
+                            key={`${donor.phone || donor.rawPhone || ''}-${donor.name}-${idx}`}
+                            type="button"
+                            className={`preview-suggestion-item ${isSelected ? 'active' : ''}`}
+                            onClick={() => handleSelectSuggestion(donor)}
+                            onMouseEnter={() => setPreviewIndex(idx)}
+                            role="option"
+                            aria-selected={isSelected}
+                          >
+                            <div className="preview-suggestion-header">
+                              <span className="preview-suggestion-name">
+                                👤 {donor.name} {donor.surname || ''}
+                              </span>
+                              {(donor.phone || donor.rawPhone) && (
+                                <span className="preview-suggestion-phone">
+                                  {donor.phone || donor.rawPhone}
+                                </span>
+                              )}
+                            </div>
+                            <div className="preview-suggestion-snippet">
+                              💬 {renderedSnippet || 'Messaggio vuoto'}
+                            </div>
+                          </button>
+                        )
+                      })}
+                      {previewCandidates.length > 6 && (
+                        <div className="preview-suggestions-footer">
+                          +{previewCandidates.length - 6} altri donatori (continua a digitare per affinare)
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
 
