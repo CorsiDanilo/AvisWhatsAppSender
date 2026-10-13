@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ---
 
+## [1.2.2] - 2026-10-13
+
+### Summary
+
+Release di correzione e rifinitura con ripristino dell'interazione con la dashboard di invio, stima del tempo residuo in tempo reale (Live ETA) e aggiornamento completo della documentazione.
+
+### Added
+
+- **Stima Tempo Residuo in Tempo Reale (Live ETA)**: indicatore dinamico durante l'invio che stima i minuti/ore mancanti in base ai contatti in attesa, ritardi configurati e pause programmate (con badge informativo dedicato anche in stato di pausa).
+
+### Fixed
+
+- **Pulsante Schermata Principale su Arresto Sessione**: risolto il problema di mancata risposta del pulsante "← Ritorna alla schermata principale" dopo l'arresto manuale ("Ferma sessione") o il completamento della coda.
+- **Ripristino Dashboard su Riconnessione**: ripristino automatico e sicuro della vista dei risultati in caso di disconnessione o riavvio dell'applicazione con sessione pregressa.
+
+### Changed
+
+- **Perfezionamento Calcolo ETA**: escluso l'intervallo di ritardo successivo all'ultimo messaggio e integrato l'overhead di digitazione/invio per una stima oraria più accurata.
+- **Accessibilità Animazioni**: introdotta la media query `@media (prefers-reduced-motion: reduce)` per il badge di monitoraggio ETA.
+- **Aggiornamento Documentazione**: sincronizzati la Guida interna (sezioni 10, 11 e 13), il tutorial interattivo e il README con tutte le ultime funzionalità introdotte.
+
+Full Changelog: [https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.2.1...v1.2.2](https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.2.1...v1.2.2)
+
+---
+
 ## [1.2.1] - 2026-10-12
 
 ### Summary
