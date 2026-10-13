@@ -47,9 +47,12 @@ export default function SendingDashboard({
     const pauseSec = pauseMinutes * 60
 
     const alreadySent = (state.progress.sent || 0) + (state.progress.failed || 0)
-    let remainingSec = 0
+    const sendOverheadSec = 2
+    let remainingSec = pendingValid * sendOverheadSec
     for (let i = 0; i < pendingValid; i++) {
-      remainingSec += avgDelaySec
+      if (i < pendingValid - 1) {
+        remainingSec += avgDelaySec
+      }
       const total = alreadySent + i + 1
       if (pauseAfter > 0 && total % pauseAfter === 0 && i < pendingValid - 1) {
         remainingSec += pauseSec

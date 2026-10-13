@@ -303,7 +303,9 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
 .live-eta-icon { font-size: 13px; line-height: 1; }
 .live-eta-label strong { font-weight: 700; }
 @keyframes eta-fade-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
-
+@media (prefers-reduced-motion: reduce) {
+  .live-eta-row { animation: none; }
+}
 
 .outcome-card { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-top: 18px; padding: 14px 16px; background: #edf7f0; border: 1px solid #c0e5cd; border-radius: 10px; }
 .outcome-text { min-width: 0; flex: 1; }

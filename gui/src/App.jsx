@@ -152,6 +152,9 @@ const [showBirthdayCenter, setShowBirthdayCenter] = useState(false)
             setSessionReportRecipients(next.settings.reportRecipients)
           }
         }
+        if ((next.queue === 'stopped' || next.queue === 'completed') && (next.progress?.total || 0) > 0) {
+          setManualSendingView(true)
+        }
         const firstPreset = next.presets?.[0]
         if (firstPreset) {
           setSelectedPreset(firstPreset.name)
@@ -212,14 +215,12 @@ if (!api?.onOpenBirthdays) return undefined
   const selectedCount = state.donors.filter((donor) => donor.selected !== false).length
   const isRunning = state.queue === 'running'
   const isPaused = state.queue === 'paused'
-  const isCompleted = state.queue === 'completed'
-  const isStopped = state.queue === 'stopped'
 
   // Decide if we should show the sending dashboard.
-  // manualSendingView is set to true when the session starts and to false when
-  // the operator clicks "Torna alla configurazione" (onBackToEdit). We keep the
-  // dashboard visible while active or while manualSendingView is on; clicking
-  // the back button now reliably hides it by clearing manualSendingView.
+  // manualSendingView is set to true when the session starts (or recovers on init)
+  // and to false when the operator clicks "Torna alla schermata principale" (onBackToEdit).
+  // We keep the dashboard visible while active or while manualSendingView is on;
+  // clicking the back button reliably hides it by clearing manualSendingView.
   const isSendingActive = isRunning || isPaused || isSimulating
   const showDashboard = isSendingActive || manualSendingView
 
