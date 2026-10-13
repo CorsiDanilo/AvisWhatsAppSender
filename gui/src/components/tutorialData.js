@@ -91,7 +91,7 @@ export const TUTORIAL_STEPS = [
     title: '4. Riepilogo Generale Pre-Invio',
     subtitle: 'Ultimo controllo prima della partenza',
     description:
-      'Il riepilogo ti mostra i destinatari effettivi pronti all\'invio, la stima della durata totale e l\'anteprima finale. Nessun messaggio parte finché non confermi con il pulsante verde di avvio.',
+      'Il riepilogo ti mostra i destinatari effettivi pronti all\'invio, la stima della durata totale e l\'anteprima finale. Puoi scegliere l\'azione da eseguire sul PC al termine (spegni, sospendi, iberna) e attivare i destinatari che riceveranno il report WhatsApp di fine sessione. Nessun messaggio parte finché non confermi con il pulsante verde di avvio.',
     actionLabel: 'Prova la Simulazione di Invio 🚀',
     targetWizardStep: 'simulation',
   },

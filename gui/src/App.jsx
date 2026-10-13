@@ -215,9 +215,13 @@ if (!api?.onOpenBirthdays) return undefined
   const isCompleted = state.queue === 'completed'
   const isStopped = state.queue === 'stopped'
 
-  // Decide if we should show the sending dashboard
+  // Decide if we should show the sending dashboard.
+  // manualSendingView is set to true when the session starts and to false when
+  // the operator clicks "Torna alla configurazione" (onBackToEdit). We keep the
+  // dashboard visible while active or while manualSendingView is on; clicking
+  // the back button now reliably hides it by clearing manualSendingView.
   const isSendingActive = isRunning || isPaused || isSimulating
-  const showDashboard = isSendingActive || manualSendingView || ((isCompleted || isStopped) && state.progress.total > 0)
+  const showDashboard = isSendingActive || manualSendingView
 
   const canStart = (state.connection === 'ready' || state.connection === 'authenticated') && selectedCount > 0 && message.trim().length > 0
 

@@ -156,20 +156,29 @@ export default function Guide({ onClose, onStartTutorial }) {
           <ul>
             <li>Numero di donatori validi pronti per la ricezione e avviso su eventuali numeri scartati.</li>
             <li>Anteprima finale del messaggio e della foto allegata.</li>
-            <li>Parametri del ritmo e durata stimata dell'invio.</li>
+            <li>Parametri del ritmo e durata stimata dell’invio.</li>
             <li>Pulsanti <strong>“✏️ Modifica”</strong> per tornare rapidamente allo Step desiderato e modificare i dati.</li>
+            <li><strong>Destinatari del report WhatsApp:</strong> chip interattivi per attivare o disattivare i numeri configurati in <strong>Impostazioni → Generali</strong> che riceveranno il resoconto di fine sessione. Puoi anche aggiungere un numero al volo direttamente dallo Step 3.</li>
+            <li><strong>Azione per il PC al termine:</strong> menù a discesa per scegliere se lasciare il PC acceso, sospenderlo, ibernarlo o spegnerlo al termine della sessione (valido solo per quell’invio).</li>
           </ul>
 
           <h3>11. Dashboard operativa in tempo reale</h3>
           <p>
-            Durante l'invio, l'applicazione mostra la schermata di monitoraggio con:
+            Durante l’invio, l’applicazione mostra la schermata di monitoraggio con:
           </p>
           <ul>
             <li><strong>Barra di avanzamento percentuale</strong> e indicazione del donatore attualmente in lavorazione.</li>
             <li><strong>Contatori in tempo reale:</strong> inviati con successo, in attesa, falliti o scartati.</li>
-            <li><strong>Comandi di controllo:</strong> puoi mettere la sessione in <strong>Pausa</strong>, <strong>Riprendere</strong> o <strong>Fermare</strong> l'invio in qualsiasi momento.</li>
+            <li><strong>Tempo rimanente stimato</strong> (⏱) calcolato in tempo reale in base al numero di destinatari in attesa e al ritmo configurato.</li>
+            <li><strong>Comandi di controllo:</strong> puoi mettere la sessione in <strong>Pausa</strong>, <strong>Riprendere</strong> o <strong>Fermare</strong> l’invio in qualsiasi momento.</li>
             <li><strong>Log diagnostici live:</strong> eventi e comunicazioni di rete visualizzati in tempo reale (gli errori vengono evidenziati in rosso).</li>
           </ul>
+          <div className="guide-note">
+            <strong>Countdown sicurezza post-invio:</strong> se hai scelto di spegnere, ibernare o sospendere il PC, al termine apparirà un banner con un conto alla rovescia di 60 secondi prima dell’esecuzione. Puoi annullare in qualsiasi momento con <strong>“❌ Annulla operazione”</strong>.
+          </div>
+          <div className="guide-note">
+            Al termine o all’interruzione, la dashboard rimane visibile con il riepilogo finale. Clicca <strong>“← Ritorna alla schermata principale”</strong> per tornare al wizard e impostare un nuovo invio.
+          </div>
 
           <h3>12. Archiviazione esiti e reportistica</h3>
           <p>
@@ -183,17 +192,25 @@ export default function Guide({ onClose, onStartTutorial }) {
             Un comodo pulsante <strong>“📁 Apri esito in Esplora Risorse”</strong> consente di aprire direttamente la cartella generata senza doverla cercare manualmente.
           </p>
 
-          <h3>13. Gestione cartelle, notifiche e avvio</h3>
+          <h3>13. Impostazioni: Generali, Cartelle e Archiviazione</h3>
           <p>
-            Dal menu <strong>⚙️ Impostazioni → Cartelle e Archiviazione</strong> puoi:
+            Le Impostazioni sono organizzate in schede. Dalla scheda <strong>Generali</strong> puoi:
+          </p>
+          <ul>
+            <li>Attivare o disattivare le <strong>notifiche Windows</strong>.</li>
+            <li>Configurare l’<strong>avvio automatico con Windows</strong>.</li>
+            <li>Impostare l’<strong>azione post-invio predefinita</strong> per il PC (spegnimento, ibernazione, sospensione o nessuna azione).</li>
+            <li>Gestire la <strong>rubrica dei destinatari del report WhatsApp</strong>: aggiungi numeri con etichetta (es. Presidente, Segreteria) che riceveranno automaticamente il resoconto a fine sessione.</li>
+            <li>Preparare un log diagnostico da inviare allo sviluppatore tramite Gmail, client di posta Windows oppure appunti.</li>
+          </ul>
+          <p>
+            Dalla scheda <strong>Cartelle e Archiviazione</strong> puoi:
           </p>
           <ul>
             <li>Cambiare la cartella in cui salvare gli esiti (predefinita sul Desktop: <code>AVIS WhatsApp Sender</code>).</li>
             <li>Cambiare la cartella in cui archiviare i log diagnostici.</li>
-            <li>Aprire le rispettive cartelle o la cartella dati dell'applicazione direttamente in Esplora Risorse.</li>
+            <li>Aprire le rispettive cartelle o la cartella dati dell’applicazione direttamente in Esplora Risorse.</li>
             <li>Ripristinare i percorsi predefiniti in qualunque momento.</li>
-            <li>Attivare o disattivare le notifiche Windows.</li>
-            <li>Preparare un log diagnostico da inviare allo sviluppatore tramite Gmail, client di posta Windows oppure appunti.</li>
           </ul>
 
           <p>

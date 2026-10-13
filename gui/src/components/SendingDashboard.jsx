@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useMemo } from 'react'
+import { formatRemainingTime } from './duration.mjs'
 
 export default function SendingDashboard({
   state,
@@ -28,6 +29,35 @@ export default function SendingDashboard({
     (d) => d.selected !== false && d.valid && d.status === 'pending'
   )
 
+  // Live ETA: estimate remaining seconds based on pending donors and configured delays.
+  const liveEta = useMemo(() => {
+    if (!isRunning && !isPaused) return null
+    const pendingValid = state.donors.filter(
+      (d) => d.selected !== false && d.valid && d.status === 'pending'
+    ).length
+    if (pendingValid === 0) return null
+
+    const settings = state.settings || {}
+    const minDelay = settings.minDelayMs ?? 20000
+    const maxDelay = settings.maxDelayMs ?? 40000
+    const avgDelaySec = ((minDelay + maxDelay) / 2) / 1000
+
+    const pauseAfter = settings.pauseAfter ?? 35
+    const pauseMinutes = settings.pauseMinutes ?? 15
+    const pauseSec = pauseMinutes * 60
+
+    const alreadySent = (state.progress.sent || 0) + (state.progress.failed || 0)
+    let remainingSec = 0
+    for (let i = 0; i < pendingValid; i++) {
+      remainingSec += avgDelaySec
+      const total = alreadySent + i + 1
+      if (pauseAfter > 0 && total % pauseAfter === 0 && i < pendingValid - 1) {
+        remainingSec += pauseSec
+      }
+    }
+    return Math.round(remainingSec)
+  }, [isRunning, isPaused, state.donors, state.progress, state.settings])
+
   return (
     <div className="sending-dashboard">
       <div className="dashboard-header">
@@ -53,7 +83,7 @@ export default function SendingDashboard({
               className="button button-secondary"
               onClick={onBackToEdit}
             >
-              ✏️ Torna alla configurazione
+              ← Ritorna alla schermata principale
             </button>
           )}
         </div>
@@ -116,6 +146,19 @@ export default function SendingDashboard({
             <div style={{ width: `${percent}%` }} />
           </div>
         </div>
+
+        {/* Live ETA indicator */}
+        {liveEta !== null && (
+          <div className={`live-eta-row${isPaused ? ' live-eta-paused' : ''}`}>
+            <span className="live-eta-icon" role="img" aria-hidden="true">
+              {isPaused ? '⏸' : '⏱'}
+            </span>
+            <span className="live-eta-label">
+              {isPaused ? 'Invio in pausa — ' : 'Tempo rimanente stimato: '}
+              <strong>{formatRemainingTime(liveEta)}</strong>
+            </span>
+          </div>
+        )}
 
         {/* Action Controls */}
         <div className="live-controls-row">
