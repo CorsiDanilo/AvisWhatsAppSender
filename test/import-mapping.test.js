@@ -15,6 +15,7 @@ test('preselects the AVIS name, phone and optional birth-date columns', async ()
       surname: '',
       phone: 'CELLULARE',
       nameAndSurnameInOneColumn: true,
+      splitStrategy: 'lastWordIsName',
       selectedColumns: ['COGNOMEENOME', 'DATADINASCITA', 'CELLULARE'],
     }
   );
@@ -36,6 +37,7 @@ test('falls back to the backend mapping when the default AVIS columns are missin
       surname: '',
       phone: 'Telefono',
       nameAndSurnameInOneColumn: true,
+      splitStrategy: 'lastWordIsName',
       selectedColumns: ['Nominativo', 'Data di nascita', 'Telefono'],
     }
   );

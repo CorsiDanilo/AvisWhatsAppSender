@@ -17,6 +17,7 @@ export function getInitialImportMapping(headers = [], detectedMapping = {}) {
       surname: '',
       phone: avisPhone,
       nameAndSurnameInOneColumn: true,
+      splitStrategy: 'lastWordIsName',
       customFields: birthDate ? [birthDate] : [],
     }
     : detectedMapping;
@@ -24,6 +25,7 @@ export function getInitialImportMapping(headers = [], detectedMapping = {}) {
   const surname = mapping.surname || '';
   const phone = mapping.phone || '';
   const nameAndSurnameInOneColumn = Boolean(mapping.nameAndSurnameInOneColumn);
+  const splitStrategy = mapping.splitStrategy || 'lastWordIsName';
   const customFields = Array.isArray(mapping.customFields) ? mapping.customFields : [];
 
   if (!name || !phone) {
@@ -32,6 +34,7 @@ export function getInitialImportMapping(headers = [], detectedMapping = {}) {
       surname: '',
       phone: '',
       nameAndSurnameInOneColumn: false,
+      splitStrategy: 'lastWordIsName',
       selectedColumns: [],
     };
   }
@@ -41,6 +44,7 @@ export function getInitialImportMapping(headers = [], detectedMapping = {}) {
     surname,
     phone,
     nameAndSurnameInOneColumn,
+    splitStrategy,
     selectedColumns: [name, ...(nameAndSurnameInOneColumn ? [] : [surname]), ...customFields, phone].filter(Boolean),
   };
 }

@@ -27,7 +27,7 @@ function normalizeNamePart(value) {
     .replace(/\p{L}[\p{L}\p{M}]*/gu, (part) => `${part[0].toUpperCase()}${part.slice(1).toLowerCase()}`);
 }
 
-function splitFullName(value) {
+function splitFullName(value, splitStrategy = 'lastWordIsName') {
   const normalized = String(value ?? '').trim().replace(/\s+/g, ' ');
   const parts = normalized ? normalized.split(' ') : [];
 
@@ -41,11 +41,23 @@ function splitFullName(value) {
     };
   }
 
-  const surname = normalizeNamePart(parts.shift());
-  const givenNames = normalizeNamePart(parts.join(' '));
+  if (splitStrategy === 'firstWordIsSurname') {
+    const surname = normalizeNamePart(parts.shift());
+    const givenNames = normalizeNamePart(parts.join(' '));
+    return {
+      name: givenNames.split(' ')[0] || '',
+      givenNames,
+      surname,
+      warning: '',
+    };
+  }
+
+  // Predefinito: 'lastWordIsName' (l'ultima parola è il nome, le precedenti sono il cognome)
+  const name = normalizeNamePart(parts.pop());
+  const surname = normalizeNamePart(parts.join(' '));
   return {
-    name: givenNames.split(' ')[0] || '',
-    givenNames,
+    name,
+    givenNames: name,
     surname,
     warning: '',
   };
@@ -187,6 +199,7 @@ function columnsFor(headers) {
     surname: findColumn(headers, HEADER_ALIASES.surname),
     phone: findColumn(headers, HEADER_ALIASES.phone),
     nameAndSurnameInOneColumn: Boolean(fullName),
+    splitStrategy: 'lastWordIsName',
     customFields: headers.filter((header) => HEADER_ALIASES.birthDate.includes(normalizeHeader(header))),
   };
 }
@@ -284,7 +297,7 @@ async function parseWithMapping(filePath, sheetName, mapping) {
     let parsedName;
     
     if (mapping.nameAndSurnameInOneColumn) {
-       parsedName = splitFullName(row[mapping.name]);
+       parsedName = splitFullName(row[mapping.name], mapping.splitStrategy || 'lastWordIsName');
     } else {
        const givenNames = normalizeNamePart(row[mapping.name]);
        parsedName = {

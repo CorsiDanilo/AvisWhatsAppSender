@@ -1,6 +1,9 @@
 function capitalize(value) {
   const text = String(value ?? '').trim();
-  return text ? `${text[0].toUpperCase()}${text.slice(1).toLowerCase()}` : '';
+  if (!text) return '';
+  return text
+    .replace(/\s+/g, ' ')
+    .replace(/\p{L}[\p{L}\p{M}]*/gu, (part) => `${part[0].toUpperCase()}${part.slice(1).toLowerCase()}`);
 }
 
 function renderTemplate(template, donor) {

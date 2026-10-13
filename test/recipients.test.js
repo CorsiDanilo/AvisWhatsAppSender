@@ -26,14 +26,41 @@ test('normalizes name parts without losing apostrophes or hyphens', () => {
   assert.equal(normalizeNamePart('ROSSI-BIANCHI'), 'Rossi-Bianchi');
 });
 
-test('splits a full name assuming surname first and exposes the first given name', () => {
-  assert.deepEqual(splitFullName('  ROSSI   MARIA   ELENA '), {
+test('splits a full name with default lastWordIsName strategy (compound surnames)', () => {
+  assert.deepEqual(splitFullName('  DE   BONIS   MARIO '), {
+    name: 'Mario',
+    givenNames: 'Mario',
+    surname: 'De Bonis',
+    warning: '',
+  });
+  assert.deepEqual(splitFullName('DI TRAPANO VITTORIO'), {
+    name: 'Vittorio',
+    givenNames: 'Vittorio',
+    surname: 'Di Trapano',
+    warning: '',
+  });
+  assert.deepEqual(splitFullName('DI GIROLAMO LUCIANO'), {
+    name: 'Luciano',
+    givenNames: 'Luciano',
+    surname: 'Di Girolamo',
+    warning: '',
+  });
+  assert.deepEqual(splitFullName('ROSSI MARIO'), {
+    name: 'Mario',
+    givenNames: 'Mario',
+    surname: 'Rossi',
+    warning: '',
+  });
+});
+
+test('splits a full name with firstWordIsSurname strategy (multiple given names)', () => {
+  assert.deepEqual(splitFullName('  ROSSI   MARIA   ELENA ', 'firstWordIsSurname'), {
     name: 'Maria',
     givenNames: 'Maria Elena',
     surname: 'Rossi',
     warning: '',
   });
-  assert.deepEqual(splitFullName('ARON ALINA LACRAMIORA'), {
+  assert.deepEqual(splitFullName('ARON ALINA LACRAMIORA', 'firstWordIsSurname'), {
     name: 'Alina',
     givenNames: 'Alina Lacramiora',
     surname: 'Aron',
@@ -52,13 +79,14 @@ test('keeps a one-word name and reports a non-blocking warning', () => {
 
 test('detects and parses the known AVIS columns without changing the source values', async () => {
   const { directory, filePath } = temporaryCsv(
-    'COGNOMEENOME,DATADINASCITA,CELLULARE\nROSSI MARIA ELENA,01/02/1980,+393331234567\n'
+    'COGNOMEENOME,DATADINASCITA,CELLULARE\nDE BONIS MARIO,01/02/1980,+393331234567\n'
   );
 
   try {
     const inspection = await inspectFile(filePath);
     assert.equal(inspection.detectedMapping.name, 'COGNOMEENOME');
     assert.equal(inspection.detectedMapping.nameAndSurnameInOneColumn, true);
+    assert.equal(inspection.detectedMapping.splitStrategy, 'lastWordIsName');
     assert.equal(inspection.detectedMapping.phone, 'CELLULARE');
     assert.deepEqual(inspection.detectedMapping.customFields, ['DATADINASCITA']);
 
@@ -78,17 +106,39 @@ test('detects and parses the known AVIS columns without changing the source valu
         customFields: donor.customFields,
       },
       {
-        name: 'Maria',
-        givenNames: 'Maria Elena',
-        surname: 'Rossi',
+        name: 'Mario',
+        givenNames: 'Mario',
+        surname: 'De Bonis',
         rawPhone: '+393331234567',
         phone: '393331234567',
         valid: true,
         customFields: { DATADINASCITA: '01/02/1980' },
       }
     );
+    assert.equal(renderTemplate('Ciao [nome] [cognome]', donor), 'Ciao Mario De Bonis');
+    assert.equal(fs.readFileSync(filePath, 'utf8'), 'COGNOMEENOME,DATADINASCITA,CELLULARE\nDE BONIS MARIO,01/02/1980,+393331234567\n');
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('parses with custom splitStrategy firstWordIsSurname when specified in mapping', async () => {
+  const { directory, filePath } = temporaryCsv(
+    'COGNOMEENOME,DATADINASCITA,CELLULARE\nROSSI MARIA ELENA,01/02/1980,+393331234567\n'
+  );
+
+  try {
+    const inspection = await inspectFile(filePath);
+    const [donor] = await parseWithMapping(filePath, 'CSV', {
+      ...inspection.detectedMapping,
+      splitStrategy: 'firstWordIsSurname',
+      customFields: ['DATADINASCITA'],
+    });
+
+    assert.equal(donor.name, 'Maria');
+    assert.equal(donor.givenNames, 'Maria Elena');
+    assert.equal(donor.surname, 'Rossi');
     assert.equal(renderTemplate('Ciao [nome] [cognome]', donor), 'Ciao Maria Rossi');
-    assert.equal(fs.readFileSync(filePath, 'utf8'), 'COGNOMEENOME,DATADINASCITA,CELLULARE\nROSSI MARIA ELENA,01/02/1980,+393331234567\n');
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

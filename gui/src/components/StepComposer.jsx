@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState, useMemo } from 'react'
 import { formatEstimatedDuration } from './duration.mjs'
 
 function previewMessage(message, donor) {
@@ -31,6 +31,25 @@ export default function StepComposer({
   onOpenSettings,
 }) {
   const messageRef = useRef(null)
+  const [previewSearch, setPreviewSearch] = useState('')
+  const [previewIndex, setPreviewIndex] = useState(0)
+
+  const previewCandidates = useMemo(() => {
+    const list = (state.donors || []).filter((d) => d.selected !== false && d.valid)
+    if (!previewSearch.trim()) return list
+    const q = previewSearch.trim().toLowerCase()
+    return list.filter((d) => {
+      const full = `${d.name || ''} ${d.surname || ''}`.toLowerCase()
+      const phone = String(d.phone || d.rawPhone || '').toLowerCase()
+      return full.includes(q) || phone.includes(q)
+    })
+  }, [state.donors, previewSearch])
+
+  const activePreviewDonor = useMemo(() => {
+    if (previewCandidates.length === 0) return firstSelectedDonor || null
+    const safeIdx = Math.min(Math.max(0, previewIndex), previewCandidates.length - 1)
+    return previewCandidates[safeIdx]
+  }, [previewCandidates, previewIndex, firstSelectedDonor])
 
   function changePreset(name) {
     const preset = (state.presets || []).find((item) => item.name === name)
@@ -149,10 +168,71 @@ export default function StepComposer({
             {/* Live Preview */}
             <div className="composer-live-preview">
               <div className="preview-header">
-                <span className="preview-label">Anteprima rendering reale</span>
-                <span className="preview-donor-hint">
-                  Esempio con: <strong>{firstSelectedDonor ? `${firstSelectedDonor.name} ${firstSelectedDonor.surname || ''}` : 'Donatore esempio'}</strong>
-                </span>
+                <div className="preview-title-row">
+                  <span className="preview-label">Anteprima rendering reale</span>
+                  {previewCandidates.length > 1 && (
+                    <div className="preview-nav-controls">
+                      <button
+                        type="button"
+                        className="preview-nav-btn"
+                        onClick={() => setPreviewIndex((prev) => (prev > 0 ? prev - 1 : previewCandidates.length - 1))}
+                        title="Donatore precedente"
+                        aria-label="Donatore precedente"
+                      >
+                        ◀
+                      </button>
+                      <span className="preview-nav-count">
+                        {Math.min(previewIndex + 1, previewCandidates.length)} di {previewCandidates.length}
+                      </span>
+                      <button
+                        type="button"
+                        className="preview-nav-btn"
+                        onClick={() => setPreviewIndex((prev) => (prev < previewCandidates.length - 1 ? prev + 1 : 0))}
+                        title="Donatore successivo"
+                        aria-label="Donatore successivo"
+                      >
+                        ▶
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="preview-search-row">
+                  <input
+                    type="text"
+                    className="preview-search-input"
+                    placeholder="🔍 Cerca donatore per verificare il messaggio (es. Trapano, De Bonis)..."
+                    value={previewSearch}
+                    onChange={(e) => {
+                      setPreviewSearch(e.target.value)
+                      setPreviewIndex(0)
+                    }}
+                    aria-label="Cerca donatore per anteprima"
+                  />
+                  {previewSearch && (
+                    <button
+                      type="button"
+                      className="preview-search-clear"
+                      onClick={() => {
+                        setPreviewSearch('')
+                        setPreviewIndex(0)
+                      }}
+                      title="Cancella ricerca"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+
+                <div className="preview-donor-hint">
+                  {activePreviewDonor ? (
+                    <span>
+                      Esempio con: <strong>{activePreviewDonor.name} {activePreviewDonor.surname || ''}</strong> ({activePreviewDonor.phone || activePreviewDonor.rawPhone || 'senza numero'})
+                    </span>
+                  ) : (
+                    <span>Nessun donatore corrispondente trovato</span>
+                  )}
+                </div>
               </div>
               <div className={`preview-bubble ${state.imageDataUrl ? 'has-attached-media' : ''}`}>
                 {state.imageDataUrl && (
@@ -162,7 +242,7 @@ export default function StepComposer({
                   </div>
                 )}
                 <p className="preview-text-content">
-                  {previewMessage(message, firstSelectedDonor) || 'Scrivi un messaggio per vedere l’anteprima…'}
+                  {previewMessage(message, activePreviewDonor) || 'Scrivi un messaggio per vedere l’anteprima…'}
                 </p>
               </div>
             </div>

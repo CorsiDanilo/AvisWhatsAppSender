@@ -18,7 +18,7 @@ function normalizePreviewHeader(value) {
     .replace(/[^a-z0-9]/g, '');
 }
 
-function derivePreviewRow(row, { nameCol, surnameCol, phoneCol, oneColumnName }) {
+function derivePreviewRow(row, { nameCol, surnameCol, phoneCol, oneColumnName, splitStrategy = 'lastWordIsName' }) {
   const rawName = String(row[nameCol] ?? '').trim().replace(/\s+/g, ' ');
   const parts = rawName ? rawName.split(' ') : [];
   let name = '';
@@ -27,9 +27,14 @@ function derivePreviewRow(row, { nameCol, surnameCol, phoneCol, oneColumnName })
 
   if (oneColumnName) {
     if (parts.length > 1) {
-      surname = normalizePreviewName(parts.shift());
-      const givenNames = normalizePreviewName(parts.join(' '));
-      name = givenNames.split(' ')[0] || '';
+      if (splitStrategy === 'firstWordIsSurname') {
+        surname = normalizePreviewName(parts.shift());
+        const givenNames = normalizePreviewName(parts.join(' '));
+        name = givenNames.split(' ')[0] || '';
+      } else {
+        name = normalizePreviewName(parts.pop());
+        surname = normalizePreviewName(parts.join(' '));
+      }
     } else {
       const givenNames = normalizePreviewName(parts[0] || '');
       name = givenNames;
@@ -73,6 +78,7 @@ export default function ExcelPreviewModal({
   const [surnameCol, setSurnameCol] = useState(initialMapping.surname);
   const [phoneCol, setPhoneCol] = useState(initialMapping.phone);
   const [oneColumnName, setOneColumnName] = useState(initialMapping.nameAndSurnameInOneColumn);
+  const [splitStrategy, setSplitStrategy] = useState(initialMapping.splitStrategy || 'lastWordIsName');
   const [selectedColumns, setSelectedColumns] = useState(initialMapping.selectedColumns);
   const [isLoadingSheet, setIsLoadingSheet] = useState(false);
   const [sheetError, setSheetError] = useState('');
@@ -85,6 +91,7 @@ export default function ExcelPreviewModal({
     surnameCol,
     phoneCol,
     oneColumnName,
+    splitStrategy,
   }));
   const hasNameWarnings = derivedRows.some((row) => row.warning);
   const isFormValid = Boolean(
@@ -114,6 +121,7 @@ export default function ExcelPreviewModal({
       setPhoneCol(nextMapping.phone);
       setSelectedColumns(nextMapping.selectedColumns);
       setOneColumnName(nextMapping.nameAndSurnameInOneColumn);
+      setSplitStrategy(nextMapping.splitStrategy || 'lastWordIsName');
       setShowManualMapping(!nextMapping.name || !nextMapping.phone);
     } catch (err) {
       console.error(err);
@@ -159,6 +167,7 @@ export default function ExcelPreviewModal({
       surname: surnameCol,
       phone: phoneCol,
       nameAndSurnameInOneColumn: oneColumnName,
+      splitStrategy,
       customFields,
     });
   }
@@ -227,14 +236,38 @@ export default function ExcelPreviewModal({
                     {showManualMapping ? 'Nascondi associazione colonne' : 'Modifica associazione colonne'}
                   </button>
                   <div className="excel-one-column-option">
-                    <label>
+                    <label className="excel-one-column-checkbox">
                       <input
                         type="checkbox"
                         checked={oneColumnName}
                         onChange={(e) => handleOneColumnNameChange(e.target.checked)}
                       />
-                      <span>Cognome e nome nella stessa colonna — prima parola = cognome</span>
+                      <span>Cognome e nome nella stessa colonna</span>
                     </label>
+                    {oneColumnName && (
+                      <div className="excel-split-strategy-group" role="radiogroup" aria-label="Regola di estrazione nome e cognome">
+                        <label className={`excel-strategy-radio ${splitStrategy === 'lastWordIsName' ? 'active' : ''}`}>
+                          <input
+                            type="radio"
+                            name="excelSplitStrategy"
+                            value="lastWordIsName"
+                            checked={splitStrategy === 'lastWordIsName'}
+                            onChange={() => setSplitStrategy('lastWordIsName')}
+                          />
+                          <span><strong>Ultima parola = Nome</strong> (es. 'DE BONIS' + 'Mario')</span>
+                        </label>
+                        <label className={`excel-strategy-radio ${splitStrategy === 'firstWordIsSurname' ? 'active' : ''}`}>
+                          <input
+                            type="radio"
+                            name="excelSplitStrategy"
+                            value="firstWordIsSurname"
+                            checked={splitStrategy === 'firstWordIsSurname'}
+                            onChange={() => setSplitStrategy('firstWordIsSurname')}
+                          />
+                          <span><strong>Prima parola = Cognome</strong> (es. 'ROSSI' + 'Maria Elena')</span>
+                        </label>
+                      </div>
+                    )}
                   </div>
                   {showManualMapping && (
                     <div className={`excel-main-mapping-grid ${oneColumnName ? 'full-name' : ''}`}>
