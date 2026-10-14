@@ -80,4 +80,26 @@ describe('SendingDashboard', () => {
     fireEvent.click(screen.getByRole('button', { name: /Riprendi invio/i }))
     expect(resume).toHaveBeenCalledTimes(1)
   })
+
+  it('labels sent messages as accepted by WhatsApp, not delivered', () => {
+    render(
+      <SendingDashboard
+        state={makeState({
+          donors: [{ name: 'Nome', surname: 'Cognome', phone: '393331234567', selected: true, valid: true, status: 'sent' }],
+          progress: { current: 1, total: 1, sent: 1, failed: 0, skipped: 0, unknown: 0 },
+        })}
+        counts={{ sent: 1 }}
+        isRunning={false}
+        isPaused={false}
+        call={vi.fn()}
+        api={{}}
+        onBackToEdit={vi.fn()}
+        connectionState="ready"
+      />,
+    )
+
+    expect(screen.getByText('Inviati a WhatsApp')).toBeInTheDocument()
+    expect(screen.getByText('esito locale confermato')).toBeInTheDocument()
+    expect(screen.getByText('✓ Inviato a WhatsApp')).toBeInTheDocument()
+  })
 })

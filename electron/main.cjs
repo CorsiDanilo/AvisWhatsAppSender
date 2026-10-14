@@ -56,7 +56,10 @@ const {
 } = require('../sender/developer-report');
 const { SendQueue } = require('../sender/queue');
 const { withTimeout } = require('../sender/send-timeout');
-const { buildWhatsAppSendOptions } = require('../sender/whatsapp-send-options');
+const {
+  buildWhatsAppSendOptions,
+  ensureWhatsAppSendResult,
+} = require('../sender/whatsapp-send-options');
 const { createWhatsAppSessionController } = require('../sender/whatsapp-session');
 const {
   copyPresetAttachment,
@@ -752,7 +755,7 @@ function setConnection(connection, qrDataUrl = '') {
 function killStaleSessionBrowser() {
   if (process.platform === 'win32') {
     try {
-      const psScript = 'Get-CimInstance Win32_Process -Filter "Name = \'chrome.exe\'" | Where-Object { $_.CommandLine -like "*whatsapp-session*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }';
+      const psScript = 'Get-CimInstance Win32_Process -Filter "Name = \'chrome.exe\'" | Where-Object { $_.CommandLine -like "*whatsapp-session*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }';
       execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psScript], {
         windowsHide: true,
         stdio: 'ignore',
@@ -762,14 +765,6 @@ function killStaleSessionBrowser() {
       audit('warn', 'whatsapp.kill_stale_warning', errorDetails(err));
     }
   }
-
-  try {
-    const sessionDir = path.join(app.getPath('userData'), 'whatsapp-session', 'session');
-    const lockFile = path.join(sessionDir, 'lockfile');
-    if (fs.existsSync(lockFile)) {
-      fs.unlinkSync(lockFile);
-    }
-  } catch {}
 }
 
 async function destroyClient(target = client) {
@@ -785,7 +780,6 @@ async function destroyClient(target = client) {
       audit('warn', 'whatsapp.destroy_warning', errorDetails(err));
     }
   }
-  killStaleSessionBrowser();
 }
 
 function createClient() {
@@ -800,20 +794,24 @@ function createClient() {
     authStrategy: new LocalAuth({
       dataPath: path.join(app.getPath('userData'), 'whatsapp-session'),
     }),
-    authTimeoutMs: 90000,
-    qrMaxRetries: 3,
+    authTimeoutMs: 60000,
+    webVersionCache: {
+      type: 'local',
+      path: path.join(app.getPath('userData'), 'whatsapp-web-cache'),
+      strict: false,
+    },
+    qrMaxRetries: 1,
     puppeteer: {
       executablePath,
       headless: true,
       args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--disable-background-timer-throttling',
         '--disable-backgrounding-occluded-windows',
         '--disable-renderer-backgrounding',
         '--disable-features=CalculateNativeWinOcclusion',
+        ...(process.platform === 'win32' ? [] : ['--no-sandbox', '--disable-setuid-sandbox']),
       ],
     },
   });
@@ -853,8 +851,8 @@ whatsappController = createWhatsAppSessionController({
       });
     });
   },
-  onFailure: (error, attempt, failureEvent) => {
-    logWhatsAppPageSnapshot(client, error, attempt).catch((snapshotError) => {
+  onFailure: async (error, attempt, failureEvent) => {
+    await logWhatsAppPageSnapshot(client, error, attempt).catch((snapshotError) => {
       audit('warn', 'whatsapp.browser_snapshot_failed', errorDetails(snapshotError));
     });
     logError(failureEvent, error);
@@ -863,17 +861,20 @@ whatsappController = createWhatsAppSessionController({
 whatsappController.setSessionResetter(clearWhatsAppSession);
 
 async function connectClient() {
-  return whatsappController.connect();
+  await whatsappController.connect();
+  return snapshot();
 }
 
 async function reconnectClient() {
   log('Riavvio del browser e ricaricamento della sessione WhatsApp (nessun nuovo login richiesto se la sessione è valida)...');
-  return whatsappController.reconnect();
+  await whatsappController.reconnect();
+  return snapshot();
 }
 
 async function resetWhatsAppSession() {
   log('Sessione WhatsApp azzerata. Rigenerazione del codice QR...');
-  return whatsappController.reset();
+  await whatsappController.reset();
+  return snapshot();
 }
 
 function optionNumber(value, fallback, minimum, maximum) {
@@ -899,7 +900,8 @@ function ensureClientReadyForSend() {
 
 async function sendMessageWithTimeout(operation, label, onLateResolve, onLateReject) {
   try {
-    return await withTimeout(operation, SEND_TIMEOUT_MS, label, { onLateResolve, onLateReject });
+    const result = await withTimeout(operation, SEND_TIMEOUT_MS, label, { onLateResolve, onLateReject });
+    return ensureWhatsAppSendResult(result);
   } catch (error) {
     if (error?.code !== 'SEND_TIMEOUT' && (!clientReady || state.connection !== 'ready')) {
       error.code = 'SEND_UNCERTAIN';
@@ -1005,8 +1007,8 @@ function attachQueueListeners() {
   });
   queue.on('error', ({ donor, error }) => logError('queue.send_failed', error, { phone: maskPhone(donor.phone) }));
   queue.on('completed', async ({ sent, failed, skipped, unknown }) => {
-    log(`Coda completata: ${sent} inviati, ${failed} falliti, ${skipped} saltati, ${unknown} da verificare.`);
-    notifyUser('Invio completato', `${sent} inviati, ${failed} falliti, ${skipped} saltati, ${unknown} da verificare.`);
+    log(`Coda completata: ${sent} inviati a WhatsApp, ${failed} falliti, ${skipped} saltati, ${unknown} da verificare.`);
+    notifyUser('Invio completato', `${sent} inviati a WhatsApp, ${failed} falliti, ${skipped} saltati, ${unknown} da verificare.`);
     writeOutcome('completed', { sent, failed, skipped, unknown });
 
     const hasReportRecipients = Array.isArray(activeSession?.reportRecipients)

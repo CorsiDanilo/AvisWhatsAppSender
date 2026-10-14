@@ -304,7 +304,7 @@ export default function StepRecipients({
                 className={`filter-chip warning ${filterType === 'invalid' ? 'active' : ''}`}
                 onClick={() => setFilterType('invalid')}
               >
-                Numeri non validi ({state.donors.filter((d) => !d.valid).length})
+                Righe non valide ({state.donors.filter((d) => !d.valid).length})
               </button>
             )}
           </div>
@@ -411,14 +411,14 @@ export default function StepRecipients({
                         <strong>{displayName(donor)}</strong>
                         <span>
                           {donor.phone || donor.rawPhone || 'Numero mancante'}
-                          {!donor.valid && <em className="invalid-tag"> • Numero non valido</em>}
+                          {!donor.valid && <em className="invalid-tag"> • {donor.reason || 'Dati non validi'}</em>}
                         </span>
                       </div>
                       <span className={`badge badge-${donor.status}`}>
                         {donor.status === 'pending'
                           ? 'In attesa'
                           : donor.status === 'sent'
-                          ? 'Inviato'
+                          ? 'Inviato a WhatsApp'
                           : donor.status === 'skipped'
                           ? 'Scartato'
                           : 'Fallito'}

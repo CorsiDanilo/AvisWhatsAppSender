@@ -6,7 +6,8 @@ export default function QrModal({ isOpen, onClose, state, api, call }) {
 
   if (!isOpen) return null
 
-  const isQr = state.connection === 'qr' && state.qrDataUrl
+  const isQrExpired = state.connection === 'qr_expired'
+  const isQr = (state.connection === 'qr' || isQrExpired) && state.qrDataUrl
   const isConnecting = state.connection === 'connecting'
 
   async function handleRegenerate() {
@@ -60,7 +61,27 @@ export default function QrModal({ isOpen, onClose, state, api, call }) {
           {isQr ? (
             <div className="qr-modal-content">
               <div className="qr-image-wrapper">
-                <img src={state.qrDataUrl} alt="Codice QR per WhatsApp" className="qr-large-image" />
+                <div className={`qr-image-container ${isQrExpired ? 'is-expired' : ''}`}>
+                  <img
+                    src={state.qrDataUrl}
+                    alt="Codice QR per WhatsApp"
+                    className={`qr-large-image ${isQrExpired ? 'qr-large-image-expired' : ''}`}
+                  />
+                  {isQrExpired && (
+                    <div className="qr-expired-overlay">
+                      <button
+                        type="button"
+                        className="qr-reload-button"
+                        onClick={handleRegenerate}
+                        disabled={regenerating || resetting}
+                        aria-label="Ricarica codice QR"
+                      >
+                        <span className="qr-reload-icon" aria-hidden="true">🔄</span>
+                        <span className="qr-reload-text">Clicca per ricaricare il codice QR</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="qr-instructions">
                 <h3>Come collegare:</h3>
@@ -70,9 +91,15 @@ export default function QrModal({ isOpen, onClose, state, api, call }) {
                   <li>Seleziona <strong>Dispositivi collegati</strong></li>
                   <li>Tocca <strong>Collega un dispositivo</strong> e inquadra questo codice</li>
                 </ol>
-                <div className="qr-tip-box">
-                  <span>💡 Il codice QR scade automaticamente ogni ~20 secondi. Se non funziona o si blocca, rigeneralo subito:</span>
-                </div>
+                {isQrExpired ? (
+                  <div className="qr-tip-box qr-tip-box-expired">
+                    <span>⚠️ Il codice QR è scaduto per inattività. Clicca sul pulsante per generarne uno nuovo.</span>
+                  </div>
+                ) : (
+                  <div className="qr-tip-box">
+                    <span>💡 Il codice QR scade automaticamente dopo circa 20 secondi. Dopo la scadenza, non viene creato automaticamente un altro codice: usa il pulsante di ricarica.</span>
+                  </div>
+                )}
               </div>
             </div>
           ) : regenerating ? (
@@ -99,6 +126,11 @@ export default function QrModal({ isOpen, onClose, state, api, call }) {
               <h3>WhatsApp è già collegato e pronto!</h3>
               <p className="muted">Puoi procedere all'invio dei messaggi.</p>
             </div>
+          ) : isQrExpired ? (
+            <div className="qr-empty-box">
+              <h3>Codice QR scaduto</h3>
+              <p className="muted">Il tempo per scansionare il codice è terminato. Clicca su "Ricarica codice QR" per generarne uno nuovo.</p>
+            </div>
           ) : (
             <div className="qr-empty-box">
               <h3>WhatsApp non è connesso</h3>
@@ -114,9 +146,9 @@ export default function QrModal({ isOpen, onClose, state, api, call }) {
               className="button button-secondary regenerate-qr-btn"
               onClick={handleRegenerate}
               disabled={regenerating || resetting}
-              title="Riavvia il browser e ricarica la sessione WhatsApp esistente (non è necessario effettuare nuovamente il login)"
+              title={isQrExpired ? "Richiedi un nuovo codice QR a WhatsApp" : "Riavvia il browser e ricarica la sessione WhatsApp esistente (non è necessario effettuare nuovamente il login)"}
             >
-              <span>🔄</span> {regenerating ? 'Riconnessione in corso…' : 'Riconnetti WhatsApp'}
+              <span>🔄</span> {regenerating ? 'Riconnessione in corso…' : isQrExpired ? 'Ricarica codice QR' : 'Riconnetti WhatsApp'}
             </button>
             <button
               type="button"

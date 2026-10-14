@@ -11,6 +11,7 @@ const {
   parseWithMapping,
   splitFullName,
   updateDonor,
+  validateName,
 } = require('../sender/data');
 const { renderTemplate } = require('../sender/template');
 
@@ -246,6 +247,78 @@ test('reads Excel dates formatted in Italian dd/mm/yyyy format', async () => {
 
     const [donor] = await parseWithMapping(filePath, 'Sheet1', inspection.detectedMapping);
     assert.equal(donor.customFields.DATADINASCITA, '25/10/1990');
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('validateName identifies numbers and invalid characters', () => {
+  assert.deepEqual(validateName('72 Rossi Marco'), { valid: false, reason: 'Nominativo contiene numeri ("72")' });
+  assert.deepEqual(validateName('Rossi Marco 72'), { valid: false, reason: 'Nominativo contiene numeri ("72")' });
+  assert.deepEqual(validateName('Rossi Mario (SOSPESO)'), { valid: false, reason: 'Nominativo contiene caratteri non validi' });
+  assert.deepEqual(validateName('Rossi Mario ?'), { valid: false, reason: 'Nominativo contiene caratteri non validi' });
+  assert.deepEqual(validateName(''), { valid: false, reason: 'Nominativo mancante' });
+  assert.deepEqual(validateName('Mario Rossi'), { valid: true, reason: '' });
+  assert.deepEqual(validateName("D'Angelo Jean-Luc"), { valid: true, reason: '' });
+});
+
+test('splits names preserving surname prefixes like Di Girolamo and De Luca', () => {
+  assert.deepEqual(splitFullName('DI GIROLAMO MARCO'), {
+    name: 'Marco',
+    givenNames: 'Marco',
+    surname: 'Di Girolamo',
+    warning: '',
+  });
+  assert.deepEqual(splitFullName('DI GIROLAMO MARCO ANTONIO'), {
+    name: 'Marco',
+    givenNames: 'Marco Antonio',
+    surname: 'Di Girolamo',
+    warning: '',
+  });
+  assert.deepEqual(splitFullName('DE LUCA GIOVANNI'), {
+    name: 'Giovanni',
+    givenNames: 'Giovanni',
+    surname: 'De Luca',
+    warning: '',
+  });
+  assert.deepEqual(splitFullName('LA ROSA ANNA'), {
+    name: 'Anna',
+    givenNames: 'Anna',
+    surname: 'La Rosa',
+    warning: '',
+  });
+});
+
+test('invalidates a prefixed surname when no given name remains after parsing', async () => {
+  const { directory, filePath } = temporaryCsv(
+    'COGNOMEENOME,CELLULARE\nDe Luca,+393331234567\n'
+  );
+
+  try {
+    const inspection = await inspectFile(filePath);
+    const [donor] = await parseWithMapping(filePath, 'CSV', inspection.detectedMapping);
+
+    assert.equal(donor.name, '');
+    assert.equal(donor.surname, 'De Luca');
+    assert.equal(donor.valid, false);
+    assert.equal(donor.reason, 'Nome non rilevato');
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('marks recipients with numbers in the name column as invalid and provides the reason', async () => {
+  const { directory, filePath } = temporaryCsv(
+    'COGNOMEENOME,CELLULARE\n72 ROSSI MARCO,+393331234567\n'
+  );
+
+  try {
+    const inspection = await inspectFile(filePath);
+    const [donor] = await parseWithMapping(filePath, 'CSV', inspection.detectedMapping);
+
+    assert.equal(donor.valid, false);
+    assert.equal(donor.reason, 'Nominativo contiene numeri ("72")');
+    assert.equal(donor.phone, '393331234567');
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

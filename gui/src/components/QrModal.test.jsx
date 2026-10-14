@@ -29,6 +29,7 @@ describe('QrModal', () => {
       'src',
       'data:image/png;base64,abc',
     )
+    expect(screen.getByText(/non viene creato automaticamente un altro codice/i)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Riconnetti WhatsApp/i }))
     await waitFor(() => expect(reconnect).toHaveBeenCalledTimes(1))
     expect(call).toHaveBeenCalledTimes(1)
@@ -46,5 +47,31 @@ describe('QrModal', () => {
     await waitFor(() => expect(resetWhatsAppSession).toHaveBeenCalledTimes(1))
     fireEvent.click(screen.getByRole('button', { name: /Chiudi e continua/i }))
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders expired QR with overlay reload button and triggers reconnect when clicked', async () => {
+    const call = vi.fn((operation) => operation())
+    const reconnect = vi.fn(() => Promise.resolve())
+    render(
+      <QrModal
+        isOpen
+        onClose={vi.fn()}
+        state={{ connection: 'qr_expired', qrDataUrl: 'data:image/png;base64,expiredqr' }}
+        api={{ reconnect }}
+        call={call}
+      />,
+    )
+
+    const img = screen.getByRole('img', { name: 'Codice QR per WhatsApp' })
+    expect(img).toHaveClass('qr-large-image-expired')
+    expect(screen.getByText(/Il codice QR è scaduto per inattività/i)).toBeInTheDocument()
+
+    // Click the reload button in the overlay
+    const reloadButtons = screen.getAllByRole('button', { name: /Ricarica codice QR/i })
+    expect(reloadButtons.length).toBeGreaterThanOrEqual(1)
+
+    fireEvent.click(reloadButtons[0])
+    await waitFor(() => expect(reconnect).toHaveBeenCalledTimes(1))
+    expect(call).toHaveBeenCalledTimes(1)
   })
 })

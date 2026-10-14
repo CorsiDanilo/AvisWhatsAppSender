@@ -20,6 +20,30 @@ function normalizeHeader(value) {
     .replace(/[^a-z0-9]/g, '');
 }
 
+const SURNAME_PREFIXES = new Set([
+  'di', 'de', 'del', 'della', 'dello', 'dei', 'degli', 'delle',
+  'da', 'dal', 'dalla', 'dallo', 'dalle', 'dai', 'dagli',
+  'la', 'lo', 'li', 'le',
+  'san', 'santa', 'santo', 'santi',
+  'van', 'von',
+  'd', "d'", "de'", "dell'",
+]);
+
+function validateName(value) {
+  const text = String(value ?? '').trim();
+  if (!text) {
+    return { valid: false, reason: 'Nominativo mancante' };
+  }
+  const digitsMatch = text.match(/\d+/);
+  if (digitsMatch) {
+    return { valid: false, reason: `Nominativo contiene numeri ("${digitsMatch[0]}")` };
+  }
+  if (/[^\p{L}\p{M}\s'’-]/u.test(text)) {
+    return { valid: false, reason: 'Nominativo contiene caratteri non validi' };
+  }
+  return { valid: true, reason: '' };
+}
+
 function normalizeNamePart(value) {
   return String(value ?? '')
     .trim()
@@ -38,6 +62,17 @@ function splitFullName(value, splitStrategy = 'lastWordIsName') {
       givenNames: name,
       surname: '',
       warning: name ? 'Cognome non rilevato' : '',
+    };
+  }
+
+  if (parts.length >= 2 && SURNAME_PREFIXES.has(parts[0].toLowerCase())) {
+    const surname = normalizeNamePart(`${parts.shift()} ${parts.shift()}`);
+    const givenNames = normalizeNamePart(parts.join(' '));
+    return {
+      name: givenNames.split(' ')[0] || '',
+      givenNames,
+      surname,
+      warning: givenNames ? '' : 'Nome non rilevato',
     };
   }
 
@@ -90,6 +125,12 @@ function updateDonor(donor = {}, patch = {}) {
   const surname = normalizeNamePart(patch.surname ?? donor.surname);
   const rawPhone = String(patch.phone ?? donor.rawPhone ?? donor.phone ?? '').trim();
   const normalizedPhone = normalizePhone(rawPhone);
+  const nameValidation = validateName(`${name} ${surname}`);
+
+  const reasons = [];
+  if (!normalizedPhone.valid) reasons.push(normalizedPhone.reason);
+  if (!nameValidation.valid) reasons.push(nameValidation.reason);
+
   const customFields = { ...(donor.customFields || {}) };
 
   if (patch.customFields && typeof patch.customFields === 'object') {
@@ -106,8 +147,8 @@ function updateDonor(donor = {}, patch = {}) {
     warning: name && !surname ? 'Cognome non rilevato' : '',
     rawPhone,
     phone: normalizedPhone.phone,
-    valid: normalizedPhone.valid,
-    reason: normalizedPhone.reason,
+    valid: normalizedPhone.valid && nameValidation.valid,
+    reason: reasons.join('; '),
     customFields,
   };
 }
@@ -295,11 +336,12 @@ async function parseWithMapping(filePath, sheetName, mapping) {
   
   return rows.map(row => {
     let parsedName;
+    const rawNameCell = String(row[mapping.name] ?? '').trim();
     
     if (mapping.nameAndSurnameInOneColumn) {
-       parsedName = splitFullName(row[mapping.name], mapping.splitStrategy || 'lastWordIsName');
+       parsedName = splitFullName(rawNameCell, mapping.splitStrategy || 'lastWordIsName');
     } else {
-       const givenNames = normalizeNamePart(row[mapping.name]);
+       const givenNames = normalizeNamePart(rawNameCell);
        parsedName = {
          name: givenNames.split(' ')[0] || '',
          givenNames,
@@ -310,6 +352,14 @@ async function parseWithMapping(filePath, sheetName, mapping) {
     
     const rawPhone = String(row[mapping.phone] ?? '').trim();
     const normalized = normalizePhone(rawPhone);
+    const rawSurnameCell = mapping.nameAndSurnameInOneColumn ? '' : String(row[mapping.surname] ?? '').trim();
+    const nameToValidate = mapping.nameAndSurnameInOneColumn ? rawNameCell : `${rawNameCell} ${rawSurnameCell}`;
+    const nameValidation = validateName(nameToValidate);
+
+    const reasons = [];
+    if (!normalized.valid) reasons.push(normalized.reason);
+    if (!nameValidation.valid) reasons.push(nameValidation.reason);
+    if (nameValidation.valid && !parsedName.name) reasons.push(parsedName.warning || 'Nome non rilevato');
     
     const customFields = {};
     if (mapping.customFields && Array.isArray(mapping.customFields)) {
@@ -322,8 +372,8 @@ async function parseWithMapping(filePath, sheetName, mapping) {
       ...parsedName,
       rawPhone,
       phone: normalized.phone,
-      valid: normalized.valid,
-      reason: normalized.reason,
+      valid: normalized.valid && nameValidation.valid && Boolean(parsedName.name),
+      reason: reasons.join('; '),
       status: 'pending',
       selected: true,
       customFields
@@ -341,4 +391,6 @@ module.exports = {
   parseWithMapping,
   splitFullName,
   updateDonor,
+  validateName,
+  SURNAME_PREFIXES,
 };

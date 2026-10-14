@@ -550,13 +550,25 @@ if (!api?.onOpenBirthdays) return undefined
           if (!nextDonors[index]) return p
           const donor = nextDonors[index]
           const givenNames = String(patch.givenNames || patch.name || donor.givenNames || donor.name || '').trim().replace(/\s+/g, ' ')
+          const name = givenNames.split(' ')[0] || ''
+          const surname = String(patch.surname ?? donor.surname ?? '').trim()
+          const rawPhone = String(patch.phone ?? donor.rawPhone ?? donor.phone ?? '').trim()
+          const fullName = `${name} ${surname}`.trim()
+          const digitsMatch = fullName.match(/\d+/)
+          const reasons = []
+          if (!rawPhone) reasons.push('Numero di telefono mancante')
+          if (!fullName) reasons.push('Nominativo mancante')
+          else if (digitsMatch) reasons.push(`Nominativo contiene numeri ("${digitsMatch[0]}")`)
+          else if (/[^\p{L}\p{M}\s'’-]/u.test(fullName)) reasons.push('Nominativo contiene caratteri non validi')
           nextDonors[index] = {
             ...donor,
-            name: givenNames.split(' ')[0] || '',
+            name,
             givenNames,
-            surname: String(patch.surname ?? donor.surname ?? '').trim(),
-            rawPhone: String(patch.phone ?? donor.rawPhone ?? donor.phone ?? '').trim(),
-            phone: String(patch.phone ?? donor.rawPhone ?? donor.phone ?? '').trim(),
+            surname,
+            rawPhone,
+            phone: rawPhone,
+            valid: Boolean(rawPhone) && reasons.length === 0,
+            reason: reasons.join('; '),
             customFields: { ...(donor.customFields || {}), ...(patch.customFields || {}) },
           }
           return { ...p, donors: nextDonors }
@@ -567,18 +579,27 @@ if (!api?.onOpenBirthdays) return undefined
           const customFields = {}
           customFieldKeys.forEach((key) => { customFields[key] = input.customFields?.[key] || '' })
           const givenNames = String(input.name || '').trim().replace(/\s+/g, ' ')
+          const name = givenNames.split(' ')[0] || ''
+          const surname = String(input.surname || '').trim()
           const phone = String(input.phone || '').trim()
+          const fullName = `${name} ${surname}`.trim()
+          const digitsMatch = fullName.match(/\d+/)
+          const reasons = []
+          if (!phone) reasons.push('Numero di telefono mancante')
+          if (!fullName) reasons.push('Nominativo mancante')
+          else if (digitsMatch) reasons.push(`Nominativo contiene numeri ("${digitsMatch[0]}")`)
+          else if (/[^\p{L}\p{M}\s'’-]/u.test(fullName)) reasons.push('Nominativo contiene caratteri non validi')
           return {
             ...p,
             donors: [...p.donors, {
-              name: givenNames.split(' ')[0] || '',
+              name,
               givenNames,
-              surname: String(input.surname || '').trim(),
+              surname,
               rawPhone: phone,
               phone,
-              valid: Boolean(phone),
-              reason: phone ? '' : 'Numero di telefono mancante',
-              warning: givenNames && !input.surname ? 'Cognome non rilevato' : '',
+              valid: Boolean(phone) && reasons.length === 0,
+              reason: reasons.join('; '),
+              warning: givenNames && !surname ? 'Cognome non rilevato' : '',
               status: 'pending',
               selected: true,
               customFields,

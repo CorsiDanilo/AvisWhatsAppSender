@@ -67,3 +67,27 @@ test('SendQueue tratta come unknown anche un errore di invio avvenuto durante la
   queue.resume();
   await run;
 });
+
+test('SendQueue tratta come unknown una conferma mancante', async () => {
+  const donor = { name: 'Uno', phone: '1', valid: true, status: 'pending' };
+  const queue = new SendQueue({
+    items: [donor],
+    render: () => 'messaggio',
+    send: async () => {
+      const error = new Error('WhatsApp non ha confermato l’invio del messaggio.');
+      error.code = 'SEND_NOT_CONFIRMED';
+      throw error;
+    },
+    minDelayMs: 0,
+    maxDelayMs: 0,
+    pauseAfter: 0,
+  });
+
+  const run = queue.start();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(donor.status, 'unknown');
+  assert.equal(queue.pauseReason, 'send-uncertain');
+  queue.resume();
+  await run;
+});

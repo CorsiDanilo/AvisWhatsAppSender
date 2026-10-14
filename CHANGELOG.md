@@ -5,6 +5,32 @@ All notable changes to the **AVIS WhatsApp Sender** project will be documented i
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
+## [1.2.1] - 2026-10-14
+
+### Summary
+
+Release di affinamento incentrata sulla gestione avanzata del ciclo di vita del codice QR di WhatsApp, sul riconoscimento automatico dei prefissi e particelle nei cognomi italiani, sulla validazione dei nominativi donatori e su controlli più rigorosi di invio messaggi.
+
+### Added
+
+- **Gestione QR Scaduto e Ricarica Interattiva**: transizione dedicata allo stato `qr_expired` con overlay visivo sul QR e pulsante di ricarica manuale (`🔄 Ricarica codice QR`) quando il tempo di scansione (~20s) termina, prevenendo notifiche invasive di disconnessione.
+- **Riconoscimento Prefissi Cognomi Italiani**: supporto integrato alle particelle e prefissi italiani (`de`, `di`, `del`, `della`, `dello`, `dei`, `degli`, `delle`, `da`, `dal`, `dalla`, `dallo`, `dalle`, `dai`, `dagli`, `la`, `lo`, `li`, `le`, `san`, `santa`, `santo`, `santi`, `van`, `von`, `d'`, `dell'`) sia nel parser donatori che nell'anteprima `ExcelPreviewModal`, garantendo la corretta separazione tra cognome e nome.
+- **Validazione Nominativi e Avvisi Numerici**: rilevamento di cifre o caratteri non ammessi nelle colonne nominative con segnalazione contestuale e marcatura trasparente della motivazione di non validità.
+- **Auto-Reset della Sessione su Logout**: azzeramento automatico e pulizia sicura delle credenziali locali in caso di disconnessione `LOGOUT` da WhatsApp Web.
+- **Verifica Conferma Invio WhatsApp**: aggiunta della funzione di sicurezza `ensureWhatsAppSendResult` per rifiutare e intercettare tempestivamente invii non confermati dal server.
+
+### Changed
+
+- **Soppressione Notifiche Ridondanti di Disconnessione**: le disconnessioni multiple ravvicinate o legate al timeout QR non producono più notifiche di sistema ripetute.
+- **Sincronizzazione Sequenza di Chiusura Client**: completamento garantito della diagnostica prima della distruzione del client WhatsApp in caso di errore di connessione.
+
+### Removed
+
+- **File Legacy index.js**: rimosso lo script CLI obsoleto alla radice, centralizzando completamente il ciclo di vita dell'applicazione su Electron e GUI.
+
+Full Changelog: [https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.2.0...v1.2.1](https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.2.0...v1.2.1)
+
+---
 ## [1.2.0] - 2026-10-13
 
 ### Summary

@@ -171,7 +171,7 @@ export default function Guide({ onClose, onStartTutorial }) {
           </p>
           <ul>
             <li><strong>Barra di avanzamento percentuale</strong> e indicazione del donatore attualmente in lavorazione.</li>
-            <li><strong>Contatori in tempo reale:</strong> inviati con successo, in attesa, falliti, scartati o con esito da verificare.</li>
+            <li><strong>Contatori in tempo reale:</strong> inviati a WhatsApp, in attesa, falliti, scartati o con esito da verificare.</li>
             <li><strong>Tempo rimanente stimato</strong> (⏱) calcolato in tempo reale in base al numero di destinatari in attesa e al ritmo configurato.</li>
             <li><strong>Comandi di controllo:</strong> puoi mettere la sessione in <strong>Pausa</strong>, <strong>Riprendere</strong> o <strong>Fermare</strong> l’invio in qualsiasi momento.</li>
             <li><strong>Log di trasmissione live:</strong> eventi operativi e errori visualizzati in tempo reale; i dettagli tecnici del browser, delle richieste di rete e dei timeout vengono invece salvati nei log diagnostici giornalieri.</li>

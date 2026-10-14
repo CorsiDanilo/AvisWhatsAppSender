@@ -25,7 +25,7 @@ function createWhatsAppSessionController({
   let sessionResetter = async () => {};
 
   function snapshot() {
-    return { connection, qrDataUrl, clientReady, client };
+    return { connection, qrDataUrl, clientReady };
   }
 
   function transition(nextConnection, nextQrDataUrl = '') {
@@ -46,6 +46,7 @@ function createWhatsAppSessionController({
   function attachClientEvents(candidate) {
     candidate.on('qr', async (qr) => {
       if (!current(candidate)) return;
+      if (connection === 'qr') return;
       try {
         transition('qr', await renderQr(qr));
         pauseForConnection('qr');
@@ -85,13 +86,43 @@ function createWhatsAppSessionController({
       notify('Errore WhatsApp', 'La sessione WhatsApp non è stata autenticata.');
     });
 
-    candidate.on('disconnected', (reason) => {
+    candidate.on('disconnected', async (reason) => {
       if (!current(candidate)) return;
+      const reasonStr = String(reason || '');
+      const isQrRetriesReached = /max.*qr.*retries/i.test(reasonStr);
+
+      if (isQrRetriesReached) {
+        client = null;
+        clientReady = false;
+        transition('qr_expired', qrDataUrl);
+        audit('info', 'whatsapp.qr_expired', { reason: reasonStr });
+        pauseForConnection('qr_expired');
+        log('Codice QR scaduto per inattività. Clicca su "Ricarica codice QR" per generarne uno nuovo.');
+        try {
+          await destroyClient(candidate);
+        } catch (error) {
+          audit('warn', 'whatsapp.destroy_warning', { error: error?.message || String(error) });
+        }
+        return;
+      }
+
+      const wasDisconnected = connection === 'disconnected';
       clientReady = false;
       transition('disconnected');
-      audit('warn', 'whatsapp.disconnected', { reason: String(reason) });
-      pauseForConnection(`disconnected:${String(reason)}`);
-      notify('WhatsApp disconnesso', 'La sessione WhatsApp è stata disconnessa.');
+      audit('warn', 'whatsapp.disconnected', { reason: reasonStr });
+      pauseForConnection(`disconnected:${reasonStr}`);
+      if (!wasDisconnected) {
+        notify('WhatsApp disconnesso', 'La sessione WhatsApp è stata disconnessa.');
+      }
+      if (/logout/i.test(reasonStr)) {
+        try {
+          await sessionResetter();
+          audit('info', 'whatsapp.session_cleared_on_logout');
+          log('Sessione WhatsApp rimossa a seguito di disconnessione (logout).');
+        } catch (error) {
+          audit('warn', 'whatsapp.session_clear_on_logout_failed', { error: error?.message || String(error) });
+        }
+      }
     });
   }
 
@@ -149,7 +180,7 @@ function createWhatsAppSessionController({
           attempt: lastAttempt,
           error: error?.message || String(error),
         });
-        onFailure(error, lastAttempt, failureEvent);
+        await onFailure(error, lastAttempt, failureEvent);
         await destroyCurrent();
         throw error;
       })

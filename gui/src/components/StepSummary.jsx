@@ -113,7 +113,7 @@ export default function StepSummary({
             </p>
             {invalidSelectedDonors.length > 0 && (
               <div className="summary-warning-pill">
-                ⚠️ {invalidSelectedDonors.length} contatti selezionati con numero non valido (verranno saltati)
+                ⚠️ {invalidSelectedDonors.length} contatti selezionati con dati non validi (verranno saltati)
               </div>
             )}
           </div>

@@ -1,7 +1,7 @@
 const { exec } = require('node:child_process');
 const { maskPhone, redactDiagnosticText } = require('./diagnostics');
 const { withTimeout } = require('./send-timeout');
-const { buildWhatsAppSendOptions } = require('./whatsapp-send-options');
+const { buildWhatsAppSendOptions, ensureWhatsAppSendResult } = require('./whatsapp-send-options');
 
 function buildSelfReportMessage({
   sent = 0,
@@ -34,7 +34,7 @@ function buildSelfReportMessage({
     fileName ? `📁 File: ${fileName}` : null,
     presetName ? `📝 Modello: ${presetName}` : null,
     '',
-    `✅ Inviati con successo: *${sent}*`,
+    `✅ Inviati a WhatsApp: *${sent}*`,
     `❌ Falliti: *${failed}*`,
     `⚠️ Saltati (non validi): *${skipped}*`,
     `🔎 Da verificare: *${unknown}*`,
@@ -102,12 +102,13 @@ function createPostSessionManager({
       if (!cleanPhone) continue;
       const chatId = `${cleanPhone}@c.us`;
       try {
-        await withTimeout(
+        const result = await withTimeout(
           () => client.sendMessage(chatId, text, buildWhatsAppSendOptions()),
           reportSendTimeoutMs,
           'postSession.sendMessage',
         );
-        log(`Riepilogo inviato su WhatsApp a: ${recipient.label || 'Destinatario'} (${maskPhone(cleanPhone)}).`);
+        ensureWhatsAppSendResult(result);
+        log(`Riepilogo inviato a WhatsApp per: ${recipient.label || 'Destinatario'} (${maskPhone(cleanPhone)}).`);
         audit('info', 'post_session.report_sent', {
           recipient: maskPhone(cleanPhone),
           label: recipient.label,

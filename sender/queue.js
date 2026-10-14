@@ -123,10 +123,10 @@ class SendQueue extends EventEmitter {
         await this.send(donor, message);
         donor.status = 'sent';
         sent += 1;
-        this.emit('log', `Messaggio inviato al destinatario ${index + 1}/${this.items.length}.`);
+        this.emit('log', `Messaggio inviato a WhatsApp per il destinatario ${index + 1}/${this.items.length}.`);
       } catch (error) {
         donor.error = error?.message || String(error);
-        if (error?.code === 'SEND_TIMEOUT' || error?.code === 'SEND_UNCERTAIN') {
+        if (error?.code === 'SEND_TIMEOUT' || error?.code === 'SEND_UNCERTAIN' || error?.code === 'SEND_NOT_CONFIRMED') {
           donor.status = 'unknown';
           unknown += 1;
           this.pause('send-uncertain');

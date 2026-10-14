@@ -18,6 +18,15 @@ function normalizePreviewHeader(value) {
     .replace(/[^a-z0-9]/g, '');
 }
 
+const SURNAME_PREFIXES = new Set([
+  'di', 'de', 'del', 'della', 'dello', 'dei', 'degli', 'delle',
+  'da', 'dal', 'dalla', 'dallo', 'dalle', 'dai', 'dagli',
+  'la', 'lo', 'li', 'le',
+  'san', 'santa', 'santo', 'santi',
+  'van', 'von',
+  'd', "d'", "de'", "dell'",
+]);
+
 function derivePreviewRow(row, { nameCol, surnameCol, phoneCol, oneColumnName, splitStrategy = 'lastWordIsName' }) {
   const rawName = String(row[nameCol] ?? '').trim().replace(/\s+/g, ' ');
   const parts = rawName ? rawName.split(' ') : [];
@@ -27,7 +36,11 @@ function derivePreviewRow(row, { nameCol, surnameCol, phoneCol, oneColumnName, s
 
   if (oneColumnName) {
     if (parts.length > 1) {
-      if (splitStrategy === 'firstWordIsSurname') {
+      if (parts.length >= 2 && SURNAME_PREFIXES.has(parts[0].toLowerCase())) {
+        surname = normalizePreviewName(`${parts.shift()} ${parts.shift()}`);
+        const givenNames = normalizePreviewName(parts.join(' '));
+        name = givenNames.split(' ')[0] || '';
+      } else if (splitStrategy === 'firstWordIsSurname') {
         surname = normalizePreviewName(parts.shift());
         const givenNames = normalizePreviewName(parts.join(' '));
         name = givenNames.split(' ')[0] || '';
@@ -44,6 +57,13 @@ function derivePreviewRow(row, { nameCol, surnameCol, phoneCol, oneColumnName, s
     const givenNames = normalizePreviewName(rawName);
     name = givenNames.split(' ')[0] || '';
     surname = normalizePreviewName(row[surnameCol]);
+  }
+
+  const nameToCheck = oneColumnName ? rawName : `${rawName} ${String(row[surnameCol] ?? '').trim()}`;
+  if (/\d/.test(nameToCheck)) {
+    warning = 'Contiene numeri';
+  } else if (/[^\p{L}\p{M}\s'’-]/u.test(nameToCheck)) {
+    warning = 'Contiene caratteri non validi';
   }
 
   return {
@@ -373,7 +393,7 @@ export default function ExcelPreviewModal({
                 </div>
                 {hasNameWarnings && (
                   <div className="excel-preview-warning" role="status">
-                    Alcune righe non hanno un cognome rilevabile. Potrai correggerle dopo l’importazione.
+                    Alcune righe presentano anomalie o cognomi non rilevabili. Potrai correggerle dopo l’importazione.
                   </div>
                 )}
                 <div className="excel-table-wrapper">

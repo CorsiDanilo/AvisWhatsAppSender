@@ -528,10 +528,66 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
   flex-shrink: 0;
 }
+.qr-image-container {
+  position: relative;
+  display: inline-block;
+  border-radius: 8px;
+  overflow: hidden;
+}
 .qr-large-image {
   width: 165px;
   height: 165px;
   display: block;
+  transition: filter 0.2s ease, opacity 0.2s ease;
+}
+.qr-large-image-expired {
+  filter: blur(4px);
+  opacity: 0.3;
+}
+.qr-expired-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.45);
+  padding: 8px;
+}
+.qr-reload-button {
+  background: var(--green, #1b8a5a);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  transition: transform 0.15s ease, background-color 0.15s ease;
+  text-align: center;
+  user-select: none;
+}
+.qr-reload-button:hover:not(:disabled) {
+  background: var(--green-hover, #146c46);
+  transform: scale(1.04);
+}
+.qr-reload-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.qr-reload-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.qr-reload-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+.qr-reload-text {
+  line-height: 1.25;
 }
 .qr-instructions {
   flex: 1;
@@ -554,6 +610,11 @@ h3 { font-size: 18px; letter-spacing: -0.3px; }
   border-radius: 6px;
   font-size: 11px;
   color: #8c5717;
+}
+.qr-tip-box-expired {
+  background: #fef3f2;
+  border-color: #fecdca;
+  color: #b42318;
 }
 .qr-loading-box, .qr-success-box, .qr-empty-box {
   display: flex;

@@ -16,7 +16,7 @@ test('buildSelfReportMessage formatta correttamente l’esito dell’invio', () 
   assert.ok(msg.includes('AVIS WhatsApp Sender — Esito Invio'));
   assert.ok(msg.includes('File: Donatori.xlsx'));
   assert.ok(msg.includes('Modello: Sollecito'));
-  assert.ok(msg.includes('Inviati con successo: *10*'));
+  assert.ok(msg.includes('Inviati a WhatsApp: *10*'));
   assert.ok(msg.includes('Falliti: *1*'));
   assert.ok(msg.includes('Saltati (non validi): *2*'));
   assert.ok(msg.includes('Spegnimento del PC programmato'));
@@ -27,6 +27,7 @@ test('createPostSessionManager invia il messaggio ai numeri destinatari configur
   const mockClient = {
     sendMessage: async (to, text) => {
       sentMessages.push({ to, text });
+      return { id: 'report-message' };
     },
   };
 
@@ -52,7 +53,28 @@ test('createPostSessionManager invia il messaggio ai numeri destinatari configur
   assert.equal(sentMessages.length, 2);
   assert.equal(sentMessages[0].to, '393331234567@c.us');
   assert.equal(sentMessages[1].to, '393409876543@c.us');
-  assert.ok(sentMessages[0].text.includes('Inviati con successo: *5*'));
+  assert.ok(sentMessages[0].text.includes('Inviati a WhatsApp: *5*'));
+});
+
+test('createPostSessionManager non conferma il riepilogo quando WhatsApp non restituisce un messaggio', async () => {
+  const logs = [];
+  const errors = [];
+  const manager = createPostSessionManager({
+    getClient: () => ({ sendMessage: async () => undefined }),
+    getState: () => ({ connection: 'ready' }),
+    log: (message) => logs.push(message),
+    logError: (event) => errors.push(event),
+  });
+
+  await manager.sendSessionReports({
+    sent: 1,
+    failed: 0,
+    skipped: 0,
+    activeSession: { reportRecipients: [{ phone: '393331234567', enabled: true }] },
+  });
+
+  assert.deepEqual(errors, ['post_session.report_failed']);
+  assert.ok(!logs.some((message) => message.startsWith('Riepilogo inviato')));
 });
 
 test('createPostSessionManager non tenta il riepilogo quando WhatsApp non è pronto', async () => {

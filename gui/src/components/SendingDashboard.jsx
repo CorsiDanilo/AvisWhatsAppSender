@@ -24,7 +24,7 @@ export default function SendingDashboard({
   const isStopped = state.queue === 'stopped'
   const connectionReady = connectionState === 'ready'
   const pauseReason = state.queuePauseReason
-  const isConnectionPaused = pauseReason?.startsWith('disconnected') || pauseReason?.startsWith('connection:') || pauseReason === 'qr' || pauseReason === 'auth-failure' || pauseReason === 'qr-generation-error'
+  const isConnectionPaused = pauseReason?.startsWith('disconnected') || pauseReason?.startsWith('connection:') || pauseReason === 'qr' || pauseReason === 'qr_expired' || pauseReason === 'auth-failure' || pauseReason === 'qr-generation-error'
   const isSendUncertain = pauseReason === 'send-uncertain'
   const percent = state.progress.total
     ? Math.round((state.progress.current / state.progress.total) * 100)
@@ -120,9 +120,9 @@ export default function SendingDashboard({
           <small>nella coda di invio</small>
         </div>
         <div className="stat-card accent">
-          <span>Inviati con successo</span>
+          <span>Inviati a WhatsApp</span>
           <strong>{state.progress.sent || counts.sent || 0}</strong>
-          <small>messaggi consegnati</small>
+          <small>esito locale confermato</small>
         </div>
         <div className="stat-card">
           <span>In attesa</span>
@@ -326,7 +326,7 @@ export default function SendingDashboard({
                     {donor.status === 'pending'
                       ? 'In attesa'
                       : donor.status === 'sent'
-                      ? '✓ Inviato'
+                      ? '✓ Inviato a WhatsApp'
                       : donor.status === 'skipped'
                       ? 'Scartato'
                       : donor.status === 'unknown'

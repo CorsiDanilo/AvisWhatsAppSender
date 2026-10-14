@@ -25,6 +25,7 @@ export const TUTORIAL_DONORS = [
     phone: '',
     rawPhone: '06 1234567',
     valid: false,
+    reason: 'Numero di telefono non valido',
     selected: false,
     status: 'skipped',
     customFields: { Gruppo: 'B Positivo', Donazioni: '1' },

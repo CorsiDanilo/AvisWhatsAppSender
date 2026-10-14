@@ -56,6 +56,14 @@ test('WhatsApp session gestisce QR, autenticazione, ready e disconnessione', asy
   assert.equal(harness.state.connection, 'qr');
   assert.equal(harness.state.qrDataUrl, 'data:qr-token');
   assert.ok(harness.pauses.includes('qr'));
+  assert.equal(harness.notifications.length, 1);
+  assert.equal(harness.notifications[0].title, 'QR pronto');
+
+  // Il QR iniziale resta visibile finché l'operatore non richiede una rigenerazione.
+  client.emit('qr', 'qr-token-2');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(harness.state.qrDataUrl, 'data:qr-token');
+  assert.equal(harness.notifications.length, 1);
 
   client.emit('authenticated');
   assert.equal(harness.state.connection, 'authenticated');
@@ -67,8 +75,14 @@ test('WhatsApp session gestisce QR, autenticazione, ready e disconnessione', asy
   assert.equal(harness.state.connection, 'disconnected');
   assert.equal(harness.controller.isReady(), false);
   assert.ok(harness.pauses.includes('disconnected:LOGOUT'));
-});
+  const disconnectNotifs = harness.notifications.filter((n) => n.title === 'WhatsApp disconnesso');
+  assert.equal(disconnectNotifs.length, 1);
 
+  // Disconnessioni ripetute immediate non generano notifiche duplicate
+  client.emit('disconnected', 'LOGOUT');
+  const disconnectNotifs2 = harness.notifications.filter((n) => n.title === 'WhatsApp disconnesso');
+  assert.equal(disconnectNotifs2.length, 1);
+});
 test('WhatsApp session mette in pausa la coda su auth_failure e registra il motivo', async () => {
   const client = new FakeClient(async () => {});
   const harness = createHarness({ clients: [client] });
@@ -92,6 +106,26 @@ test('WhatsApp session ritenta un errore di inizializzazione e conserva il clien
   assert.equal(first.destroyed, true);
   assert.equal(harness.controller.getClient(), second);
   assert.ok(harness.audits.some(({ event }) => event === 'whatsapp.retry'));
+});
+
+test('WhatsApp session completa la diagnostica prima di distruggere il client dopo il fallimento', async () => {
+  const events = [];
+  const client = new FakeClient(async () => { throw new Error('browser non pronto'); });
+  const controller = createWhatsAppSessionController({
+    createClient: () => client,
+    retryOptions: { attempts: 1, delayMs: 0 },
+    onFailure: async () => {
+      events.push('failure-start');
+      await new Promise((resolve) => setImmediate(resolve));
+      events.push('failure-end');
+    },
+    destroyClient: async () => {
+      events.push('destroy');
+    },
+  });
+
+  await assert.rejects(controller.connect(), /browser non pronto/);
+  assert.deepEqual(events, ['failure-start', 'failure-end', 'destroy']);
 });
 
 test('WhatsApp session ignora eventi provenienti da un client ormai obsoleto', async () => {
@@ -151,4 +185,42 @@ test('WhatsApp session non completa una connessione annullata da un reset concor
 
   await connecting;
   assert.notEqual(harness.state.connection, 'ready');
+});
+
+test('WhatsApp session transita a qr_expired senza azzerare il qrDataUrl né inviare notifiche invasive quando scade il QR', async () => {
+  const client = new FakeClient(async () => {});
+  const harness = createHarness({ clients: [client] });
+
+  await harness.controller.connect();
+  client.emit('qr', 'qr-token-test');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(harness.state.connection, 'qr');
+  assert.equal(harness.state.qrDataUrl, 'data:qr-token-test');
+
+  // Raggiunto limite tentativi QR
+  client.emit('disconnected', 'Max qrcode retries reached');
+  assert.equal(harness.state.connection, 'qr_expired');
+  assert.equal(harness.state.qrDataUrl, 'data:qr-token-test');
+  assert.equal(harness.controller.isReady(), false);
+  assert.ok(harness.pauses.includes('qr_expired'));
+  // Nessuna notifica di disconnessione generata per il timeout QR
+  assert.ok(!harness.notifications.some((n) => n.title === 'WhatsApp disconnesso'));
+  assert.ok(harness.logs.some((m) => m.includes('Codice QR scaduto')));
+  assert.ok(harness.audits.some(({ event }) => event === 'whatsapp.qr_expired'));
+});
+
+test('WhatsApp session invoca sessionResetter quando riceve una disconnessione per LOGOUT', async () => {
+  const client = new FakeClient(async () => {});
+  const harness = createHarness({ clients: [client] });
+  let resetCalled = false;
+  harness.controller.setSessionResetter(async () => { resetCalled = true; });
+
+  await harness.controller.connect();
+  client.emit('ready');
+  assert.equal(harness.controller.isReady(), true);
+
+  client.emit('disconnected', 'LOGOUT');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(resetCalled, true);
+  assert.ok(harness.audits.some(({ event }) => event === 'whatsapp.session_cleared_on_logout'));
 });
