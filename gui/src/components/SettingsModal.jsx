@@ -1,5 +1,5 @@
 import { FileText, Download, Cake, HelpCircle, ExternalLink, Image, Save, RefreshCw, CheckCircle, Play, BookOpen, AlertCircle, Mail, SlidersHorizontal } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { toUserError } from '../errorMessage'
 import ReactMarkdown from 'react-markdown'
 import { normalizeReleaseNotes } from '../releaseNotes.mjs'
@@ -40,7 +40,14 @@ export default function SettingsModal({
   const effectiveOutputDir = state.settings?.outputDir || state.defaultOutputDir || 'Desktop / AVIS WhatsApp Sender'
   const effectiveLogDir = state.settings?.logDir || state.defaultLogDir || 'Cartella log predefinita'
 
-  useEffect(() => { if (isOpen) { setUserTab(null); setStatusMsg('') } }, [isOpen, initialTab]);
+  const [prevProps, setPrevProps] = useState({ isOpen, initialTab })
+  if (prevProps.isOpen !== isOpen || prevProps.initialTab !== initialTab) {
+    setPrevProps({ isOpen, initialTab })
+    if (isOpen) {
+      setUserTab(null)
+      setStatusMsg('')
+    }
+  }
 
   if (!isOpen) return null
 
@@ -807,11 +814,17 @@ export default function SettingsModal({
                   <div className="field-group preset-attachment-field">
                     <div className="field-label-row">
                       <label htmlFor="preset-attachment">Allegato del modello</label>
-                      <span className="subtle-note">Opzionale — JPG, JPEG o PNG</span>
+                      <span className="subtle-note">Opzionale — JPG, PNG o PDF</span>
                     </div>
                     <div className={`preset-attachment-box ${presetForm.attachmentFileName ? 'has-attachment' : ''}`}>
                       <div className="preset-attachment-copy">
-                        <span className="preset-attachment-icon" aria-hidden="true"><Image size={16} /></span>
+                        <span className="preset-attachment-icon" aria-hidden="true">
+                          {presetForm.attachmentFileName?.toLowerCase().endsWith('.pdf') ? (
+                            <FileText size={16} />
+                          ) : (
+                            <Image size={16} />
+                          )}
+                        </span>
                         <div>
                           <strong>{presetForm.attachmentFileName || 'Nessun allegato salvato'}</strong>
                           <span>

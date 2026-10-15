@@ -23,8 +23,23 @@ test('normalizes safe preset attachment metadata and rejects unsafe paths', () =
     fileName: 'auguri.png',
     relativePath: 'preset-attachments/abc.png',
   });
+  assert.deepEqual(normalizePresetAttachment({
+    fileName: 'modulo.pdf',
+    relativePath: 'preset-attachments/modulo.pdf',
+  }), {
+    fileName: 'modulo.pdf',
+    relativePath: 'preset-attachments/modulo.pdf',
+  });
+  assert.deepEqual(normalizePresetAttachment({
+    fileName: 'modulo.docx',
+    relativePath: 'preset-attachments/modulo.docx',
+  }), {
+    fileName: 'modulo.docx',
+    relativePath: 'preset-attachments/modulo.docx',
+  });
   assert.equal(normalizePresetAttachment({ fileName: 'x.png', relativePath: '../x.png' }), null);
-  assert.equal(normalizePresetAttachment({ fileName: 'x.pdf', relativePath: 'preset-attachments/x.pdf' }), null);
+  assert.equal(normalizePresetAttachment({ fileName: 'x.exe', relativePath: 'preset-attachments/x.exe' }), null);
+  assert.equal(normalizePresetAttachment({ fileName: 'x.bat', relativePath: 'preset-attachments/x.bat' }), null);
 });
 
 test('copies a preset attachment into the application storage directory', () => {

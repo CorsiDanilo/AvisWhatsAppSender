@@ -10,6 +10,10 @@ test('buildWhatsAppSendOptions aspetta la conferma del server e non invia sendSe
     buildWhatsAppSendOptions({ caption: 'Test' }),
     { caption: 'Test', waitUntilMsgSent: true, sendSeen: false },
   );
+  assert.deepEqual(
+    buildWhatsAppSendOptions({ caption: 'Media', waitUntilMsgSent: false }),
+    { caption: 'Media', waitUntilMsgSent: false, sendSeen: false },
+  );
 });
 
 test('ensureWhatsAppSendResult rifiuta un invio senza conferma', () => {

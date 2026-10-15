@@ -52,8 +52,69 @@ describe('StepComposer', () => {
     const suggestion = screen.getByRole('option', { name: /Nome Alternativo Cognome Alternativo/i })
     expect(suggestion).toHaveTextContent('Nome Alternativo Cognome Alternativo')
     fireEvent.click(suggestion)
-    fireEvent.click(screen.getByRole('button', { name: /Seleziona foto/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Seleziona allegato/i }))
     expect(api.selectImage).toHaveBeenCalledTimes(1)
     expect(call).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders a PDF attachment card and preview when a PDF is selected', () => {
+    renderComposer({
+      state: {
+        donors: [{ name: 'Mario', surname: 'Rossi', phone: '3331112233', valid: true, selected: true }],
+        presets: [],
+        imageName: 'convocazione.pdf',
+        imagePath: 'C:\\docs\\convocazione.pdf',
+        imageDataUrl: '',
+        attachmentType: 'document',
+        attachmentBadge: 'PDF',
+        attachmentLabel: 'Documento PDF',
+        attachmentSize: 1048576, // 1.0 MB
+      },
+    })
+    expect(screen.getAllByText('convocazione.pdf').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Documento PDF/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/1\.0 MB/i).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'Rimuovi' })).toBeInTheDocument()
+  })
+
+  it('renders multi-attachment list with reorder, remove, and caption position options', () => {
+    const api = {
+      reorderAttachments: vi.fn(),
+      removeAttachment: vi.fn(),
+      setAttachmentPosition: vi.fn(),
+      selectImage: vi.fn(),
+      clearImage: vi.fn(),
+    }
+    renderComposer({
+      api,
+      state: {
+        donors: [{ name: 'Mario', surname: 'Rossi', phone: '3331112233', valid: true, selected: true }],
+        presets: [],
+        attachments: [
+          { name: 'locandina.png', path: 'C:\\locandina.png', size: 500000, type: 'image', badge: 'IMG' },
+          { name: 'modulo.pdf', path: 'C:\\modulo.pdf', size: 1048576, type: 'document', badge: 'PDF' },
+        ],
+        attachmentPosition: 'first',
+      },
+    })
+
+    expect(screen.getByText('Allegati (2)')).toBeInTheDocument()
+    expect(screen.getAllByText('locandina.png').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('modulo.pdf').length).toBeGreaterThan(0)
+    expect(screen.getByText('Didascalia 1° allegato')).toBeInTheDocument()
+    expect(screen.getByText('Didascalia ultimo allegato')).toBeInTheDocument()
+    expect(screen.getByText('Messaggio a parte')).toBeInTheDocument()
+
+    // Test position change
+    fireEvent.click(screen.getByText('Didascalia ultimo allegato'))
+    expect(api.setAttachmentPosition).toHaveBeenCalledWith('last')
+
+    // Test reorder
+    fireEvent.click(screen.getByLabelText('Sposta giù locandina.png'))
+    expect(api.reorderAttachments).toHaveBeenCalledWith(0, 1)
+
+    // Test remove
+    fireEvent.click(screen.getByLabelText('Rimuovi modulo.pdf'))
+    expect(api.removeAttachment).toHaveBeenCalledWith(1)
   })
 })

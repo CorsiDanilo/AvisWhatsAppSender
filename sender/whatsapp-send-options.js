@@ -1,7 +1,7 @@
 function buildWhatsAppSendOptions(options = {}) {
   return {
-    ...options,
     waitUntilMsgSent: true,
+    ...options,
     sendSeen: false,
   };
 }

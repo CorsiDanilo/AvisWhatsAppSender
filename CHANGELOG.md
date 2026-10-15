@@ -5,6 +5,34 @@ All notable changes to the **AVIS WhatsApp Sender** project will be documented i
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
+## [1.3.0] - 2026-10-15
+
+### Summary
+
+Importante aggiornamento che introduce il supporto completo all'invio di allegati multipli (immagini, video, audio e documenti generici come PDF, Word, Excel, PowerPoint, archivi ZIP/RAR e file di testo), la gestione personalizzabile della posizione della didascalia/messaggio, il monitoraggio del peso totale e la continuità garantita della coda di invio senza interruzioni non presidiate.
+
+### Added
+
+- **Supporto Allegati Multipli**: possibilità di selezionare e allegare più file contemporaneamente direttamente dalla finestra di dialogo di sistema ("Tutti i file *.*").
+- **Supporto a Documenti e Media Generici**: invio nativo oltre alle immagini di documenti PDF, fogli di calcolo Excel (.xlsx, .xls), documenti Word (.docx, .doc), presentazioni PowerPoint (.pptx, .ppt), file di testo (.txt, .csv), archivi compressi (.zip, .rar), note audio e file video.
+- **Gestione e Riordino Sequenza File**: elenco interattivo degli allegati con badge di tipologia, anteprima miniatura, dimensione del singolo file, pulsanti di riordinamento sequenziale (`▲` / `▼`) e pulsanti di rimozione mirata (`✕`) o totale.
+- **Scelta Posizione Messaggio/Didascalia**: selettore a 3 modalità quando sono presenti 2 o più allegati:
+  1. *Didascalia 1° allegato*: il messaggio personalizzato accompagna il primo file inviato.
+  2. *Didascalia ultimo allegato*: i file precedenti vengono inviati senza didascalia e l'ultimo file trasporta il testo.
+  3. *Messaggio a parte*: tutti i file vengono inviati in sequenza come media WhatsApp e il testo viene inviato subito dopo come messaggio dedicato.
+- **Anteprima WhatsApp Dinamica a Fumetti Multipli**: simulazione in tempo reale nel riquadro di anteprima dell'esatta sequenza di fumetti WhatsApp generata dalla modalità scelta.
+- **Tracciamento Completo nel Report di Esito**: salvataggio automatico nel file `esito.json` dell'elenco completo di tutti i file inviati (`attachments`) e della modalità didascalia impiegata (`attachmentPosition`).
+- **Avviso Preventivo Connessione per Peso Elevato**: segnalazione visiva sul badge del peso complessivo e alert dedicato quando la dimensione totale degli allegati supera i 50 MB.
+
+### Changed
+
+- **Invio Continuo Non Presidiato**: rimozione del blocco automatico della coda su errori singoli o timeout (`send-uncertain`), garantendo che le sessioni notturne o non presidiate portino a termine tutti i destinatari registrando gli errori come `failed` o `skipped`.
+- **Gestione Intelligente Audio su WhatsApp Web**: fallback automatico a messaggio separato se il file designato per la didascalia è una nota audio, rispettando i vincoli tecnici della piattaforma.
+- **Pausa Tecnica Sequenziale MMS**: intermezzo di sicurezza di 1.5 secondi tra gli allegati dello stesso destinatario per assicurare il corretto upload dei media su WhatsApp Web prima del successivo invio.
+
+Full Changelog: [https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.2.1...v1.3.0](https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.2.1...v1.3.0)
+
+---
 ## [1.2.1] - 2026-10-14
 
 ### Summary

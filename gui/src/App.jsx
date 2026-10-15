@@ -51,6 +51,12 @@ const initialState = {
   imageName: '',
   imagePath: '',
   imageDataUrl: '',
+  attachmentType: '',
+  attachmentSize: 0,
+  attachmentBadge: '',
+  attachmentLabel: '',
+  attachments: [],
+  attachmentPosition: 'first',
   settings: {
     minDelayMs: 20000,
     maxDelayMs: 40000,
@@ -190,16 +196,19 @@ if (!api?.onOpenBirthdays) return undefined
     return api.onOpenBirthdays(() => setShowBirthdayCenter(true))
   }, [api])
 
-  useEffect(() => {
-    if (state.birthdays?.notificationPending) setShowBirthdayCenter(true)
-  }, [state.birthdays?.notificationPending])
-  useEffect(() => {
-    if (state.updater?.status === 'available' && !hasAutoOpenedUpdate && !isTutorialActive) {
-      setSettingsTab('updates')
-      setShowSettings(true)
-      setHasAutoOpenedUpdate(true)
-    }
-  }, [state.updater?.status, hasAutoOpenedUpdate, isTutorialActive])
+  const [prevBirthdayPending, setPrevBirthdayPending] = useState(false)
+  if (state.birthdays?.notificationPending && !prevBirthdayPending) {
+    setPrevBirthdayPending(true)
+    setShowBirthdayCenter(true)
+  } else if (!state.birthdays?.notificationPending && prevBirthdayPending) {
+    setPrevBirthdayPending(false)
+  }
+
+  if (state.updater?.status === 'available' && !hasAutoOpenedUpdate && !isTutorialActive) {
+    setHasAutoOpenedUpdate(true)
+    setSettingsTab('updates')
+    setShowSettings(true)
+  }
 
   const counts = useMemo(() => {
     return state.donors.reduce((result, donor) => {
@@ -313,6 +322,10 @@ if (!api?.onOpenBirthdays) return undefined
       imageName: '',
       imagePath: '',
       imageDataUrl: '',
+      attachmentType: '',
+      attachmentSize: 0,
+      attachmentBadge: '',
+      attachmentLabel: '',
       lastOutcomeDir: '',
     }))
 

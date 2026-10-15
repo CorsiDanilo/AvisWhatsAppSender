@@ -28,7 +28,12 @@ const {
   parseWithMapping,
   updateDonor,
 } = require('../sender/data');
-const { createImagePayload, inspectImage } = require('../sender/media');
+const {
+  createAttachmentPayload,
+  createImagePayload,
+  inspectAttachment,
+  inspectImage,
+} = require('../sender/media');
 const { createLogger, dateFile } = require('../sender/logger');
 const { maskPhone, redactDiagnosticText } = require('../sender/diagnostics');
 const { deletePreset, loadPresets, upsertPreset } = require('../sender/presets');
@@ -109,6 +114,7 @@ const diagnosticPages = new WeakSet();
 let queue;
 let selectedFile = '';
 let selectedImagePath = '';
+let selectedAttachments = [];
 let currentMessage = '';
 let settingsPath = '';
 let presetsPath = '';
@@ -136,6 +142,12 @@ const state = {
   imageName: '',
   imagePath: '',
   imageDataUrl: '',
+  attachmentType: '',
+  attachmentSize: 0,
+  attachmentBadge: '',
+  attachmentLabel: '',
+  attachments: [],
+  attachmentPosition: 'first',
   settings: { ...DEFAULT_SETTINGS },
   presets: [],
   defaultOutputDir: '',
@@ -643,7 +655,8 @@ async function prepareBirthdaySession() {
   if (!matches.length) throw new Error('Non ci sono compleanni da preparare per oggi.');
 
   selectedFile = resolved.filePath;
-  selectedImagePath = '';
+  selectedAttachments = [];
+  syncAttachmentState();
   currentMessage = '';
   activeSession = undefined;
   resultWritten = false;
@@ -651,9 +664,6 @@ async function prepareBirthdaySession() {
   state.fileName = resolved.fileName;
   state.filePath = resolved.filePath;
   state.sheetName = inspection.currentSheet || 'CSV';
-  state.imageName = '';
-  state.imagePath = '';
-  state.imageDataUrl = '';
   state.queue = 'idle';
   state.progress = { current: 0, total: matches.length, sent: 0, failed: 0, skipped: 0, unknown: 0 };
   state.queuePauseReason = null;
@@ -804,6 +814,7 @@ function createClient() {
     puppeteer: {
       executablePath,
       headless: true,
+      protocolTimeout: 180000,
       args: [
         '--disable-dev-shm-usage',
         '--disable-gpu',
@@ -885,6 +896,7 @@ function optionNumber(value, fallback, minimum, maximum) {
 
 const TYPING_TIMEOUT_MS = 5000;
 const SEND_TIMEOUT_MS = 45000;
+const SEND_MEDIA_TIMEOUT_MS = 90000;
 
 function ensureClientReadyForSend() {
   if (whatsappController) {
@@ -898,9 +910,9 @@ function ensureClientReadyForSend() {
   }
 }
 
-async function sendMessageWithTimeout(operation, label, onLateResolve, onLateReject) {
+async function sendMessageWithTimeout(operation, label, onLateResolve, onLateReject, timeoutMs = SEND_TIMEOUT_MS) {
   try {
-    const result = await withTimeout(operation, SEND_TIMEOUT_MS, label, { onLateResolve, onLateReject });
+    const result = await withTimeout(operation, timeoutMs, label, { onLateResolve, onLateReject });
     return ensureWhatsAppSendResult(result);
   } catch (error) {
     if (error?.code !== 'SEND_TIMEOUT' && (!clientReady || state.connection !== 'ready')) {
@@ -910,7 +922,14 @@ async function sendMessageWithTimeout(operation, label, onLateResolve, onLateRej
   }
 }
 
-async function sendToDonor(donor, message, imagePath) {
+async function sendToDonor(donor, message, attachmentsInput, attachmentPosition = 'first') {
+  let attachments = [];
+  if (typeof attachmentsInput === 'string' && attachmentsInput) {
+    attachments = [{ path: attachmentsInput }];
+  } else if (Array.isArray(attachmentsInput)) {
+    attachments = attachmentsInput;
+  }
+
   const chatId = `${donor.phone}@c.us`;
   const maskedPhone = maskPhone(donor.phone);
   audit('info', 'queue.send_attempt', { phone: maskedPhone });
@@ -938,19 +957,8 @@ async function sendToDonor(donor, message, imagePath) {
     });
   }
   ensureClientReadyForSend();
-  if (imagePath) {
-    const payload = createImagePayload(imagePath, message, MessageMedia);
-    await sendMessageWithTimeout(
-      () => client.sendMessage(chatId, payload.media, buildWhatsAppSendOptions(payload.options)),
-      'sendMessage(media)',
-      () => audit('warn', 'queue.send_late_success', { phone: maskedPhone, operation: 'media' }),
-      (error) => audit('warn', 'queue.send_late_failure', {
-        phone: maskedPhone,
-        operation: 'media',
-        error: redactDiagnosticText(error?.message || error),
-      }),
-    );
-  } else {
+
+  if (!attachments || attachments.length === 0) {
     await sendMessageWithTimeout(
       () => client.sendMessage(chatId, message, buildWhatsAppSendOptions()),
       'sendMessage(text)',
@@ -961,6 +969,62 @@ async function sendToDonor(donor, message, imagePath) {
         error: redactDiagnosticText(error?.message || error),
       }),
     );
+  } else {
+    const count = attachments.length;
+    let captionIndex = -1;
+    let separateText = attachmentPosition === 'separate';
+
+    if (attachmentPosition === 'first') {
+      captionIndex = 0;
+    } else if (attachmentPosition === 'last') {
+      captionIndex = count - 1;
+    }
+
+    for (let i = 0; i < count; i += 1) {
+      ensureClientReadyForSend();
+      if (i > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+
+      const att = attachments[i];
+      let captionForThis = undefined;
+      if (i === captionIndex) {
+        const inspection = inspectAttachment(att.path);
+        if (inspection.kind === 'audio') {
+          separateText = true;
+        } else {
+          captionForThis = message;
+        }
+      }
+
+      const payload = createAttachmentPayload(att.path, captionForThis, MessageMedia);
+      await sendMessageWithTimeout(
+        () => client.sendMessage(chatId, payload.media, buildWhatsAppSendOptions(payload.options)),
+        `sendMessage(media-${i + 1}/${count})`,
+        () => audit('warn', 'queue.send_late_success', { phone: maskedPhone, operation: `media-${i + 1}` }),
+        (error) => audit('warn', 'queue.send_late_failure', {
+          phone: maskedPhone,
+          operation: `media-${i + 1}`,
+          error: redactDiagnosticText(error?.message || error),
+        }),
+        SEND_MEDIA_TIMEOUT_MS,
+      );
+    }
+
+    if (separateText && message?.trim()) {
+      ensureClientReadyForSend();
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await sendMessageWithTimeout(
+        () => client.sendMessage(chatId, message, buildWhatsAppSendOptions()),
+        'sendMessage(text-after-media)',
+        () => audit('warn', 'queue.send_late_success', { phone: maskedPhone, operation: 'text' }),
+        (error) => audit('warn', 'queue.send_late_failure', {
+          phone: maskedPhone,
+          operation: 'text',
+          error: redactDiagnosticText(error?.message || error),
+        }),
+      );
+    }
   }
   audit('info', 'queue.send_success', { phone: maskedPhone });
 }
@@ -1052,6 +1116,8 @@ function writeOutcome(reason, summary) {
       reason,
       message: activeSession.message,
       imageName: activeSession.imageName,
+      attachments: activeSession.attachments,
+      attachmentPosition: activeSession.attachmentPosition,
       settings: activeSession.settings,
       summary,
       donors: state.donors,
@@ -1108,28 +1174,169 @@ async function loadCsvMapped(filePath, sheetName, mapping) {
   return snapshot();
 }
 
+const ATTACHMENT_DIALOG_FILTERS = [
+  { name: 'Tutti i file', extensions: ['*'] },
+];
+
+function inspectAndBuildAttachment(filePath) {
+  const inspection = inspectAttachment(filePath);
+  if (!inspection.valid) throw new Error(inspection.reason);
+
+  const name = path.basename(filePath);
+  const dataUrl = inspection.kind === 'image'
+    ? `data:${inspection.mimeType};base64,${fs.readFileSync(filePath, 'base64')}`
+    : '';
+
+  return {
+    path: filePath,
+    name,
+    type: inspection.kind,
+    size: inspection.size,
+    badge: inspection.badge || '',
+    label: inspection.label || '',
+    dataUrl,
+  };
+}
+
+function syncAttachmentState() {
+  state.attachments = selectedAttachments.map((att) => ({
+    path: att.path,
+    name: att.name,
+    type: att.type,
+    size: att.size,
+    badge: att.badge,
+    label: att.label,
+    dataUrl: att.dataUrl || '',
+  }));
+
+  const first = selectedAttachments[0];
+  if (first) {
+    selectedImagePath = first.path;
+    state.imagePath = first.path;
+    state.imageName = first.name;
+    state.attachmentType = first.type;
+    state.attachmentSize = first.size;
+    state.attachmentBadge = first.badge;
+    state.attachmentLabel = first.label;
+    state.imageDataUrl = first.dataUrl || '';
+  } else {
+    selectedImagePath = '';
+    state.imagePath = '';
+    state.imageName = '';
+    state.attachmentType = '';
+    state.attachmentSize = 0;
+    state.attachmentBadge = '';
+    state.attachmentLabel = '';
+    state.imageDataUrl = '';
+  }
+}
+
 async function selectImage() {
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: 'Seleziona l’immagine da allegare',
-    properties: ['openFile'],
-    filters: [{ name: 'Immagini', extensions: ['jpg', 'jpeg', 'png'] }],
+    title: 'Seleziona allegati (tutti i file)',
+    properties: ['openFile', 'multiSelections'],
+    filters: ATTACHMENT_DIALOG_FILTERS,
   });
-  if (result.canceled || !result.filePaths[0]) return snapshot();
+  if (result.canceled || !result.filePaths.length) return snapshot();
 
-  const imagePath = result.filePaths[0];
-  return loadImageFromPath(imagePath);
+  const newAttachments = [];
+  const errors = [];
+  for (const filePath of result.filePaths) {
+    if (selectedAttachments.some((existing) => existing.path === filePath)) {
+      continue;
+    }
+    try {
+      newAttachments.push(inspectAndBuildAttachment(filePath));
+    } catch (err) {
+      errors.push(`${path.basename(filePath)}: ${err.message}`);
+    }
+  }
+
+  if (errors.length > 0 && newAttachments.length === 0) {
+    throw new Error(errors.join('\n'));
+  }
+
+  selectedAttachments = [...selectedAttachments, ...newAttachments];
+  syncAttachmentState();
+
+  if (newAttachments.length === 1) {
+    const att = newAttachments[0];
+    const label = att.label || (att.type === 'document' ? 'Documento allegato' : 'Allegato');
+    log(`${label}: ${att.name}.`);
+    audit('info', 'attachment.selected', {
+      fileName: att.name,
+      size: att.size,
+      kind: att.type,
+      badge: att.badge,
+    });
+  } else if (newAttachments.length > 1) {
+    log(`Aggiunti ${newAttachments.length} allegati (${selectedAttachments.length} totali).`);
+    audit('info', 'attachments.selected_multiple', {
+      count: newAttachments.length,
+      total: selectedAttachments.length,
+    });
+  }
+
+  publish();
+  return snapshot();
 }
 
 function loadImageFromPath(imagePath) {
-  const inspection = inspectImage(imagePath);
-  if (!inspection.valid) throw new Error(inspection.reason);
+  const att = inspectAndBuildAttachment(imagePath);
+  selectedAttachments = [att];
+  syncAttachmentState();
+  const label = att.label || (att.type === 'document' ? 'Documento allegato' : 'Allegato');
+  log(`${label}: ${state.imageName}.`);
+  audit('info', 'attachment.selected', {
+    fileName: state.imageName,
+    size: att.size,
+    kind: att.type,
+    badge: att.badge,
+  });
+  publish();
+  return snapshot();
+}
 
-  selectedImagePath = imagePath;
-  state.imagePath = imagePath;
-  state.imageName = path.basename(imagePath);
-  state.imageDataUrl = `data:${inspection.mimeType};base64,${fs.readFileSync(imagePath, 'base64')}`;
-  log(`Immagine allegata: ${state.imageName}.`);
-  audit('info', 'image.selected', { fileName: state.imageName, size: inspection.size });
+function removeAttachmentAt(index) {
+  if (typeof index !== 'number' || index < 0 || index >= selectedAttachments.length) {
+    return snapshot();
+  }
+  const removed = selectedAttachments.splice(index, 1)[0];
+  syncAttachmentState();
+  log(`Allegato rimosso: ${removed.name}.`);
+  audit('info', 'attachment.removed', { fileName: removed.name, remaining: selectedAttachments.length });
+  publish();
+  return snapshot();
+}
+
+function reorderAttachmentAt(fromIndex, toIndex) {
+  if (
+    typeof fromIndex !== 'number' ||
+    typeof toIndex !== 'number' ||
+    fromIndex < 0 ||
+    fromIndex >= selectedAttachments.length ||
+    toIndex < 0 ||
+    toIndex >= selectedAttachments.length ||
+    fromIndex === toIndex
+  ) {
+    return snapshot();
+  }
+  const [moved] = selectedAttachments.splice(fromIndex, 1);
+  selectedAttachments.splice(toIndex, 0, moved);
+  syncAttachmentState();
+  audit('info', 'attachments.reordered', { fromIndex, toIndex, count: selectedAttachments.length });
+  publish();
+  return snapshot();
+}
+
+function setAttachmentPosition(position) {
+  const validPositions = ['first', 'last', 'separate'];
+  if (!validPositions.includes(position)) {
+    throw new Error(`Posizione allegati non valida: ${position}`);
+  }
+  state.attachmentPosition = position;
+  audit('info', 'attachments.position_changed', { position });
+  publish();
   return snapshot();
 }
 
@@ -1137,12 +1344,12 @@ async function selectPresetAttachment() {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Seleziona l’allegato del preset',
     properties: ['openFile'],
-    filters: [{ name: 'Immagini', extensions: ['jpg', 'jpeg', 'png'] }],
+    filters: ATTACHMENT_DIALOG_FILTERS,
   });
   if (result.canceled || !result.filePaths[0]) return null;
 
   const imagePath = result.filePaths[0];
-  const inspection = inspectImage(imagePath);
+  const inspection = inspectAttachment(imagePath);
   if (!inspection.valid) throw new Error(inspection.reason);
   return { sourcePath: imagePath, fileName: path.basename(imagePath) };
 }
@@ -1157,14 +1364,14 @@ function loadPresetAttachment(attachment) {
 }
 
 function clearImage() {
-  selectedImagePath = '';
-  state.imagePath = '';
-  state.imageName = '';
-  state.imageDataUrl = '';
-  log('Allegato rimosso.');
-  audit('info', 'image.cleared');
+  selectedAttachments = [];
+  syncAttachmentState();
+  log('Allegati rimossi.');
+  audit('info', 'attachment.cleared');
+  publish();
   return snapshot();
 }
+
 
 function setDonorSelection(index, selected) {
   if (!Number.isInteger(index) || !state.donors[index]) return snapshot();
@@ -1253,15 +1460,13 @@ function resetSession() {
   activeSession = undefined;
   resultWritten = false;
   selectedFile = '';
-  selectedImagePath = '';
+  selectedAttachments = [];
+  syncAttachmentState();
   currentMessage = '';
   state.donors = [];
   state.fileName = '';
   state.filePath = '';
   state.sheetName = '';
-  state.imageName = '';
-  state.imagePath = '';
-  state.imageDataUrl = '';
   state.queue = 'idle';
   state.progress = { current: 0, total: 0, sent: 0, failed: 0, skipped: 0, unknown: 0 };
   state.queuePauseReason = null;
@@ -1516,10 +1721,23 @@ async function startQueue(options = {}) {
   if (!state.donors.length) throw new Error('Carica prima un file CSV.');
   currentMessage = String(options.message || '').trim();
   if (!currentMessage) throw new Error('Inserisci un messaggio.');
-  if (selectedImagePath && !inspectImage(selectedImagePath).valid) {
-    throw new Error('L’immagine selezionata non è più disponibile.');
+  if (selectedAttachments.length === 0 && selectedImagePath) {
+    if (!inspectAttachment(selectedImagePath).valid) {
+      throw new Error('L’allegato selezionato non è più disponibile o non è valido.');
+    }
+    selectedAttachments = [inspectAndBuildAttachment(selectedImagePath)];
+    syncAttachmentState();
   }
-  const imagePath = selectedImagePath;
+
+  for (const att of selectedAttachments) {
+    const inspection = inspectAttachment(att.path);
+    if (!inspection.valid) {
+      throw new Error(`L’allegato "${att.name}" non è più disponibile o non è valido.`);
+    }
+  }
+
+  const attachmentsToSend = [...selectedAttachments];
+  const positionToSend = state.attachmentPosition || 'first';
   const unresolvedRecipients = state.donors.filter(
     (donor) => donor.selected !== false && donor.status === 'unknown',
   );
@@ -1534,6 +1752,8 @@ async function startQueue(options = {}) {
     presetName: String(options.presetName || 'Senza preset').trim() || 'Senza preset',
     message: currentMessage,
     imageName: state.imageName,
+    attachments: attachmentsToSend.map((a) => ({ name: a.name, type: a.type, size: a.size })),
+    attachmentPosition: positionToSend,
     settings: state.settings,
     reportRecipients: Array.isArray(options.reportRecipients)
       ? options.reportRecipients
@@ -1542,12 +1762,16 @@ async function startQueue(options = {}) {
     startedAt: new Date().toISOString(),
   };
   resultWritten = false;
-  audit('info', 'queue.start_requested', { selectedCount: selectedDonors.length, hasImage: Boolean(imagePath) });
+  audit('info', 'queue.start_requested', {
+    selectedCount: selectedDonors.length,
+    attachmentCount: attachmentsToSend.length,
+    attachmentPosition: positionToSend,
+  });
 
   queue = new SendQueue({
     items: selectedDonors,
     render: (donor) => renderTemplate(currentMessage, donor),
-    send: (donor, text) => sendToDonor(donor, text, imagePath),
+    send: (donor, text) => sendToDonor(donor, text, attachmentsToSend, positionToSend),
     minDelayMs: optionNumber(options.minDelayMs, 20000, 0, 10 * 60 * 1000),
     maxDelayMs: optionNumber(options.maxDelayMs, 40000, 0, 10 * 60 * 1000),
     pauseAfter: optionNumber(options.pauseAfter, 35, 0, 1000),
@@ -1678,6 +1902,9 @@ registerHandler('sender:inspect-csv-sheet', (filePath, sheetName) => inspectCsvS
 registerHandler('sender:load-csv-mapped', (filePath, sheetName, mapping) => loadCsvMapped(filePath, sheetName, mapping));
 registerHandler('sender:select-image', selectImage);
 registerHandler('sender:clear-image', clearImage);
+registerHandler('sender:remove-attachment', (index) => removeAttachmentAt(index));
+registerHandler('sender:reorder-attachments', (fromIndex, toIndex) => reorderAttachmentAt(fromIndex, toIndex));
+registerHandler('sender:set-attachment-position', (position) => setAttachmentPosition(position));
 registerHandler('sender:select-preset-attachment', selectPresetAttachment);
 registerHandler('sender:load-preset-attachment', (attachment) => loadPresetAttachment(attachment));
 registerHandler('sender:connect', connectClient);

@@ -26,7 +26,9 @@ test('writeSessionResult salva JSON, CSV completo e CSV dei problemi inclusi gli
       endedAt: '2026-10-13T15:00:00.000Z',
       reason: 'completed',
       message: 'Ciao, [nome]',
-      imageName: '',
+      imageName: 'test.png',
+      attachments: [{ name: 'test.png', type: 'image', size: 100 }],
+      attachmentPosition: 'first',
       settings: { minDelayMs: 1 },
       summary: { sent: 1, failed: 1, skipped: 1, unknown: 1 },
       donors: [
@@ -40,6 +42,8 @@ test('writeSessionResult salva JSON, CSV completo e CSV dei problemi inclusi gli
     const result = JSON.parse(fs.readFileSync(path.join(folder, 'esito.json'), 'utf8'));
     assert.equal(result.presetName, 'Prova-Donatori');
     assert.equal(result.summary.unknown, 1);
+    assert.deepEqual(result.attachments, [{ name: 'test.png', type: 'image', size: 100 }]);
+    assert.equal(result.attachmentPosition, 'first');
     const csv = fs.readFileSync(path.join(folder, 'esito.csv'), 'utf8');
     assert.match(csv, /Nome/);
     assert.match(csv, /"errore, ""test"""/);

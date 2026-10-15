@@ -9,6 +9,13 @@ function previewMessage(message, donor) {
     .replaceAll('[cognome]', donor.surname || 'Cognome')
 }
 
+function formatFileSize(bytes) {
+  if (!bytes || Number.isNaN(bytes)) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 export default function StepSummary({
   state,
   message,
@@ -73,6 +80,27 @@ export default function StepSummary({
   const pauseCount = options.pauseAfter > 0 ? Math.floor(validSelectedDonors.length / options.pauseAfter) : 0
   const totalMinutesEst = Math.round((validSelectedDonors.length * avgDelaySec + pauseCount * options.pauseMinutes * 60) / 60)
   const estimatedDuration = formatEstimatedDuration(totalMinutesEst)
+
+  const rawAttachments = state.attachments && state.attachments.length > 0
+    ? state.attachments
+    : (state.imageName ? [{
+        path: state.imagePath,
+        name: state.imageName,
+        type: state.attachmentType,
+        size: state.attachmentSize,
+        badge: state.attachmentBadge,
+        label: state.attachmentLabel,
+        dataUrl: state.imageDataUrl,
+      }] : [])
+  const attachmentCount = rawAttachments.length
+  const totalAttachmentBytes = rawAttachments.reduce((sum, item) => sum + (item.size || 0), 0)
+  const attachmentPosition = state.attachmentPosition || 'first'
+
+  const positionLabel = attachmentPosition === 'first'
+    ? 'Didascalia del 1° allegato'
+    : attachmentPosition === 'last'
+      ? 'Didascalia dell’ultimo allegato'
+      : 'Messaggio a parte (dopo gli allegati)'
 
   return (
     <div className="step-container">
@@ -141,27 +169,67 @@ export default function StepSummary({
                 Modello: <strong>{selectedPreset}</strong> • Render per {firstSelectedDonor?.name || 'il donatore'}:
               </span>
               <div className="summary-text-box">
-                {state.imageDataUrl && (
-                  <div className="summary-image-preview-wrapper">
-                    <img src={state.imageDataUrl} alt="Foto allegata" className="summary-image-preview-img" />
+                {attachmentCount === 1 && (
+                  rawAttachments[0].dataUrl ? (
+                    <div className="summary-image-preview-wrapper">
+                      <img src={rawAttachments[0].dataUrl} alt="Foto allegata" className="summary-image-preview-img" />
+                    </div>
+                  ) : (
+                    <div className="summary-doc-preview-wrapper">
+                      <span className={`summary-doc-badge badge-${(rawAttachments[0].badge || 'doc').toLowerCase()}`}>
+                        {rawAttachments[0].badge || 'DOC'}
+                      </span>
+                      <strong className="summary-doc-name">{rawAttachments[0].name}</strong>
+                      {rawAttachments[0].size > 0 && (
+                        <span className="summary-doc-size">({formatFileSize(rawAttachments[0].size)})</span>
+                      )}
+                    </div>
+                  )
+                )}
+
+                {attachmentCount > 1 && (
+                  <div className="summary-multi-preview-bar">
+                    <span className="summary-multi-count-tag">
+                      📎 {attachmentCount} file ({formatFileSize(totalAttachmentBytes)})
+                    </span>
+                    <span className="summary-multi-pos-tag">
+                      Modo: <strong>{positionLabel}</strong>
+                    </span>
                   </div>
                 )}
+
                 <p className="summary-caption-text">
                   {previewMessage(message, firstSelectedDonor)}
                 </p>
               </div>
             </div>
+
             <div className="summary-attachment-row">
-              <span className="subtle-note">Allegato foto:</span>
-              {state.imageName ? (
+              <span className="subtle-note">{attachmentCount > 1 ? 'Allegati:' : 'Allegato:'}</span>
+              {attachmentCount === 0 && (
+                <span className="muted">Nessun allegato (solo testo)</span>
+              )}
+              {attachmentCount === 1 && (
                 <div className="summary-attachment-badge">
-                  {state.imageDataUrl && (
-                    <img src={state.imageDataUrl} alt="Foto allegata" className="summary-thumb" />
+                  {rawAttachments[0].dataUrl ? (
+                    <img src={rawAttachments[0].dataUrl} alt="Foto allegata" className="summary-thumb" />
+                  ) : (
+                    <span className={`summary-doc-badge mini badge-${(rawAttachments[0].badge || 'doc').toLowerCase()}`}>
+                      {rawAttachments[0].badge || 'DOC'}
+                    </span>
                   )}
-                  <span>📷 {state.imageName}</span>
+                  <span>{rawAttachments[0].name}</span>
                 </div>
-              ) : (
-                <span className="muted">Nessuna foto allegata (solo testo)</span>
+              )}
+              {attachmentCount > 1 && (
+                <div className="summary-multi-attachments-chips">
+                  {rawAttachments.map((att, idx) => (
+                    <span key={idx} className="summary-attachment-chip" title={att.name}>
+                      <span className={`chip-badge badge-${(att.badge || 'doc').toLowerCase()}`}>{att.badge || 'DOC'}</span>
+                      <span className="chip-name">{att.name}</span>
+                    </span>
+                  ))}
+                </div>
               )}
             </div>
           </div>

@@ -60,4 +60,35 @@ describe('StepSummary', () => {
     fireEvent.change(screen.getByLabelText('Azione per il PC al termine:'), { target: { value: 'sleep' } })
     expect(setOptions).toHaveBeenCalled()
   })
+
+  it('renders multi-attachment count, chips, and position label in summary', () => {
+    render(
+      <StepSummary
+        state={{
+          fileName: 'donatori.csv',
+          donors: [{ name: 'Mario', surname: 'Rossi', valid: true, selected: true }],
+          attachments: [
+            { name: 'circolare.pdf', size: 1048576, badge: 'PDF' },
+            { name: 'scheda.xlsx', size: 204800, badge: 'XLS' },
+          ],
+          attachmentPosition: 'last',
+          settings: {},
+        }}
+        message="Gentile [nome], alleghiamo i file."
+        selectedPreset="Comunicazione"
+        options={{ minDelayMs: 1000, maxDelayMs: 2000, pauseAfter: 35, pauseMinutes: 1, postSessionAction: 'none' }}
+        setOptions={vi.fn()}
+        canStart
+        firstSelectedDonor={{ name: 'Mario', surname: 'Rossi' }}
+        onBack={vi.fn()}
+        onGoToStep={vi.fn()}
+        onStart={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText(/2 file/i)).toBeInTheDocument()
+    expect(screen.getByText(/Didascalia dell’ultimo allegato/i)).toBeInTheDocument()
+    expect(screen.getByText('circolare.pdf')).toBeInTheDocument()
+    expect(screen.getByText('scheda.xlsx')).toBeInTheDocument()
+  })
 })

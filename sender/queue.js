@@ -40,7 +40,7 @@ class SendQueue extends EventEmitter {
 
   pause(reason = 'manual') {
     if (this.state === 'paused') {
-      if (this.pauseReason !== 'send-uncertain') this.pauseReason = reason;
+      this.pauseReason = reason;
       this.emit('state', this.state);
       return;
     }
@@ -126,16 +126,12 @@ class SendQueue extends EventEmitter {
         this.emit('log', `Messaggio inviato a WhatsApp per il destinatario ${index + 1}/${this.items.length}.`);
       } catch (error) {
         donor.error = error?.message || String(error);
-        if (error?.code === 'SEND_TIMEOUT' || error?.code === 'SEND_UNCERTAIN' || error?.code === 'SEND_NOT_CONFIRMED') {
-          donor.status = 'unknown';
-          unknown += 1;
-          this.pause('send-uncertain');
-          this.emit('uncertain', { donor, error, index, total: this.items.length });
-        } else {
-          donor.status = 'failed';
-          failed += 1;
+        donor.status = 'failed';
+        failed += 1;
+        if (this.listenerCount('error') > 0) {
           this.emit('error', { donor, error, index, total: this.items.length });
         }
+        this.emit('log', `Invio non riuscito per il destinatario ${index + 1}/${this.items.length} (${donor.name}): ${donor.error}`);
       }
 
       this.emit('item', { donor, index, total: this.items.length });

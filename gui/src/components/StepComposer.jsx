@@ -21,6 +21,53 @@ function formatSnippet(text, maxLen = 75) {
   return single.slice(0, maxLen) + '…'
 }
 
+function formatFileSize(bytes) {
+  if (!bytes || Number.isNaN(bytes)) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function getAttachmentIcon(badge, kind) {
+  if (kind === 'audio' || badge === 'AUDIO') return '🎵'
+  if (kind === 'video' || badge === 'VIDEO') return '🎬'
+  switch (badge) {
+    case 'PDF': return '📄'
+    case 'DOC': return '📝'
+    case 'XLS': return '📊'
+    case 'PPT': return '📑'
+    case 'ZIP': return '🗜️'
+    case 'TXT': return '📃'
+    default: return '📎'
+  }
+}
+
+function renderAttachmentPreviewMedia(att) {
+  if (!att) return null
+  if (att.dataUrl) {
+    return (
+      <div className="preview-media-box">
+        <img src={att.dataUrl} alt="Anteprima foto allegata" className="preview-media-img" />
+        <span className="preview-media-tag">📷 {att.name}</span>
+      </div>
+    )
+  }
+  return (
+    <div className="preview-doc-box">
+      <div className={`preview-doc-badge badge-${(att.badge || 'doc').toLowerCase()}`}>
+        {att.badge || 'DOC'}
+      </div>
+      <div className="preview-doc-info">
+        <strong className="preview-doc-name" title={att.name}>{att.name}</strong>
+        <span className="preview-doc-sub">
+          {att.size ? `${formatFileSize(att.size)} • ` : ''}
+          {att.label || 'Documento allegato'}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 export default function StepComposer({
   state,
   api,
@@ -127,6 +174,23 @@ export default function StepComposer({
   function updateOption(name, value) {
     setOptions((current) => ({ ...current, [name]: value }))
   }
+
+  // Attachments resolution
+  const rawAttachments = state.attachments && state.attachments.length > 0
+    ? state.attachments
+    : (state.imageName ? [{
+        path: state.imagePath,
+        name: state.imageName,
+        type: state.attachmentType,
+        size: state.attachmentSize,
+        badge: state.attachmentBadge,
+        label: state.attachmentLabel,
+        dataUrl: state.imageDataUrl,
+      }] : [])
+  const attachmentCount = rawAttachments.length
+  const totalAttachmentBytes = rawAttachments.reduce((sum, item) => sum + (item.size || 0), 0)
+  const isHeavyTotal = totalAttachmentBytes > 50 * 1024 * 1024
+  const attachmentPosition = state.attachmentPosition || 'first'
 
   // Calculate estimated total time
   const selectedCount = state.donors.filter((d) => d.selected !== false && d.valid).length
@@ -332,17 +396,116 @@ export default function StepComposer({
                   )}
                 </div>
               </div>
-              <div className={`preview-bubble ${state.imageDataUrl ? 'has-attached-media' : ''}`}>
-                {state.imageDataUrl && (
-                  <div className="preview-media-box">
-                    <img src={state.imageDataUrl} alt="Anteprima foto allegata" className="preview-media-img" />
-                    <span className="preview-media-tag">📷 {state.imageName}</span>
-                  </div>
-                )}
-                <p className="preview-text-content">
-                  {previewMessage(message, activePreviewDonor) || 'Scrivi un messaggio per vedere l’anteprima…'}
-                </p>
-              </div>
+              {/* WhatsApp Live Preview Bubbles */}
+              {attachmentCount === 0 && (
+                <div className="preview-bubble">
+                  <p className="preview-text-content">
+                    {previewMessage(message, activePreviewDonor) || 'Scrivi un messaggio per vedere l’anteprima…'}
+                  </p>
+                </div>
+              )}
+
+              {attachmentCount === 1 && (
+                <div className="preview-bubble has-attached-media">
+                  {renderAttachmentPreviewMedia(rawAttachments[0])}
+                  <p className="preview-text-content">
+                    {previewMessage(message, activePreviewDonor) || 'Scrivi un messaggio per vedere l’anteprima…'}
+                  </p>
+                </div>
+              )}
+
+              {attachmentCount > 1 && (
+                <div className="preview-multi-bubbles-container">
+                  {attachmentPosition === 'first' && (
+                    <>
+                      <div className="preview-bubble has-attached-media">
+                        <div className="preview-attachment-bubble-header">
+                          <span className="preview-bubble-step-badge">1° Invio (con didascalia)</span>
+                        </div>
+                        {renderAttachmentPreviewMedia(rawAttachments[0])}
+                        <p className="preview-text-content">
+                          {previewMessage(message, activePreviewDonor) || 'Scrivi un messaggio per vedere l’anteprima…'}
+                        </p>
+                      </div>
+
+                      <div className="preview-bubble followup-media-bubble">
+                        <div className="preview-attachment-bubble-header">
+                          <span className="preview-bubble-step-badge">Invii a seguire ({attachmentCount - 1} allegati)</span>
+                        </div>
+                        <div className="preview-attachments-mini-gallery">
+                          {rawAttachments.slice(1).map((att, idx) => (
+                            <div key={idx} className="preview-gallery-item">
+                              <span className={`preview-mini-badge badge-${(att.badge || 'doc').toLowerCase()}`}>
+                                {att.badge || 'DOC'}
+                              </span>
+                              <span className="preview-mini-name">{att.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {attachmentPosition === 'last' && (
+                    <>
+                      <div className="preview-bubble followup-media-bubble">
+                        <div className="preview-attachment-bubble-header">
+                          <span className="preview-bubble-step-badge">1° Invio ({attachmentCount - 1} allegati)</span>
+                        </div>
+                        <div className="preview-attachments-mini-gallery">
+                          {rawAttachments.slice(0, attachmentCount - 1).map((att, idx) => (
+                            <div key={idx} className="preview-gallery-item">
+                              <span className={`preview-mini-badge badge-${(att.badge || 'doc').toLowerCase()}`}>
+                                {att.badge || 'DOC'}
+                              </span>
+                              <span className="preview-mini-name">{att.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="preview-bubble has-attached-media">
+                        <div className="preview-attachment-bubble-header">
+                          <span className="preview-bubble-step-badge">Ultimo Invio (con didascalia)</span>
+                        </div>
+                        {renderAttachmentPreviewMedia(rawAttachments[attachmentCount - 1])}
+                        <p className="preview-text-content">
+                          {previewMessage(message, activePreviewDonor) || 'Scrivi un messaggio per vedere l’anteprima…'}
+                        </p>
+                      </div>
+                    </>
+                  )}
+
+                  {attachmentPosition === 'separate' && (
+                    <>
+                      <div className="preview-bubble followup-media-bubble">
+                        <div className="preview-attachment-bubble-header">
+                          <span className="preview-bubble-step-badge">1° Invio ({attachmentCount} allegati in sequenza)</span>
+                        </div>
+                        <div className="preview-attachments-mini-gallery">
+                          {rawAttachments.map((att, idx) => (
+                            <div key={idx} className="preview-gallery-item">
+                              <span className={`preview-mini-badge badge-${(att.badge || 'doc').toLowerCase()}`}>
+                                {att.badge || 'DOC'}
+                              </span>
+                              <span className="preview-mini-name">{att.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="preview-bubble">
+                        <div className="preview-attachment-bubble-header">
+                          <span className="preview-bubble-step-badge">2° Invio (messaggio separato)</span>
+                        </div>
+                        <p className="preview-text-content">
+                          {previewMessage(message, activePreviewDonor) || 'Scrivi un messaggio per vedere l’anteprima…'}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -351,47 +514,235 @@ export default function StepComposer({
         <div className="composer-side-column">
           {/* Attachment Box */}
           <div className="panel composer-attachment-panel">
-            <span className="eyebrow">Allegato multimediale</span>
-            <h3>Foto opzionale</h3>
+            <div className="panel-header-with-badge">
+              <div>
+                <span className="eyebrow">Allegato opzionale</span>
+                <h3>{attachmentCount > 1 ? `Allegati (${attachmentCount})` : 'Foto, Video, Audio o Documento'}</h3>
+              </div>
+              {attachmentCount > 1 && (
+                <span className={`attachment-total-badge ${isHeavyTotal ? 'is-warning' : ''}`} title={isHeavyTotal ? 'Attenzione: peso complessivo elevato (>50 MB)' : undefined}>
+                  Totale: {formatFileSize(totalAttachmentBytes)} {isHeavyTotal && '⚠️'}
+                </span>
+              )}
+            </div>
             <p className="muted" style={{ margin: '6px 0 12px' }}>
-              Verrà inviata con il testo del messaggio come didascalia.
+              {attachmentCount > 1
+                ? 'I file verranno inviati in sequenza ai destinatari WhatsApp.'
+                : 'Verrà inviato insieme al messaggio WhatsApp (con didascalia ove supportata).'}
             </p>
 
-            {state.imageName ? (
-              <div className="attachment-card-active">
-                {state.imageDataUrl && (
-                  <img src={state.imageDataUrl} alt="Anteprima allegato" className="attachment-thumbnail" />
-                )}
-                <div className="attachment-active-details">
-                  <strong title={state.imagePath}>{state.imageName}</strong>
-                  <div className="attachment-active-buttons">
-                    {state.imagePath && (
-                      <button
-                        type="button"
-                        className="open-file-btn"
-                        onClick={() => api?.showItemInFolder?.(state.imagePath)}
-                      >
-                        📁 Mostra
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="remove-attachment"
-                      onClick={() => call(() => api.clearImage())}
-                    >
-                      Rimuovi
-                    </button>
-                  </div>
-                </div>
+            {isHeavyTotal && (
+              <div className="attachment-heavy-warning">
+                ⚠️ <strong>Attenzione:</strong> Il peso complessivo degli allegati supera i 50 MB. L’invio potrebbe richiedere più tempo; assicurati di avere una connessione internet stabile.
               </div>
-            ) : (
+            )}
+
+            {attachmentCount === 0 && (
               <button
                 type="button"
                 className="button button-secondary full"
                 onClick={() => call(() => api.selectImage())}
               >
-                <span>▧</span> Seleziona foto (JPG, PNG)
+                <span>📎</span> Seleziona allegato (tutti i file)
               </button>
+            )}
+
+            {attachmentCount === 1 && (
+              <div className="single-attachment-wrapper">
+                <div className="attachment-card-active">
+                  {rawAttachments[0].dataUrl ? (
+                    <img src={rawAttachments[0].dataUrl} alt="Anteprima allegato" className="attachment-thumbnail" />
+                  ) : (
+                    <div className={`attachment-doc-thumbnail thumb-${(rawAttachments[0].badge || 'doc').toLowerCase()}`}>
+                      <span className="doc-thumbnail-icon">{getAttachmentIcon(rawAttachments[0].badge, rawAttachments[0].type)}</span>
+                      <span className="doc-thumbnail-badge">{rawAttachments[0].badge || 'DOC'}</span>
+                    </div>
+                  )}
+                  <div className="attachment-active-details">
+                    <strong title={rawAttachments[0].path}>{rawAttachments[0].name}</strong>
+                    {rawAttachments[0].size > 0 && (
+                      <span className="attachment-size-note">{formatFileSize(rawAttachments[0].size)}</span>
+                    )}
+                    <div className="attachment-active-buttons">
+                      {rawAttachments[0].path && (
+                        <button
+                          type="button"
+                          className="open-file-btn"
+                          onClick={() => api?.showItemInFolder?.(rawAttachments[0].path)}
+                        >
+                          📁 Mostra
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="remove-attachment"
+                        onClick={() => call(() => api.clearImage())}
+                      >
+                        Rimuovi
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="button button-secondary full add-more-attachments-btn"
+                  style={{ marginTop: '10px' }}
+                  onClick={() => call(() => api.selectImage())}
+                >
+                  <span>➕</span> Aggiungi un altro file
+                </button>
+              </div>
+            )}
+
+            {attachmentCount > 1 && (
+              <div className="multi-attachments-wrapper">
+                <div className="multi-attachments-list">
+                  {rawAttachments.map((att, idx) => (
+                    <div key={`${att.path || att.name}-${idx}`} className="multi-attachment-item">
+                      <div className="multi-attachment-reorder">
+                        <button
+                          type="button"
+                          className="reorder-btn"
+                          disabled={idx === 0}
+                          onClick={() => call(() => api.reorderAttachments(idx, idx - 1))}
+                          title="Sposta su"
+                          aria-label={`Sposta su ${att.name}`}
+                        >
+                          ▲
+                        </button>
+                        <span className="attachment-index">{idx + 1}</span>
+                        <button
+                          type="button"
+                          className="reorder-btn"
+                          disabled={idx === rawAttachments.length - 1}
+                          onClick={() => call(() => api.reorderAttachments(idx, idx + 1))}
+                          title="Sposta giù"
+                          aria-label={`Sposta giù ${att.name}`}
+                        >
+                          ▼
+                        </button>
+                      </div>
+
+                      {att.dataUrl ? (
+                        <img src={att.dataUrl} alt="" className="multi-attachment-thumb" />
+                      ) : (
+                        <div className={`multi-attachment-doc-badge badge-${(att.badge || 'doc').toLowerCase()}`}>
+                          {att.badge || 'DOC'}
+                        </div>
+                      )}
+
+                      <div className="multi-attachment-info">
+                        <span className="multi-attachment-name" title={att.path || att.name}>
+                          {att.name}
+                        </span>
+                        <span className="multi-attachment-size">
+                          {formatFileSize(att.size)}
+                        </span>
+                      </div>
+
+                      <div className="multi-attachment-actions">
+                        {att.path && (
+                          <button
+                            type="button"
+                            className="icon-action-btn"
+                            onClick={() => api?.showItemInFolder?.(att.path)}
+                            title="Mostra nella cartella"
+                          >
+                            📁
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="icon-action-btn remove-btn"
+                          onClick={() => call(() => api.removeAttachment(idx))}
+                          title="Rimuovi allegato"
+                          aria-label={`Rimuovi ${att.name}`}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="multi-attachments-bar">
+                  <button
+                    type="button"
+                    className="button button-secondary button-sm"
+                    onClick={() => call(() => api.selectImage())}
+                  >
+                    <span>➕</span> Aggiungi file
+                  </button>
+                  <button
+                    type="button"
+                    className="link-btn-danger"
+                    onClick={() => call(() => api.clearImage())}
+                  >
+                    Rimuovi tutti
+                  </button>
+                </div>
+
+                <div className="attachment-position-container">
+                  <div className="position-label-header">
+                    <span className="eyebrow">Posizione messaggio</span>
+                    <span className="position-sublabel">Scegli come associare il testo:</span>
+                  </div>
+
+                  <div className="position-options-grid">
+                    <label
+                      className={`position-option-card ${attachmentPosition === 'first' ? 'selected' : ''}`}
+                      onClick={() => call(() => api.setAttachmentPosition('first'))}
+                    >
+                      <input
+                        type="radio"
+                        name="attachmentPosition"
+                        value="first"
+                        checked={attachmentPosition === 'first'}
+                        onChange={() => {}}
+                      />
+                      <div className="position-option-text">
+                        <strong>Didascalia 1° allegato</strong>
+                        <span className="muted">Testo sul primo file inviato</span>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`position-option-card ${attachmentPosition === 'last' ? 'selected' : ''}`}
+                      onClick={() => call(() => api.setAttachmentPosition('last'))}
+                    >
+                      <input
+                        type="radio"
+                        name="attachmentPosition"
+                        value="last"
+                        checked={attachmentPosition === 'last'}
+                        onChange={() => {}}
+                      />
+                      <div className="position-option-text">
+                        <strong>Didascalia ultimo allegato</strong>
+                        <span className="muted">Testo sull'ultimo file inviato</span>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`position-option-card ${attachmentPosition === 'separate' ? 'selected' : ''}`}
+                      onClick={() => call(() => api.setAttachmentPosition('separate'))}
+                    >
+                      <input
+                        type="radio"
+                        name="attachmentPosition"
+                        value="separate"
+                        checked={attachmentPosition === 'separate'}
+                        onChange={() => {}}
+                      />
+                      <div className="position-option-text">
+                        <strong>Messaggio a parte</strong>
+                        <span className="muted">Tutti gli allegati, poi il messaggio</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
 

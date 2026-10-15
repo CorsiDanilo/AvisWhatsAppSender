@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ATTACHMENT_DIRECTORY = 'preset-attachments';
-const SUPPORTED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png']);
+const { SUPPORTED_EXTENSIONS } = require('./media');
 
 function normalizePresetAttachment(attachment) {
   if (!attachment || typeof attachment !== 'object') return null;
@@ -35,7 +35,7 @@ function resolvePresetAttachment(userDataPath, attachment) {
 function copyPresetAttachment(sourcePath, userDataPath) {
   const fileName = path.basename(String(sourcePath || '').trim());
   const extension = path.extname(fileName).toLowerCase();
-  if (!SUPPORTED_EXTENSIONS.has(extension)) throw new Error('Formato allegato non supportato. Usa JPG, JPEG o PNG.');
+  if (!SUPPORTED_EXTENSIONS.has(extension)) throw new Error('Formato allegato non supportato.');
   if (!fs.existsSync(sourcePath)) throw new Error('L’allegato selezionato non esiste più.');
 
   const storedFileName = `${crypto.randomUUID()}${extension}`;

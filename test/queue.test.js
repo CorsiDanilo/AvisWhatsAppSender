@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { SendQueue } = require('../sender/queue');
 
-test('SendQueue mette in pausa e conserva come unknown un timeout di consegna', async () => {
+test('SendQueue non mette in pausa sui timeout e marca il destinatario come failed continuando l’invio', async () => {
   const donors = [
     { name: 'Uno', phone: '1', valid: true, status: 'pending' },
     { name: 'Due', phone: '2', valid: true, status: 'pending' },
@@ -14,10 +14,11 @@ test('SendQueue mette in pausa e conserva come unknown un timeout di consegna', 
     render: (donor) => donor.name,
     send: async () => {
       calls += 1;
-      if (calls > 1) return;
-      const error = new Error('Esito non confermato');
-      error.code = 'SEND_TIMEOUT';
-      throw error;
+      if (calls === 1) {
+        const error = new Error('Timeout di consegna');
+        error.code = 'SEND_TIMEOUT';
+        throw error;
+      }
     },
     minDelayMs: 0,
     maxDelayMs: 0,
@@ -25,35 +26,58 @@ test('SendQueue mette in pausa e conserva come unknown un timeout di consegna', 
   });
   queue.on('log', (message) => logs.push(message));
 
-  const run = queue.start();
-  await new Promise((resolve) => setImmediate(resolve));
+  await queue.start();
 
-  assert.equal(queue.state, 'paused');
-  assert.equal(queue.pauseReason, 'send-uncertain');
-  assert.equal(donors[0].status, 'unknown');
-  assert.equal(donors[1].status, 'pending');
-  assert.equal(calls, 1);
-
-  queue.pause('connection:whatsapp.reconnecting');
-  assert.equal(queue.pauseReason, 'send-uncertain');
-
-  queue.resume();
-  await run;
-
+  assert.equal(queue.state, 'completed');
+  assert.equal(donors[0].status, 'failed');
+  assert.equal(donors[0].error, 'Timeout di consegna');
   assert.equal(donors[1].status, 'sent');
   assert.equal(calls, 2);
-  assert.ok(logs.every((message) => !message.includes('Uno') && !message.includes('Due')));
+  assert.ok(logs.some((msg) => msg.includes('Invio non riuscito')));
+  assert.ok(logs.some((msg) => msg.includes('Messaggio inviato a WhatsApp per il destinatario 2/2')));
 });
 
-test('SendQueue tratta come unknown anche un errore di invio avvenuto durante la disconnessione', async () => {
-  const donor = { name: 'Uno', phone: '1', valid: true, status: 'pending' };
+test('SendQueue marca come failed qualsiasi errore di invio o conferma mancante e completa la sessione', async () => {
+  const donors = [
+    { name: 'Uno', phone: '1', valid: true, status: 'pending' },
+    { name: 'Due', phone: '2', valid: true, status: 'pending' },
+  ];
   const queue = new SendQueue({
-    items: [donor],
+    items: donors,
+    render: () => 'messaggio',
+    send: async (donor) => {
+      if (donor.name === 'Uno') {
+        const error = new Error('WhatsApp non ha confermato l’invio del messaggio.');
+        error.code = 'SEND_NOT_CONFIRMED';
+        throw error;
+      }
+    },
+    minDelayMs: 0,
+    maxDelayMs: 0,
+    pauseAfter: 0,
+  });
+
+  await queue.start();
+
+  assert.equal(queue.state, 'completed');
+  assert.equal(donors[0].status, 'failed');
+  assert.equal(donors[1].status, 'sent');
+});
+
+test('SendQueue consente la pausa e la ripresa manuale dell’operatore', async () => {
+  const donors = [
+    { name: 'Uno', phone: '1', valid: true, status: 'pending' },
+    { name: 'Due', phone: '2', valid: true, status: 'pending' },
+  ];
+  let calls = 0;
+  const queue = new SendQueue({
+    items: donors,
     render: () => 'messaggio',
     send: async () => {
-      const error = new Error('Connessione chiusa');
-      error.code = 'SEND_UNCERTAIN';
-      throw error;
+      calls += 1;
+      if (calls === 1) {
+        queue.pause('operator');
+      }
     },
     minDelayMs: 0,
     maxDelayMs: 0,
@@ -62,32 +86,38 @@ test('SendQueue tratta come unknown anche un errore di invio avvenuto durante la
 
   const run = queue.start();
   await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(donor.status, 'unknown');
-  assert.equal(queue.pauseReason, 'send-uncertain');
+  assert.equal(queue.state, 'paused');
+  assert.equal(queue.pauseReason, 'operator');
+  assert.equal(calls, 1);
+
   queue.resume();
   await run;
+  assert.equal(queue.state, 'completed');
+  assert.equal(calls, 2);
+  assert.equal(donors[0].status, 'sent');
+  assert.equal(donors[1].status, 'sent');
 });
 
-test('SendQueue tratta come unknown una conferma mancante', async () => {
-  const donor = { name: 'Uno', phone: '1', valid: true, status: 'pending' };
+test('SendQueue salta i destinatari non validi marcandoli come skipped e completa la coda', async () => {
+  const donors = [
+    { name: 'Invalido', phone: 'abc', valid: false, status: 'pending' },
+    { name: 'Valido', phone: '393331112233', valid: true, status: 'pending' },
+  ];
+  let calls = 0;
   const queue = new SendQueue({
-    items: [donor],
-    render: () => 'messaggio',
+    items: donors,
+    render: (donor) => donor.name,
     send: async () => {
-      const error = new Error('WhatsApp non ha confermato l’invio del messaggio.');
-      error.code = 'SEND_NOT_CONFIRMED';
-      throw error;
+      calls += 1;
     },
     minDelayMs: 0,
     maxDelayMs: 0,
     pauseAfter: 0,
   });
 
-  const run = queue.start();
-  await new Promise((resolve) => setImmediate(resolve));
-
-  assert.equal(donor.status, 'unknown');
-  assert.equal(queue.pauseReason, 'send-uncertain');
-  queue.resume();
-  await run;
+  await queue.start();
+  assert.equal(queue.state, 'completed');
+  assert.equal(donors[0].status, 'skipped');
+  assert.equal(donors[1].status, 'sent');
+  assert.equal(calls, 1);
 });

@@ -107,9 +107,17 @@ test('keeps only safe attachment metadata when normalizing a preset', () => {
     fileName: 'auguri.png',
     relativePath: 'preset-attachments/id.png',
   });
+  assert.deepEqual(normalizePreset({
+    name: 'Convocazione',
+    message: 'Ciao',
+    attachment: { fileName: 'file.pdf', relativePath: 'preset-attachments/file.pdf' },
+  }).attachment, {
+    fileName: 'file.pdf',
+    relativePath: 'preset-attachments/file.pdf',
+  });
   assert.equal(normalizePreset({
     name: 'Senza allegato',
     message: 'Ciao',
-    attachment: { fileName: 'file.pdf', relativePath: 'preset-attachments/file.pdf' },
+    attachment: { fileName: 'file.exe', relativePath: 'preset-attachments/file.exe' },
   }).attachment, null);
 });
