@@ -30,6 +30,12 @@ Importante aggiornamento che introduce il supporto completo all'invio di allegat
 - **Gestione Intelligente Audio su WhatsApp Web**: fallback automatico a messaggio separato se il file designato per la didascalia è una nota audio, rispettando i vincoli tecnici della piattaforma.
 - **Pausa Tecnica Sequenziale MMS**: intermezzo di sicurezza di 1.5 secondi tra gli allegati dello stesso destinatario per assicurare il corretto upload dei media su WhatsApp Web prima del successivo invio.
 
+### Fixed
+
+- **Warning Bundle Vite / Rolldown**: configurato `chunkSizeWarningLimit: 1000` in `vite.config.js` della GUI per eliminare i warning sui chunk compilati superiori a 500 kB durante la build di produzione.
+- **Chiamate di Stato React (oxlint)**: risolti i warning del linter su `set-state-in-effect` in `App.jsx` e `SettingsModal.jsx` separando il caricamento asincrono iniziale dello stato di connessione e delle impostazioni.
+- **Ripristino e Pulizia Stato Allegati**: azzeramento completo dell'array degli allegati e delle relative miniature/dati persistiti al reset della sessione o cambio modello.
+
 Full Changelog: [https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.2.1...v1.3.0](https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.2.1...v1.3.0)
 
 ---
