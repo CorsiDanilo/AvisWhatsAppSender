@@ -9,6 +9,13 @@ test('toUserError traduce il timeout WhatsApp in un messaggio semplice', async (
   );
 });
 
+test('toUserError non confonde un rifiuto SMTP Gmail con WhatsApp', async () => {
+  const { toUserError } = await import('../gui/src/errorMessage.js');
+  const message = toUserError(new Error('Invalid login: 534 5.7.9 Application-specific password required'));
+  assert.match(message, /Gmail|e-mail|password per app/i);
+  assert.doesNotMatch(message, /WhatsApp non ha risposto/i);
+});
+
 test('toUserError riconosce il timeout di Puppeteer durante il caricamento WhatsApp Web', async () => {
   const { toUserError } = await import('../gui/src/errorMessage.js');
   assert.equal(

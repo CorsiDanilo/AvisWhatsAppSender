@@ -161,7 +161,7 @@ export default function Guide({ onClose, onStartTutorial }) {
             <li>Anteprima finale del messaggio e della foto allegata.</li>
             <li>Parametri del ritmo e durata stimata dell’invio.</li>
             <li>Pulsanti <strong>“✏️ Modifica”</strong> per tornare rapidamente allo Step desiderato e modificare i dati.</li>
-            <li><strong>Destinatari del report WhatsApp:</strong> chip interattivi per attivare o disattivare i numeri configurati in <strong>Impostazioni → Generali</strong> che riceveranno il resoconto di fine sessione. Puoi anche aggiungere un numero al volo direttamente dallo Step 3.</li>
+            <li><strong>Destinatari del report:</strong> in <strong>Impostazioni → Comunicazioni</strong> scegli se inviarlo via WhatsApp, e-mail, entrambi i canali oppure non inviarlo. Le rubriche WhatsApp e e-mail del report sono separate da quella per emergenze e log.</li>
             <li><strong>Azione per il PC al termine:</strong> menù a discesa per scegliere se lasciare il PC acceso, sospenderlo, ibernarlo o spegnerlo al termine della sessione (valido solo per quell’invio).</li>
           </ul>
 
@@ -207,8 +207,8 @@ export default function Guide({ onClose, onStartTutorial }) {
             <li>Attivare o disattivare le <strong>notifiche Windows</strong>.</li>
             <li>Configurare l’<strong>avvio automatico con Windows</strong>.</li>
             <li>Impostare l’<strong>azione post-invio predefinita</strong> per il PC (spegnimento, ibernazione, sospensione o nessuna azione).</li>
-            <li>Gestire la <strong>rubrica dei destinatari del report WhatsApp</strong>: aggiungi numeri con etichetta (es. Presidente, Segreteria) che riceveranno automaticamente il resoconto a fine sessione.</li>
-            <li>Preparare un log diagnostico da inviare allo sviluppatore tramite Gmail, client di posta Windows oppure appunti.</li>
+            <li>Gestire la sezione <strong>Comunicazioni</strong>: seleziona il canale del report di fine invio e le sue rubriche dedicate WhatsApp ed e-mail, separate dai destinatari di emergenze e log.</li>
+            <li>Preparare un log diagnostico da inviare allo sviluppatore tramite Gmail oppure copiarlo negli appunti.</li>
           </ul>
           <p>
             Dalla scheda <strong>Cartelle e Archiviazione</strong> puoi:

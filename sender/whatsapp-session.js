@@ -13,6 +13,7 @@ function createWhatsAppSessionController({
   notify = () => {},
   onClientCreated = () => {},
   onFailure = () => {},
+  onConnectionLost = async () => {},
 } = {}) {
   if (typeof createClient !== 'function') throw new TypeError('createClient deve essere una funzione.');
 
@@ -36,7 +37,6 @@ function createWhatsAppSessionController({
 
   function pauseForConnection(reason) {
     pauseQueue(reason);
-    audit('warn', 'queue.auto_paused_on_connection_issue', { reason });
   }
 
   function current(candidate) {
@@ -77,13 +77,14 @@ function createWhatsAppSessionController({
       notify('WhatsApp collegato', 'WhatsApp è collegato e pronto per l’invio dei messaggi.');
     });
 
-    candidate.on('auth_failure', (message) => {
+    candidate.on('auth_failure', async (message) => {
       if (!current(candidate)) return;
       clientReady = false;
       transition('error');
       audit('error', 'whatsapp.auth_failure', { message: String(message) });
       pauseForConnection('auth-failure');
       notify('Errore WhatsApp', 'La sessione WhatsApp non è stata autenticata.');
+      await onConnectionLost('auth-failure');
     });
 
     candidate.on('disconnected', async (reason) => {
@@ -114,11 +115,16 @@ function createWhatsAppSessionController({
       if (!wasDisconnected) {
         notify('WhatsApp disconnesso', 'La sessione WhatsApp è stata disconnessa.');
       }
+      await onConnectionLost(`disconnected:${reasonStr}`);
       if (/logout/i.test(reasonStr)) {
         try {
-          await sessionResetter();
-          audit('info', 'whatsapp.session_cleared_on_logout');
-          log('Sessione WhatsApp rimossa a seguito di disconnessione (logout).');
+          const cleared = await sessionResetter();
+          if (cleared === false) {
+            audit('warn', 'whatsapp.session_clear_on_logout_failed');
+          } else {
+            audit('info', 'whatsapp.session_cleared_on_logout');
+            log('Sessione WhatsApp rimossa a seguito di disconnessione (logout).');
+          }
         } catch (error) {
           audit('warn', 'whatsapp.session_clear_on_logout_failed', { error: error?.message || String(error) });
         }

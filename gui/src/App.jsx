@@ -12,6 +12,7 @@ import StepSummary from './components/StepSummary'
 import SendingDashboard from './components/SendingDashboard'
 import BirthdayCenter from './components/BirthdayCenter'
 import NotificationCenter from './components/NotificationCenter'
+import EmailSetupPrompt from './components/EmailSetupPrompt'
 import { toUserError } from './errorMessage'
 import avisLogo from './assets/avis-logo.png'
 import { WelcomeModal, TutorialDock } from './components/InteractiveTutorial'
@@ -124,6 +125,7 @@ const [showBirthdayCenter, setShowBirthdayCenter] = useState(false)
   const [hasAutoOpenedUpdate, setHasAutoOpenedUpdate] = useState(false)
   const [showReportModal, setShowReportModal] = useState(false)
   const [reportContext, setReportContext] = useState('')
+  const [showEmailSetupPrompt, setShowEmailSetupPrompt] = useState(false)
 
   // Tutorial & Simulation states
   const [showWelcomeModal, setShowWelcomeModal] = useState(() => {
@@ -148,6 +150,14 @@ const [showBirthdayCenter, setShowBirthdayCenter] = useState(false)
       .getState()
       .then((next) => {
         setState(next)
+        const configuredProviders = next.emailCredentialsByProvider && typeof next.emailCredentialsByProvider === 'object'
+          ? next.emailCredentialsByProvider
+          : {}
+        const hasAnyConfiguredProvider = Object.values(configuredProviders).some((configured) => configured === true)
+          || next.emailCredentialsConfigured === true
+        if (!hasAnyConfiguredProvider) {
+          setShowEmailSetupPrompt(true)
+        }
         if (next.settings) {
           setOptions((prev) => ({
             ...prev,
@@ -480,6 +490,8 @@ if (!api?.onOpenBirthdays) return undefined
         api.start({
           ...options,
           reportRecipients: sessionReportRecipients.filter((r) => r && r.enabled !== false),
+          reportDeliveryMode: state.settings?.reportDeliveryMode || 'none',
+          reportEmailRecipients: state.settings?.reportEmailRecipients || [],
           postSessionAction: options.postSessionAction || state.settings?.postSessionAction || 'none',
           pauseMs: options.pauseMinutes * 60 * 1000,
           message,
@@ -1013,6 +1025,17 @@ if (!api?.onOpenBirthdays) return undefined
           setShowGuide(true)
         }}
       />
+
+      {showEmailSetupPrompt && (
+        <EmailSetupPrompt
+          onConfigure={() => {
+            setShowEmailSetupPrompt(false)
+            setSettingsTab('general')
+            setShowSettings(true)
+          }}
+          onClose={() => setShowEmailSetupPrompt(false)}
+        />
+      )}
 
       <QrModal
         isOpen={showQrModal}

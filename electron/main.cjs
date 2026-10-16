@@ -9,8 +9,9 @@ const {
   nativeImage,
   shell,
   clipboard,
+  safeStorage,
 } = require('electron');
-const { execFileSync } = require('node:child_process');
+const { execFile, execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -91,6 +92,15 @@ const {
   truncateDiagnosticText,
 } = require('../sender/whatsappDiagnostics');
 const { createPostSessionManager } = require('../sender/post-session');
+const { createConnectionFailsafe } = require('../sender/connection-failsafe');
+const { createWindowsShutdownScheduler } = require('../sender/windows-shutdown');
+const { createEmailCredentialsStore } = require('../sender/email-credentials');
+const { createEmailNotifier } = require('../sender/email-notifier');
+const {
+  notificationContextForChannel,
+  notificationErrorBody,
+} = require('../sender/notification-errors');
+const { prepareSessionAttachments } = require('../sender/session-attachments');
 const { handleWindowClose, showWindow } = require('../sender/window-lifecycle');
 const packageInfo = require('../package.json');
 const APP_VERSION = packageInfo.version || app.getVersion();
@@ -155,6 +165,8 @@ const state = {
   userDataDir: '',
   lastOutcomeDir: '',
   postSessionCountdown: null,
+  emailCredentialsConfigured: false,
+  emailCredentialsByProvider: { gmail: false },
   notifications: {
     items: [],
     unreadCount: 0,
@@ -320,20 +332,6 @@ function logError(message, error, details = {}) {
   publish();
 }
 
-function notificationErrorBody(error, context = 'generic') {
-  const message = String(error?.message || error || '').toLowerCase();
-  if (context === 'whatsapp' || /whatsapp|auth|qr|browser|puppeteer|timeout/.test(message)) {
-    return 'WhatsApp non ha risposto correttamente. Controlla la connessione e riprova a generare il QR code.';
-  }
-  if (context === 'import' || /csv|excel|xlsx|xls|foglio|file|colonna|parse|enoent/.test(message)) {
-    return 'Impossibile importare i dati. Verifica il file e le colonne selezionate.';
-  }
-  if (context === 'update' || /update|updater|download|repository|release/.test(message)) {
-    return 'Impossibile completare l’aggiornamento. Controlla la connessione internet e riprova.';
-  }
-  return 'Si è verificato un errore. Controlla l’applicazione e riprova.';
-}
-
 function showMainWindow() {
   return showWindow(mainWindow, () => {
     checkBirthdays({ force: true, notify: false }).catch((error) => {
@@ -384,6 +382,22 @@ function notifyUser(title, body, options = {}) {
   }
 }
 
+const windowsShutdown = createWindowsShutdownScheduler({ execFile });
+const emailCredentialsStore = createEmailCredentialsStore({
+  filePath: path.join(app.getPath('userData'), 'gmail-credentials.json'),
+  safeStorage,
+});
+
+function refreshEmailCredentialState() {
+  const providers = emailCredentialsStore.configuredProviders();
+  state.emailCredentialsByProvider = providers;
+  state.emailCredentialsConfigured = providers.gmail === true;
+}
+
+const emailNotifier = createEmailNotifier({
+  getConfig: () => state.settings,
+  getPassword: (provider) => emailCredentialsStore.load(provider),
+});
 const postSessionManager = createPostSessionManager({
   log,
   logError,
@@ -393,7 +407,66 @@ const postSessionManager = createPostSessionManager({
   getState: () => state,
   getClient: () => client,
   isReady: () => clientReady && state.connection === 'ready',
+  emailNotifier,
 });
+const connectionFailsafe = createConnectionFailsafe({
+  getState: () => state,
+  scheduleShutdown: (seconds) => {
+    windowsShutdown.schedule(seconds).catch((error) => logError('connection_failsafe.shutdown_schedule_failed', error));
+  },
+  cancelShutdown: () => {
+    windowsShutdown.cancel().catch((error) => logError('connection_failsafe.shutdown_cancel_failed', error));
+  },
+  saveOutcome: (reason, summary) => writeOutcome(reason, summary),
+  notifyEmergency: (incident) => emailNotifier.sendEmergency(incident),
+  audit,
+  publish,
+});
+
+function handleConnectionLost(reason) {
+  if (!queue || !activeSession || !['running', 'paused'].includes(state.queue)) return;
+  connectionFailsafe.arm(reason).catch((error) => logError('connection_failsafe.arm_failed', error, { reason }));
+}
+
+function saveEmailPassword(password) {
+  const address = state.settings?.emailAddresses?.gmail || state.settings?.gmailAddress || '';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(address || '').trim())) {
+    throw new Error('Inserisci prima un indirizzo e-mail Gmail valido.');
+  }
+  if (typeof password !== 'string' || password.trim().length < 8) {
+    throw new Error('Inserisci una password per app valida.');
+  }
+  emailCredentialsStore.save(password, 'gmail');
+  refreshEmailCredentialState();
+  audit('info', 'email.credentials_saved', { provider: 'gmail' });
+  return snapshot();
+}
+
+function saveGmailPassword(password) {
+  return saveEmailPassword(password);
+}
+
+function clearGmailPassword() {
+  emailCredentialsStore.clear('gmail');
+  saveRhythm({ gmailAddress: '' });
+  refreshEmailCredentialState();
+  audit('info', 'email.credentials_cleared', { provider: 'gmail' });
+  return snapshot();
+}
+
+async function sendEmailTest(recipient) {
+  const target = String(recipient || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) throw new Error('Inserisci un indirizzo e-mail valido per il test.');
+  await emailNotifier.sendDeveloperLog({
+    to: target,
+    subject: 'AVIS WhatsApp Sender — Test e-mail',
+    text: 'Configurazione Gmail AVIS verificata correttamente.',
+    attachmentName: 'test.txt',
+    attachmentContent: 'Test di configurazione Gmail AVIS.',
+  });
+  audit('info', 'email.test_sent');
+  return { sent: true };
+}
 
 function syncNotificationState() {
   state.notifications = {
@@ -749,13 +822,6 @@ function setStoredNotificationRead(id, read) {
   return markStoredNotificationRead(id, read !== false);
 }
 
-function notificationContextForChannel(channel) {
-  if (/csv|donor|recipient/i.test(channel)) return 'import';
-  if (/connect|whatsapp/i.test(channel)) return 'whatsapp';
-  if (/update/i.test(channel)) return 'update';
-  return 'generic';
-}
-
 function setConnection(connection, qrDataUrl = '') {
   state.connection = connection;
   state.qrDataUrl = qrDataUrl;
@@ -839,7 +905,9 @@ async function clearWhatsAppSession() {
     }
   } catch (err) {
     audit('warn', 'whatsapp.session_cleanup_failed', errorDetails(err));
+    return false;
   }
+  return true;
 }
 
 whatsappController = createWhatsAppSessionController({
@@ -867,7 +935,9 @@ whatsappController = createWhatsAppSessionController({
       audit('warn', 'whatsapp.browser_snapshot_failed', errorDetails(snapshotError));
     });
     logError(failureEvent, error);
+    handleConnectionLost(`connection_failed:${failureEvent}`);
   },
+  onConnectionLost: handleConnectionLost,
 });
 whatsappController.setSessionResetter(clearWhatsAppSession);
 
@@ -1075,13 +1145,7 @@ function attachQueueListeners() {
     notifyUser('Invio completato', `${sent} inviati a WhatsApp, ${failed} falliti, ${skipped} saltati, ${unknown} da verificare.`);
     writeOutcome('completed', { sent, failed, skipped, unknown });
 
-    const hasReportRecipients = Array.isArray(activeSession?.reportRecipients)
-      ? activeSession.reportRecipients.some((r) => r.enabled !== false && r.phone)
-      : (state.settings?.reportRecipients || []).some((r) => r.enabled !== false && r.phone);
-
-    if (hasReportRecipients) {
-      await postSessionManager.sendSessionReports({ sent, failed, skipped, unknown, activeSession });
-    }
+    await postSessionManager.sendSessionReports({ sent, failed, skipped, unknown, activeSession });
     if (activeSession?.postSessionAction && activeSession.postSessionAction !== 'none') {
       postSessionManager.scheduleAction(activeSession.postSessionAction);
     }
@@ -1419,7 +1483,15 @@ function addDonor(input, customFieldKeys = []) {
 
 function saveRhythm(options = {}) {
   if (!settingsPath) throw new Error('Percorso impostazioni non disponibile.');
-  state.settings = saveSettings(settingsPath, { ...state.settings, ...options });
+  const mergedSettings = { ...state.settings, ...options };
+  if (Object.prototype.hasOwnProperty.call(options, 'gmailAddress')) {
+    mergedSettings.emailAddresses = {
+      ...(state.settings.emailAddresses || {}),
+      gmail: options.gmailAddress,
+    };
+  }
+  state.settings = saveSettings(settingsPath, mergedSettings);
+  refreshEmailCredentialState();
   log('Impostazioni aggiornate.');
   audit('info', 'settings.saved', state.settings);
   publish();
@@ -1543,6 +1615,20 @@ async function openPathInExplorer(targetPath) {
   return true;
 }
 
+async function openExternalUrlInBrowser(targetUrl) {
+  let parsed;
+  try {
+    parsed = new URL(String(targetUrl || ''));
+  } catch {
+    throw new Error('URL esterno non valido.');
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new Error('Sono consentiti solo collegamenti web esterni.');
+  }
+  await shell.openExternal(parsed.toString());
+  return { opened: true };
+}
+
 async function showItemInExplorer(filePath) {
   if (!filePath) return false;
   if (!fs.existsSync(filePath)) {
@@ -1627,6 +1713,18 @@ async function sendDeveloperReport(options = '') {
     clipboard.writeText(method === 'gmail' ? todayLogContent : reportText);
   } catch (err) {
     logError('clipboard.copy_failed', err);
+  }
+
+  if (method === 'gmail-smtp') {
+    await emailNotifier.sendDeveloperLog({
+      to: devEmail,
+      subject,
+      text: reportText,
+      attachmentName,
+      attachmentContent: todayLogContent || '(Nessun evento registrato nel file di log di oggi)',
+    });
+    audit('info', 'developer_report.sent_via_gmail');
+    return { success: true, email: devEmail, logPath: txtPath, method: 'gmail-smtp' };
   }
 
   let emlOpened = false;
@@ -1736,7 +1834,7 @@ async function startQueue(options = {}) {
     }
   }
 
-  const attachmentsToSend = [...selectedAttachments];
+  const attachmentsToSend = prepareSessionAttachments(selectedAttachments, app.getPath('userData'));
   const positionToSend = state.attachmentPosition || 'first';
   const unresolvedRecipients = state.donors.filter(
     (donor) => donor.selected !== false && donor.status === 'unknown',
@@ -1748,6 +1846,7 @@ async function startQueue(options = {}) {
   if (!selectedDonors.length) throw new Error('Seleziona almeno un destinatario.');
   state.settings = saveSettings(settingsPath, { ...state.settings, ...options });
   postSessionManager.cancelAction();
+  connectionFailsafe.cancel();
   activeSession = {
     presetName: String(options.presetName || 'Senza preset').trim() || 'Senza preset',
     message: currentMessage,
@@ -1758,6 +1857,10 @@ async function startQueue(options = {}) {
     reportRecipients: Array.isArray(options.reportRecipients)
       ? options.reportRecipients
       : (state.settings.reportRecipients || []),
+    reportDeliveryMode: options.reportDeliveryMode || state.settings.reportDeliveryMode || 'none',
+    reportEmailRecipients: Array.isArray(options.reportEmailRecipients)
+      ? options.reportEmailRecipients
+      : (state.settings.reportEmailRecipients || []),
     postSessionAction: options.postSessionAction || state.settings.postSessionAction || 'none',
     startedAt: new Date().toISOString(),
   };
@@ -1947,6 +2050,11 @@ registerHandler('sender:open-output-dir', openOutputDir);
 registerHandler('sender:open-last-outcome', openLastOutcomeDir);
 registerHandler('sender:open-logs-dir', openLogsDir);
 registerHandler('sender:send-developer-report', (errorContext) => sendDeveloperReport(errorContext));
+registerHandler('sender:save-gmail-password', (password) => saveGmailPassword(password));
+registerHandler('sender:clear-gmail-password', () => clearGmailPassword());
+registerHandler('sender:save-email-password', (password) => saveEmailPassword(password));
+registerHandler('sender:send-email-test', (recipient) => sendEmailTest(recipient));
+registerHandler('sender:open-external-url', (targetUrl) => openExternalUrlInBrowser(targetUrl));
 registerHandler('sender:open-user-data-dir', openUserDataDir);
 registerHandler('sender:open-path', (targetPath) => openPathInExplorer(targetPath));
 registerHandler('sender:show-item', (filePath) => showItemInExplorer(filePath));
@@ -1964,7 +2072,11 @@ registerHandler('sender:set-notification-read', (id, read) => setStoredNotificat
 registerHandler('sender:mark-all-notifications-read', () => markAllStoredNotificationsRead());
 registerHandler('sender:clear-all-notifications', () => clearAllStoredNotifications());
 registerHandler('sender:delete-notification', (id) => deleteStoredNotification(id));
-registerHandler('sender:cancel-post-action', () => postSessionManager.cancelAction());
+registerHandler('sender:cancel-post-action', () => {
+  const postSessionCancelled = postSessionManager.cancelAction();
+  const failsafeCancelled = connectionFailsafe.cancel();
+  return { cancelled: postSessionCancelled || failsafeCancelled, ...snapshot() };
+});
 
 function initUpdater() {
   autoUpdater.autoDownload = false;
@@ -2104,6 +2216,7 @@ app.whenReady().then(() => {
   birthdayStatePath = path.join(app.getPath('userData'), 'birthday-state.json');
   birthdayState = loadBirthdayState(birthdayStatePath);
   state.settings = loadSettings(settingsPath);
+  refreshEmailCredentialState();
   state.presets = loadPresets(presetsPath);
   state.defaultOutputDir = path.join(app.getPath('desktop'), 'AVIS WhatsApp Sender');
   state.defaultLogDir = path.join(app.getPath('userData'), 'logs');

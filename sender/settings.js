@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { normalizeEmailRecipients, normalizeEmailSettings } = require('./email-settings');
 
 const DEFAULT_SETTINGS = Object.freeze({
   minDelayMs: 20000,
@@ -15,10 +16,18 @@ const DEFAULT_SETTINGS = Object.freeze({
   birthdayEnabled: true,
   birthdaySourceFilePath: '',
   birthdayPresetName: 'Auguri di compleanno',
+  reportDeliveryMode: 'none',
   reportRecipients: Object.freeze([]),
+  reportEmailRecipients: Object.freeze([]),
+  emailNotificationsEnabled: false,
+  emailProvider: 'gmail',
+  gmailAddress: '',
+  emailAddresses: Object.freeze({ gmail: '' }),
+  emailRecipients: Object.freeze([]),
 });
 
 const POST_SESSION_ACTIONS = Object.freeze(['none', 'sleep', 'hibernate', 'shutdown']);
+const REPORT_DELIVERY_MODES = Object.freeze(['none', 'whatsapp', 'email', 'both']);
 
 const LIMITS = {
   minDelayMs: [0, 10 * 60 * 1000],
@@ -76,7 +85,17 @@ function reportRecipientsSetting(value, fallback = []) {
   return result;
 }
 
+function reportDeliveryModeSetting(value, reportRecipients) {
+  if (typeof value === 'string' && REPORT_DELIVERY_MODES.includes(value.trim().toLowerCase())) {
+    return value.trim().toLowerCase();
+  }
+  return Array.isArray(reportRecipients) && reportRecipients.some((recipient) => recipient.enabled !== false && recipient.phone)
+    ? 'whatsapp'
+    : DEFAULT_SETTINGS.reportDeliveryMode;
+}
+
 function normalizeSettings(settings = {}) {
+  const reportRecipients = reportRecipientsSetting(settings.reportRecipients, DEFAULT_SETTINGS.reportRecipients);
   const normalized = {
     minDelayMs: numberSetting(settings.minDelayMs, DEFAULT_SETTINGS.minDelayMs, LIMITS.minDelayMs),
     maxDelayMs: numberSetting(settings.maxDelayMs, DEFAULT_SETTINGS.maxDelayMs, LIMITS.maxDelayMs),
@@ -91,7 +110,10 @@ function normalizeSettings(settings = {}) {
     birthdayEnabled: booleanSetting(settings.birthdayEnabled, DEFAULT_SETTINGS.birthdayEnabled),
     birthdaySourceFilePath: stringSetting(settings.birthdaySourceFilePath, DEFAULT_SETTINGS.birthdaySourceFilePath),
     birthdayPresetName: stringSetting(settings.birthdayPresetName, DEFAULT_SETTINGS.birthdayPresetName),
-    reportRecipients: reportRecipientsSetting(settings.reportRecipients, DEFAULT_SETTINGS.reportRecipients),
+    reportDeliveryMode: reportDeliveryModeSetting(settings.reportDeliveryMode, reportRecipients),
+    reportRecipients,
+    reportEmailRecipients: normalizeEmailRecipients(settings.reportEmailRecipients),
+    ...normalizeEmailSettings(settings),
   };
   normalized.maxDelayMs = Math.max(normalized.minDelayMs, normalized.maxDelayMs);
   return normalized;
@@ -115,6 +137,7 @@ function saveSettings(filePath, settings) {
 module.exports = {
   DEFAULT_SETTINGS,
   POST_SESSION_ACTIONS,
+  REPORT_DELIVERY_MODES,
   loadSettings,
   saveSettings,
   normalizeSettings,

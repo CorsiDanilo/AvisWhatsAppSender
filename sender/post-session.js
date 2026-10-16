@@ -55,6 +55,7 @@ function createPostSessionManager({
   publish = () => {},
   getState = () => ({}),
   getClient = () => null,
+  emailNotifier = null,
   isReady = () => getState().connection === 'ready',
   reportSendTimeoutMs = 45000,
   execCommand = exec,
@@ -64,6 +65,55 @@ function createPostSessionManager({
   let interval = null;
 
   async function sendSessionReports({ sent, failed, skipped, unknown = 0, activeSession }) {
+    const reportState = getState();
+    const configuredRecipients = Array.isArray(activeSession?.reportRecipients)
+      ? activeSession.reportRecipients
+      : (reportState.settings?.reportRecipients || []);
+    const activeRecipients = configuredRecipients.filter((recipient) => recipient && recipient.enabled !== false && recipient.phone);
+    const configuredEmailRecipients = Array.isArray(activeSession?.reportEmailRecipients)
+      ? activeSession.reportEmailRecipients
+      : (reportState.settings?.reportEmailRecipients || []);
+    const activeEmailRecipients = configuredEmailRecipients
+      .filter((recipient) => recipient && recipient.enabled !== false && recipient.email)
+      .map((recipient) => recipient.email);
+    const configuredMode = activeSession?.reportDeliveryMode || reportState.settings?.reportDeliveryMode;
+    const reportDeliveryMode = ['none', 'whatsapp', 'email', 'both'].includes(configuredMode)
+      ? configuredMode
+      : (activeRecipients.length > 0 ? 'whatsapp' : 'none');
+
+    if (reportDeliveryMode === 'none') return;
+
+    if (reportDeliveryMode === 'email' || reportDeliveryMode === 'both') {
+      if (!emailNotifier || typeof emailNotifier.sendReport !== 'function') {
+        log('Impossibile inviare il riepilogo e-mail: servizio e-mail non disponibile.');
+      } else if (activeEmailRecipients.length === 0) {
+        log('Riepilogo e-mail non inviato: nessun destinatario attivo configurato.');
+      } else {
+        try {
+          await emailNotifier.sendReport({
+            recipients: activeEmailRecipients,
+            text: buildSelfReportMessage({
+              sent,
+              failed,
+              skipped,
+              unknown,
+              fileName: reportState.fileName || '',
+              presetName: activeSession?.presetName || '',
+              date: new Date(),
+              postSessionAction: activeSession?.postSessionAction || 'none',
+            }),
+          });
+          log(`Riepilogo inviato via e-mail a ${activeEmailRecipients.length} destinatario/i.`);
+          audit('info', 'post_session.email_report_sent', { recipients: activeEmailRecipients.length, sent, failed, skipped, unknown });
+        } catch (error) {
+          logError('post_session.email_report_failed', error, { recipients: activeEmailRecipients.length });
+          log(`Invio riepilogo e-mail non riuscito: ${redactDiagnosticText(error.message || error)}`);
+        }
+      }
+    }
+
+    if (reportDeliveryMode === 'email') return;
+
     const client = getClient();
     if (!client) {
       log('Impossibile inviare il riepilogo: client WhatsApp non disponibile.');
@@ -76,12 +126,6 @@ function createPostSessionManager({
       audit('warn', 'post_session.report_skipped_not_ready', { connection: currentState.connection });
       return;
     }
-    const configuredRecipients = Array.isArray(activeSession?.reportRecipients)
-      ? activeSession.reportRecipients
-      : (currentState.settings?.reportRecipients || []);
-
-    const activeRecipients = configuredRecipients.filter((r) => r && r.enabled !== false && r.phone);
-
     if (activeRecipients.length === 0) {
       return;
     }

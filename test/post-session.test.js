@@ -56,6 +56,54 @@ test('createPostSessionManager invia il messaggio ai numeri destinatari configur
   assert.ok(sentMessages[0].text.includes('Inviati a WhatsApp: *5*'));
 });
 
+test('createPostSessionManager invia il report via e-mail senza richiedere le notifiche di emergenza', async () => {
+  const delivered = [];
+  const manager = createPostSessionManager({
+    getState: () => ({ fileName: 'Test.csv', connection: 'disconnected' }),
+    emailNotifier: {
+      sendReport: async (message) => delivered.push(message),
+    },
+  });
+
+  await manager.sendSessionReports({
+    sent: 5,
+    failed: 1,
+    skipped: 0,
+    activeSession: {
+      presetName: 'Test Preset',
+      reportDeliveryMode: 'email',
+      reportEmailRecipients: [{ label: 'Segreteria', email: 'segreteria@avis.it', enabled: true }],
+    },
+  });
+
+  assert.equal(delivered.length, 1);
+  assert.deepEqual(delivered[0].recipients, ['segreteria@avis.it']);
+  assert.match(delivered[0].text, /Inviati a WhatsApp: \*5\*/);
+});
+
+test('createPostSessionManager continua con il report e-mail se WhatsApp non riesce', async () => {
+  const delivered = [];
+  const manager = createPostSessionManager({
+    getClient: () => ({ sendMessage: async () => { throw new Error('WhatsApp non disponibile'); } }),
+    getState: () => ({ connection: 'ready' }),
+    emailNotifier: { sendReport: async (message) => delivered.push(message) },
+  });
+
+  await manager.sendSessionReports({
+    sent: 1,
+    failed: 0,
+    skipped: 0,
+    activeSession: {
+      reportDeliveryMode: 'both',
+      reportRecipients: [{ label: 'Presidente', phone: '393331234567', enabled: true }],
+      reportEmailRecipients: [{ label: 'Segreteria', email: 'segreteria@avis.it', enabled: true }],
+    },
+  });
+
+  assert.equal(delivered.length, 1);
+  assert.deepEqual(delivered[0].recipients, ['segreteria@avis.it']);
+});
+
 test('createPostSessionManager non conferma il riepilogo quando WhatsApp non restituisce un messaggio', async () => {
   const logs = [];
   const errors = [];

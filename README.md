@@ -13,9 +13,9 @@ Applicazione desktop per le sezioni AVIS che permette di preparare e inviare com
 - Salva preset completi: testo, ritmo di invio e un allegato immagine opzionale (`.jpg`, `.jpeg`, `.png`). L'allegato viene copiato nell'area dati interna dell'app, quindi resta disponibile anche se il file originale viene spostato.
 - Mostra un'anteprima prima dell'invio e applica pause e ritardi configurabili tra i messaggi; il tempo rimanente stimato viene aggiornato in tempo reale durante la sessione.
 - Genera report di esito (`.xlsx` e report falliti) e log locali al termine di ogni sessione.
-- Invia automaticamente un resoconto di fine sessione (inviati, falliti, saltati, durata) via WhatsApp ai numeri configurati nella rubrica destinatari report.
+- Invia automaticamente un resoconto di fine sessione (inviati, falliti, saltati, durata) via WhatsApp, e-mail oppure entrambi i canali, con rubriche separate per il report e per gli avvisi di emergenza/log.
 - Automazione post-invio: spegni, iberna o sospendi automaticamente il PC al termine dell'invio, con un conto alla rovescia di 60 secondi annullabile prima dell'esecuzione.
-- Segnalazione rapida degli errori allo sviluppatore tramite Gmail, client di posta Windows o copia negli appunti, con log giornaliero disponibile per l'allegato.
+- Segnalazione rapida degli errori allo sviluppatore tramite Gmail configurato nell'app oppure copia negli appunti, con log giornaliero disponibile per l'allegato.
 - Ripristina la sessione WhatsApp dall'app per eliminare le credenziali locali e generare un nuovo QR code in caso di problemi di collegamento.
 - Controlla gli aggiornamenti da GitHub una volta all'avvio e su richiesta dell'operatore, con notifica, download e installazione guidata.
 
@@ -40,7 +40,7 @@ Le notifiche Windows possono essere attivate o disattivate in **Impostazioni →
 - le notifiche non lette mostrano un pallino rosso;
 - possono essere segnate come lette o non lette;
 - è possibile eliminare singole notifiche o svuotare completamente l'elenco con **Cancella tutte**;
-- in caso di anomalie, è possibile inviare i log giornalieri direttamente allo sviluppatore (`danilo.corsi@outlook.it`) con generazione automatica del file `.eml` e copia completa del report negli appunti.
+- in caso di anomalie, è possibile inviare i log giornalieri direttamente allo sviluppatore tramite Gmail oppure copiarli negli appunti (`danilo.corsi@outlook.it` è il destinatario predefinito, non il provider di invio).
 
 Nella sezione **Generali** delle Impostazioni è disponibile anche l'opzione per avviare AVIS WhatsApp Sender con Windows. Il controllo richiede che il file selezionato resti disponibile nel suo percorso.
 

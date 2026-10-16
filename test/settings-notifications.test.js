@@ -52,6 +52,24 @@ test('reportRecipients ha valore predefinito array vuoto e viene normalizzato', 
   assert.equal(normalized.reportRecipients[1].enabled, false);
 });
 
+test('conserva i destinatari del report e migra la precedente configurazione WhatsApp', () => {
+  const normalized = normalizeSettings({
+    reportRecipients: [{ label: 'Presidente', phone: '3331234567' }],
+    reportEmailRecipients: [{ label: 'Segreteria', email: 'segreteria@avis.it' }],
+  });
+
+  assert.equal(normalized.reportDeliveryMode, 'whatsapp');
+  assert.deepEqual(normalized.reportEmailRecipients, [{
+    id: 'email_0', label: 'Segreteria', email: 'segreteria@avis.it', enabled: true,
+  }]);
+});
+
+test('normalizza la modalita di consegna del report e scarta valori non validi', () => {
+  assert.equal(normalizeSettings({ reportDeliveryMode: 'both' }).reportDeliveryMode, 'both');
+  assert.equal(normalizeSettings({ reportDeliveryMode: 'email' }).reportDeliveryMode, 'email');
+  assert.equal(normalizeSettings({ reportDeliveryMode: 'sconosciuto' }).reportDeliveryMode, 'none');
+});
+
 test('loadSettings e saveSettings gestiscono filesystem, valori fuori limite e file corrotti', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'avis-settings-test-'));
   try {

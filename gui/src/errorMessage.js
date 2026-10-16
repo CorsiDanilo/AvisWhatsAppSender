@@ -24,6 +24,13 @@ export function toUserError(error, context = 'generic') {
     return 'WhatsApp non ha risposto in tempo. Riprova a generare il QR code.'
   }
 
+  if (/smtp|nodemailer|eauth|invalid login|5\.7\.3|5\.7\.9|application-specific|e-mail|email/.test(normalized)) {
+    if (/5\.7\.9|application-specific|authentication|invalid login|eauth/.test(normalized)) {
+      return 'Gmail ha rifiutato l’autenticazione SMTP. Verifica la password per app e riprova.'
+    }
+    return 'Invio e-mail non riuscito. Verifica la configurazione Gmail e riprova.'
+  }
+
   if (/auth timeout|auth_failure|authentication|whatsapp|qr code|qrcode|session|browser/.test(normalized)) {
     if (/auth_failure|authentication|non.*autoriz|unauthorized/.test(normalized)) {
       return 'WhatsApp non ha accettato la sessione. Riprova a collegarlo.'

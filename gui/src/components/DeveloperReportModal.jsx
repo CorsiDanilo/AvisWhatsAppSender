@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Globe, Mail, Copy, Check } from 'lucide-react'
+import { Mail, Copy, Check } from 'lucide-react'
 
 export default function DeveloperReportModal({ isOpen, onClose, errorContext, api }) {
   const [submitting, setSubmitting] = useState(false)
@@ -14,16 +14,12 @@ export default function DeveloperReportModal({ isOpen, onClose, errorContext, ap
       if (api?.sendDeveloperReport) {
         const result = await api.sendDeveloperReport({ errorContext, method })
         const deliveryMethod = result?.method || method
-        if (deliveryMethod === 'mailto') {
-          setStatusMessage('Client di posta aperto! Il log completo è stato copiato negli appunti e reso disponibile nella cartella dei log.')
+        if (deliveryMethod === 'gmail-smtp') {
+          setStatusMessage('Log inviato allo sviluppatore tramite Gmail AVIS.')
           return
         }
       }
-      if (method === 'gmail') {
-        setStatusMessage('Bozza Gmail aperta con il log completo. Allega manualmente il file di log evidenziato nella cartella dei log.')
-      } else if (method === 'eml') {
-        setStatusMessage('Client di posta avviato! La bozza contiene il file di log allegato.')
-      } else {
+      if (method === 'clipboard') {
         setStatusMessage('Tutti i dettagli sono stati copiati negli appunti e la cartella dei log è stata aperta.')
       }
     } catch {
@@ -56,48 +52,28 @@ export default function DeveloperReportModal({ isOpen, onClose, errorContext, ap
           </p>
 
           <div className="report-options-grid">
-            {/* Opzione 1: Gmail Web (Consigliato) */}
+            {/* Opzione 1: Gmail AVIS */}
             <button
               type="button"
               className="report-option-card report-option-recommended"
-              onClick={() => handleSelectMethod('gmail')}
+              onClick={() => handleSelectMethod('gmail-smtp')}
               disabled={submitting}
             >
               <div className="report-card-icon report-icon-gmail">
-                <Globe size={24} />
-              </div>
-              <div className="report-card-info">
-                <div className="report-card-title-row">
-                  <strong>Gmail (Browser Web)</strong>
-                  <span className="report-badge-recommended">Consigliato</span>
-                </div>
-                <p>
-                  Inserisce il log completo nella bozza Gmail. Il file di log viene aperto in Esplora Risorse e deve essere allegato manualmente.
-                </p>
-              </div>
-            </button>
-
-            {/* Opzione 2: Client di posta Windows */}
-            <button
-              type="button"
-              className="report-option-card"
-              onClick={() => handleSelectMethod('eml')}
-              disabled={submitting}
-            >
-              <div className="report-card-icon report-icon-mail">
                 <Mail size={24} />
               </div>
               <div className="report-card-info">
                 <div className="report-card-title-row">
-                  <strong>Client di Posta Windows</strong>
+                  <strong>Invia tramite Gmail AVIS</strong>
+                  <span className="report-badge-recommended">Consigliato</span>
                 </div>
                 <p>
-                  Apre l'applicazione di posta predefinita del computer (Outlook, Thunderbird, Posta) con il file di log già allegato.
+                  Invia direttamente allo sviluppatore il report e il log giornaliero allegato.
                 </p>
               </div>
             </button>
 
-            {/* Opzione 3: Copia negli appunti & Apri cartella */}
+            {/* Opzione 2: Copia negli appunti & Apri cartella */}
             <button
               type="button"
               className="report-option-card"

@@ -21,7 +21,7 @@ function deferred() {
   return { promise, resolve };
 }
 
-function createHarness({ clients, renderQr = async (value) => `data:${value}`, onPause = () => {} } = {}) {
+function createHarness({ clients, renderQr = async (value) => `data:${value}`, onPause = () => {}, onConnectionLost = async () => {} } = {}) {
   const state = { connection: 'disconnected', qrDataUrl: '' };
   const pauses = [];
   const audits = [];
@@ -42,6 +42,7 @@ function createHarness({ clients, renderQr = async (value) => `data:${value}`, o
     audit: (level, event, details) => audits.push({ level, event, details }),
     log: (message) => logs.push(message),
     notify: (title, body) => notifications.push({ title, body }),
+    onConnectionLost,
   });
   return { controller, state, pauses, audits, logs, notifications };
 }
@@ -83,6 +84,23 @@ test('WhatsApp session gestisce QR, autenticazione, ready e disconnessione', asy
   const disconnectNotifs2 = harness.notifications.filter((n) => n.title === 'WhatsApp disconnesso');
   assert.equal(disconnectNotifs2.length, 1);
 });
+
+test('WhatsApp session segnala una disconnessione al fail-safe senza alterare la pausa esistente', async () => {
+  const client = new FakeClient(async () => {});
+  const losses = [];
+  const harness = createHarness({
+    clients: [client],
+    onConnectionLost: async (reason) => { losses.push(reason); },
+  });
+
+  await harness.controller.connect();
+  client.emit('ready');
+  client.emit('disconnected', 'LOGOUT');
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(losses, ['disconnected:LOGOUT']);
+  assert.ok(harness.pauses.includes('disconnected:LOGOUT'));
+});
 test('WhatsApp session mette in pausa la coda su auth_failure e registra il motivo', async () => {
   const client = new FakeClient(async () => {});
   const harness = createHarness({ clients: [client] });
@@ -93,6 +111,21 @@ test('WhatsApp session mette in pausa la coda su auth_failure e registra il moti
   assert.equal(harness.state.connection, 'error');
   assert.ok(harness.pauses.includes('auth-failure'));
   assert.ok(harness.audits.some(({ event }) => event === 'whatsapp.auth_failure'));
+});
+
+test('WhatsApp session segnala auth_failure al fail-safe', async () => {
+  const client = new FakeClient(async () => {});
+  const losses = [];
+  const harness = createHarness({
+    clients: [client],
+    onConnectionLost: async (reason) => { losses.push(reason); },
+  });
+
+  await harness.controller.connect();
+  client.emit('auth_failure', 'sessione non valida');
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(losses, ['auth-failure']);
 });
 
 test('WhatsApp session ritenta un errore di inizializzazione e conserva il client valido', async () => {
@@ -223,4 +256,18 @@ test('WhatsApp session invoca sessionResetter quando riceve una disconnessione p
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(resetCalled, true);
   assert.ok(harness.audits.some(({ event }) => event === 'whatsapp.session_cleared_on_logout'));
+});
+
+test('WhatsApp session non dichiara rimossa una sessione il cui cleanup fallisce', async () => {
+  const client = new FakeClient(async () => {});
+  const harness = createHarness({ clients: [client] });
+  harness.controller.setSessionResetter(async () => false);
+
+  await harness.controller.connect();
+  client.emit('ready');
+  client.emit('disconnected', 'LOGOUT');
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.ok(!harness.audits.some(({ event }) => event === 'whatsapp.session_cleared_on_logout'));
+  assert.ok(harness.audits.some(({ event }) => event === 'whatsapp.session_clear_on_logout_failed'));
 });

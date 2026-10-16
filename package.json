@@ -33,7 +33,6 @@
       "gui/dist/**/*",
       "build/icon.ico",
       "build/icon-notification.ico",
-      
       "package.json",
       "node_modules/**/*"
     ],
@@ -83,6 +82,7 @@
   "dependencies": {
     "csv-parser": "3.2.1",
     "electron-updater": "6.8.9",
+    "nodemailer": "^7.0.13",
     "qrcode": "1.5.4",
     "qrcode-terminal": "0.12.0",
     "whatsapp-web.js": "https://github.com/wwebjs/whatsapp-web.js/archive/064a3d5.tar.gz",
@@ -95,4 +95,3 @@
     "png-to-ico": "3.0.2"
   }
 }
-

@@ -1,9 +1,20 @@
 import { FileText, Download, Cake, HelpCircle, ExternalLink, Image, Save, RefreshCw, CheckCircle, Play, BookOpen, AlertCircle, Mail, SlidersHorizontal } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toUserError } from '../errorMessage'
 import ReactMarkdown from 'react-markdown'
 import { normalizeReleaseNotes } from '../releaseNotes.mjs'
 import { normalizeReportPhone, formatReportPhoneDisplay } from './reportRecipients.mjs'
+import EmailGuideDialog from './EmailGuideDialog'
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function providerConfigured(state) {
+  if (state.emailCredentialsByProvider && Object.prototype.hasOwnProperty.call(state.emailCredentialsByProvider, 'gmail')) {
+    return state.emailCredentialsByProvider.gmail === true
+  }
+  return state.emailCredentialsConfigured === true
+}
+
 export default function SettingsModal({
   isOpen,
   onClose,
@@ -37,8 +48,66 @@ export default function SettingsModal({
   const [newRecipientLabel, setNewRecipientLabel] = useState('')
   const [newRecipientPhone, setNewRecipientPhone] = useState('')
   const [recipientError, setRecipientError] = useState('')
+  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(state.settings?.emailNotificationsEnabled === true)
+  const initialProviderConfigured = state.emailCredentialsByProvider?.gmail === true
+    || (state.emailCredentialsByProvider == null && state.emailCredentialsConfigured === true)
+  const [gmailAddress, setGmailAddress] = useState(initialProviderConfigured
+    ? (state.settings?.emailAddresses?.gmail || state.settings?.gmailAddress || '')
+    : '')
+  const [gmailPassword, setGmailPassword] = useState('')
+  const [gmailPasswordSaved, setGmailPasswordSaved] = useState(initialProviderConfigured)
+  const [gmailSaveInProgress, setGmailSaveInProgress] = useState(false)
+  const [newEmailLabel, setNewEmailLabel] = useState('')
+  const [newEmailAddress, setNewEmailAddress] = useState('')
+  const [newReportEmailLabel, setNewReportEmailLabel] = useState('')
+  const [newReportEmailAddress, setNewReportEmailAddress] = useState('')
+  const [reportEmailError, setReportEmailError] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [emailTestStatus, setEmailTestStatus] = useState(null)
+  const [emailTestInProgress, setEmailTestInProgress] = useState(false)
+  const [showEmailGuide, setShowEmailGuide] = useState(false)
+  const [showGmailForm, setShowGmailForm] = useState(!initialProviderConfigured)
+  const [reportDeliveryMode, setReportDeliveryMode] = useState(state.settings?.reportDeliveryMode || 'none')
+  const emailAddressDirtyRef = useRef(false)
+  const initialEmailSyncRef = useRef(true)
+  const gmailConfiguredRef = useRef(initialProviderConfigured)
+  const providerLabel = 'Gmail'
   const effectiveOutputDir = state.settings?.outputDir || state.defaultOutputDir || 'Desktop / AVIS WhatsApp Sender'
   const effectiveLogDir = state.settings?.logDir || state.defaultLogDir || 'Cartella log predefinita'
+
+  // Synchronize the form with persisted settings received asynchronously from Electron.
+  useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect
+    setEmailNotificationsEnabled(state.settings?.emailNotificationsEnabled === true)
+    setReportDeliveryMode(state.settings?.reportDeliveryMode || 'none')
+    const configured = providerConfigured(state)
+    const persistedAddress = state.settings?.emailAddresses?.gmail || state.settings?.gmailAddress || ''
+    if (!emailAddressDirtyRef.current) {
+      // Keep an address editable before credentials are saved; provider changes
+      // are the only action that intentionally clears an unconfigured address.
+      // oxlint-disable-next-line react/set-state-in-effect
+      setGmailAddress(configured || !initialEmailSyncRef.current ? persistedAddress : '')
+    }
+    initialEmailSyncRef.current = false
+    // oxlint-disable-next-line react/set-state-in-effect
+    setGmailPasswordSaved(configured)
+    if (!configured) {
+      // oxlint-disable-next-line react/set-state-in-effect
+      setShowGmailForm(true)
+    } else if (!gmailConfiguredRef.current) {
+      // Show the compact card when persisted credentials arrive asynchronously.
+      // oxlint-disable-next-line react/set-state-in-effect
+      setShowGmailForm(false)
+    }
+    gmailConfiguredRef.current = configured
+  }, [
+    state,
+    state.settings?.emailNotificationsEnabled,
+    state.settings?.gmailAddress,
+    state.settings?.emailAddresses,
+    state.emailCredentialsConfigured,
+    state.emailCredentialsByProvider,
+  ])
 
   const [prevProps, setPrevProps] = useState({ isOpen, initialTab })
   if (prevProps.isOpen !== isOpen || prevProps.initialTab !== initialTab) {
@@ -79,6 +148,146 @@ export default function SettingsModal({
     setNewRecipientLabel('')
     setNewRecipientPhone('')
     setRecipientError('')
+  }
+
+  function saveEmailSettings(patch) {
+    return call(() => api.saveSettings(patch))
+  }
+
+  function handleEmailNotificationsChange(enabled) {
+    setEmailNotificationsEnabled(enabled)
+    saveEmailSettings({ emailNotificationsEnabled: enabled })
+  }
+
+  function handleGmailAddressChange(value) {
+    emailAddressDirtyRef.current = true
+    setGmailAddress(value)
+    if (EMAIL_RE.test(value.trim())) saveEmailSettings({ gmailAddress: value })
+  }
+
+  async function handleSaveGmailPassword() {
+    const address = gmailAddress.trim().toLowerCase()
+    if (!EMAIL_RE.test(address)) {
+      setEmailError(`Inserisci un indirizzo e-mail ${providerLabel} valido.`)
+      return
+    }
+    if (!gmailPassword.trim()) {
+      setEmailError(`Inserisci la password per app generata da ${providerLabel}.`)
+      return
+    }
+    const wasConfigured = gmailPasswordSaved
+    setGmailSaveInProgress(true)
+    try {
+      await call(() => api.saveSettings({ gmailAddress: address }))
+      await call(() => api.saveEmailPassword
+        ? api.saveEmailPassword(gmailPassword)
+        : api.saveGmailPassword(gmailPassword))
+      setGmailPasswordSaved(true)
+      setShowGmailForm(false)
+      setEmailError('')
+      setStatusMsg(wasConfigured
+        ? `Provider ${providerLabel} aggiornato e salvato in modo cifrato sul PC.`
+        : `Provider ${providerLabel} salvato in modo cifrato sul PC.`)
+    } catch {
+      setEmailError(`Impossibile salvare il provider ${providerLabel}. Riprova.`)
+    } finally {
+      setGmailSaveInProgress(false)
+    }
+  }
+
+  function handleEditGmailProvider() {
+    setShowGmailForm(true)
+    setEmailError('')
+    setStatusMsg('')
+  }
+
+  async function handleRemoveGmailProvider() {
+    try {
+      await call(() => api.clearGmailPassword())
+      await call(() => api.saveSettings({ gmailAddress: '' }))
+      emailAddressDirtyRef.current = false
+      setGmailAddress('')
+      setGmailPassword('')
+      setGmailPasswordSaved(false)
+      setShowGmailForm(true)
+      setEmailError('')
+      setStatusMsg('Provider Gmail rimosso.')
+    } catch {
+      // L'errore viene mostrato dal gestore centrale dell'applicazione.
+    }
+  }
+
+  async function handleEmailTest() {
+    const address = gmailAddress.trim().toLowerCase()
+    if (!EMAIL_RE.test(address)) {
+      setEmailError(`Inserisci prima l'indirizzo ${providerLabel} AVIS.`)
+      setEmailTestStatus({ type: 'error', message: `Inserisci prima l'indirizzo ${providerLabel} AVIS.` })
+      return
+    }
+    if (!gmailPasswordSaved) {
+      const message = `Salva prima il provider ${providerLabel}.`
+      setEmailError(message)
+      setEmailTestStatus({ type: 'error', message })
+      return
+    }
+    setEmailError('')
+    setEmailTestInProgress(true)
+    setEmailTestStatus({ type: 'pending', message: 'Invio e-mail di prova in corso…' })
+    try {
+      await call(() => api.sendEmailTest(address))
+      setEmailError('')
+      setStatusMsg(`E-mail di prova inviata a ${address}.`)
+      setEmailTestStatus({ type: 'success', message: 'E-mail inviata correttamente.' })
+    } catch {
+      setEmailTestStatus({
+        type: 'error',
+        message: `Invio non riuscito. Controlla la Password per app ${providerLabel} e riprova.`,
+      })
+    } finally {
+      setEmailTestInProgress(false)
+    }
+  }
+
+  function handleAddEmailRecipient() {
+    const label = newEmailLabel.trim()
+    const email = newEmailAddress.trim().toLowerCase()
+    if (!label || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailError('Inserisci un nome e un indirizzo e-mail valido.')
+      return
+    }
+    const currentList = Array.isArray(state.settings?.emailRecipients) ? state.settings.emailRecipients : []
+    saveEmailSettings({
+      emailRecipients: [...currentList, {
+        id: `email_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        label,
+        email,
+        enabled: true,
+      }],
+    })
+    setNewEmailLabel('')
+    setNewEmailAddress('')
+    setEmailError('')
+  }
+
+  function handleAddReportEmailRecipient() {
+    const label = newReportEmailLabel.trim()
+    const email = newReportEmailAddress.trim().toLowerCase()
+    if (!label || !EMAIL_RE.test(email)) {
+      setReportEmailError('Inserisci un nome e un indirizzo e-mail valido.')
+      return
+    }
+    const currentList = Array.isArray(state.settings?.reportEmailRecipients) ? state.settings.reportEmailRecipients : []
+    saveEmailSettings({
+      reportEmailRecipients: [...currentList, {
+        id: `report_email_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        label,
+        email,
+        enabled: true,
+      }],
+    })
+    setNewReportEmailLabel('')
+    setNewReportEmailAddress('')
+    setReportEmailError('')
   }
 
   function handleSelectPreset(preset) {
@@ -217,7 +426,8 @@ export default function SettingsModal({
   }
 
   return (
-    <div
+    <>
+      <div
       className="guide-backdrop"
       role="presentation"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
@@ -239,6 +449,12 @@ export default function SettingsModal({
             onClick={() => { setUserTab('general'); setStatusMsg('') }}
           >
             <SlidersHorizontal className="tab-icon" size={16} /> Generali
+          </button>
+          <button
+            className={`settings-tab-btn ${activeTab === 'communications' ? 'active' : ''}`}
+            onClick={() => { setUserTab('communications'); setStatusMsg('') }}
+          >
+            <Mail className="tab-icon" size={16} /> Comunicazioni
           </button>
           <button
             className={`settings-tab-btn ${activeTab === 'presets' ? 'active' : ''}`}
@@ -275,7 +491,7 @@ export default function SettingsModal({
         <div className="settings-body">
           {statusMsg && <div className="settings-status-alert">{statusMsg}</div>}
 
-          {(activeTab === 'general' || activeTab === 'storage') && (
+          {(activeTab === 'general' || activeTab === 'storage' || activeTab === 'communications') && (
             <div className="settings-storage-section">
               <p className="muted" style={{ marginTop: 0 }}>
                 Configura le opzioni di sistema, le automazioni al termine dell'invio e le cartelle di archiviazione.
@@ -321,15 +537,37 @@ export default function SettingsModal({
                 </div>
               </div>
 
+              {activeTab === 'communications' && (
+                <>
               {/* Automazioni di fine sessione */}
               <div className="storage-card">
                 <div className="storage-card-header">
                   <div>
-                    <strong>Report di fine invio via WhatsApp</strong>
+                    <h3 style={{ margin: 0, fontSize: '16px' }}>Report di fine invio</h3>
                     <p className="subtle-note">Configura uno o più numeri a cui recapitare automaticamente l'esito al termine dell'invio.</p>
                   </div>
                 </div>
 
+                <div className="field-group">
+                  <label htmlFor="report-delivery-mode">Canale di invio del report</label>
+                  <select
+                    id="report-delivery-mode"
+                    className="preset-input-field"
+                    value={reportDeliveryMode}
+                    onChange={(event) => {
+                      setReportDeliveryMode(event.target.value)
+                      saveEmailSettings({ reportDeliveryMode: event.target.value })
+                    }}
+                  >
+                    <option value="none">Non inviare il report</option>
+                    <option value="whatsapp">Solo WhatsApp</option>
+                    <option value="email">Solo e-mail</option>
+                    <option value="both">WhatsApp + e-mail</option>
+                  </select>
+                </div>
+
+                {['whatsapp', 'both'].includes(reportDeliveryMode) && <>
+                <strong style={{ fontSize: '13px' }}>Destinatari WhatsApp del report</strong>
                 {/* Lista destinatari configurati */}
                 {(!state.settings?.reportRecipients || state.settings.reportRecipients.length === 0) ? (
                   <div className="report-recipients-empty">
@@ -443,6 +681,35 @@ export default function SettingsModal({
                   )}
                 </div>
 
+                </>}
+
+                {['email', 'both'].includes(reportDeliveryMode) && (
+                  <div style={{ paddingTop: '14px', marginTop: '14px', borderTop: '1px solid var(--line)' }}>
+                    <strong style={{ fontSize: '13px' }}>Destinatari del report via e-mail</strong>
+                    {(!state.settings?.reportEmailRecipients || state.settings.reportEmailRecipients.length === 0) ? (
+                      <p className="subtle-note" style={{ margin: '6px 0' }}>Nessun destinatario configurato.</p>
+                    ) : (
+                      <div className="report-recipients-list">
+                        {state.settings.reportEmailRecipients.map((recipient) => (
+                          <div key={recipient.id} className={`report-recipient-card ${recipient.enabled !== false ? 'is-active' : 'is-inactive'}`}>
+                            <div className="report-recipient-left">
+                              <input type="checkbox" className="report-recipient-checkbox" checked={recipient.enabled !== false} aria-label={`Attiva destinatario report e-mail ${recipient.label}`} onChange={(event) => saveEmailSettings({ reportEmailRecipients: state.settings.reportEmailRecipients.map((item) => item.id === recipient.id ? { ...item, enabled: event.target.checked } : item) })} />
+                              <div><span className="report-recipient-label-tag">{recipient.label}</span> <strong className="report-recipient-phone">{recipient.email}</strong></div>
+                            </div>
+                            <button type="button" className="link-btn report-recipient-delete-btn" onClick={() => saveEmailSettings({ reportEmailRecipients: state.settings.reportEmailRecipients.filter((item) => item.id !== recipient.id) })}>Rimuovi</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="report-recipient-add-grid" style={{ marginTop: '10px' }}>
+                      <input type="text" className="preset-input-field" placeholder="Nome destinatario e-mail" value={newReportEmailLabel} onChange={(event) => { setNewReportEmailLabel(event.target.value); setReportEmailError('') }} />
+                      <input type="email" className="preset-input-field" placeholder="E-mail del destinatario" value={newReportEmailAddress} onChange={(event) => { setNewReportEmailAddress(event.target.value); setReportEmailError('') }} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); handleAddReportEmailRecipient() } }} />
+                      <button type="button" className="button button-primary" onClick={handleAddReportEmailRecipient}>Aggiungi destinatario e-mail</button>
+                    </div>
+                    {reportEmailError && <p className="report-error-text">{reportEmailError}</p>}
+                  </div>
+                )}
+
                 <div style={{ paddingTop: '14px', marginTop: '14px', borderTop: '1px solid var(--line)' }}>
                   <label className="settings-field-label" htmlFor="post-session-action-select">
                     Azione per il PC al termine:
@@ -471,6 +738,209 @@ export default function SettingsModal({
                 </div>
               </div>
 
+              <div className="storage-card">
+                <div className="storage-card-header">
+                  <div>
+                    <strong>Comunicazioni e-mail: emergenze e log</strong>
+                    <p className="subtle-note">Usa lo stesso account per i recap di emergenza, gli avvisi di spegnimento e l’invio dei log allo sviluppatore.</p>
+                  </div>
+                </div>
+
+                <label className="settings-checkbox-row" style={{ marginTop: '10px' }}>
+                  <input
+                    type="checkbox"
+                    checked={emailNotificationsEnabled}
+                    onChange={(event) => handleEmailNotificationsChange(event.target.checked)}
+                  />
+                  <span>Attiva notifiche e-mail per le emergenze</span>
+                </label>
+
+                <div className="field-group" style={{ marginTop: '14px' }}>
+                  <div className="field-label-row">
+                    <label>Provider e-mail: Gmail</label>
+                    <button
+                      type="button"
+                      className="email-guide-trigger"
+                      onClick={() => setShowEmailGuide(true)}
+                      aria-label="Come creo una password per app"
+                    >
+                      <HelpCircle size={14} aria-hidden="true" /> Come creo una password per app?
+                    </button>
+                  </div>
+                </div>
+                {showGmailForm ? (
+                  <>
+                    <div className="field-group">
+                      <label htmlFor="gmail-address">Indirizzo e-mail mittente</label>
+                      <input
+                        id="gmail-address"
+                        type="email"
+                        className="preset-input-field"
+                        value={gmailAddress}
+                        placeholder="avis@example.org"
+                        onChange={(event) => handleGmailAddressChange(event.target.value)}
+                      />
+                    </div>
+                    <div className="field-group">
+                      <label htmlFor="gmail-app-password">Password per app {providerLabel}</label>
+                      <input
+                        id="gmail-app-password"
+                        type="password"
+                        className="preset-input-field"
+                        value={gmailPassword}
+                        placeholder={gmailPasswordSaved ? '•••••••••••••••• (password salvata)' : 'Password per app Gmail'}
+                        autoComplete="new-password"
+                        onChange={(event) => {
+                          setGmailPasswordSaved(false)
+                          setGmailPassword(event.target.value)
+                          if (emailError) setEmailError('')
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="button button-secondary"
+                        style={{ marginTop: '8px', width: '100%' }}
+                        onClick={handleSaveGmailPassword}
+                        disabled={gmailSaveInProgress}
+                      >
+                        {gmailSaveInProgress ? 'Salvataggio…' : 'Salva provider'}
+                      </button>
+                      <p className="subtle-note" style={{ margin: '6px 0 0' }}>
+                        La password resta cifrata da Windows e non viene inclusa nelle impostazioni o nei log.
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="report-recipient-card email-provider-card is-active">
+                    <div className="report-recipient-left">
+                      <div className="email-provider-mark" aria-hidden="true"><Mail size={14} /></div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span className="report-recipient-label-tag">Gmail</span>
+                          <strong className="report-recipient-phone">{gmailAddress}</strong>
+                        </div>
+                        <span className="subtle-note" style={{ fontSize: '11px' }}>
+                          Password per app salvata in modo cifrato
+                        </span>
+                      </div>
+                    </div>
+                    <div className="email-provider-actions">
+                      <button
+                        type="button"
+                        className="link-btn"
+                        onClick={handleEditGmailProvider}
+                        aria-label="Modifica provider Gmail"
+                      >
+                        Modifica
+                      </button>
+                      <button
+                        type="button"
+                        className="link-btn report-recipient-delete-btn"
+                        onClick={handleRemoveGmailProvider}
+                        aria-label="Rimuovi provider Gmail"
+                      >
+                        Rimuovi
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="field-group">
+                  <button type="button" className="button button-secondary" style={{ marginTop: '10px' }} onClick={handleEmailTest} disabled={emailTestInProgress}>
+                    {emailTestInProgress ? 'Invio in corso…' : 'Invia e-mail di prova'}
+                  </button>
+                  {emailTestStatus && (
+                    <div
+                      role={emailTestStatus.type === 'error' ? 'alert' : 'status'}
+                      aria-live="polite"
+                      className={`settings-status-alert ${emailTestStatus.type === 'error' ? 'error-box' : ''}`}
+                      style={{ marginTop: '10px', marginBottom: 0 }}
+                    >
+                      {emailTestStatus.message}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ paddingTop: '14px', marginTop: '14px', borderTop: '1px solid var(--line)' }}>
+                  <strong style={{ fontSize: '13px' }}>Destinatari del recap di emergenza</strong>
+                  {(!state.settings?.emailRecipients || state.settings.emailRecipients.length === 0) ? (
+                    <p className="subtle-note" style={{ margin: '6px 0' }}>Nessun destinatario configurato.</p>
+                  ) : (
+                    <div className="report-recipients-list">
+                      {state.settings.emailRecipients.map((recipient) => (
+                        <div
+                          key={recipient.id}
+                          className={`report-recipient-card ${recipient.enabled !== false ? 'is-active' : 'is-inactive'}`}
+                        >
+                          <div className="report-recipient-left">
+                            <input
+                              type="checkbox"
+                              id={`email-rec-toggle-${recipient.id}`}
+                              className="report-recipient-checkbox"
+                              checked={recipient.enabled !== false}
+                              onChange={(event) => {
+                                const updated = state.settings.emailRecipients.map((item) => (
+                                  item.id === recipient.id ? { ...item, enabled: event.target.checked } : item
+                                ))
+                                saveEmailSettings({ emailRecipients: updated })
+                              }}
+                              aria-label={`Attiva destinatario ${recipient.label}`}
+                              title="Attivo come destinatario di emergenza"
+                            />
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span className="report-recipient-label-tag">🏷️ {recipient.label}</span>
+                                <strong className="report-recipient-phone">{recipient.email}</strong>
+                              </div>
+                              <span className="subtle-note" style={{ fontSize: '11px' }}>
+                                {recipient.enabled !== false ? 'Incluso di default' : 'Escluso di default'}
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="link-btn report-recipient-delete-btn"
+                            onClick={() => saveEmailSettings({ emailRecipients: state.settings.emailRecipients.filter((item) => item.id !== recipient.id) })}
+                            title={`Elimina ${recipient.label}`}
+                          >
+                            🗑️ Rimuovi
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="report-recipient-add-grid" style={{ marginTop: '10px' }}>
+                    <input
+                      type="text"
+                      className="preset-input-field"
+                      placeholder="Nome destinatario e-mail"
+                      value={newEmailLabel}
+                      onChange={(event) => setNewEmailLabel(event.target.value)}
+                    />
+                    <input
+                      type="email"
+                      className="preset-input-field"
+                      placeholder="E-mail del destinatario"
+                      value={newEmailAddress}
+                      onChange={(event) => setNewEmailAddress(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault()
+                          handleAddEmailRecipient()
+                        }
+                      }}
+                    />
+                    <button type="button" className="button button-primary" onClick={handleAddEmailRecipient}>
+                      Aggiungi destinatario e-mail
+                    </button>
+                  </div>
+                </div>
+                {emailError && <p className="report-error-text">⚠️ {emailError}</p>}
+              </div>
+
+                </>
+              )}
+
+              {(activeTab === 'general' || activeTab === 'storage') && <>
               {/* Cartella Esiti */}
               <div className="storage-card">
                 <div className="storage-card-header">
@@ -567,6 +1037,7 @@ export default function SettingsModal({
                   </button>
                 </div>
               </div>
+              </>}
             </div>
           )}
 
@@ -1058,7 +1529,9 @@ export default function SettingsModal({
           </button>
         </div>
       </div>
-    </div>
+      </div>
+      {showEmailGuide && <EmailGuideDialog api={api} onClose={() => setShowEmailGuide(false)} />}
+    </>
   )
 }
 

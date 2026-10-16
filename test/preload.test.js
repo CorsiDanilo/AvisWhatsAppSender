@@ -86,6 +86,7 @@ test('preload exposes every IPC operation with the expected channel and argument
     ['openLastOutcome', [], 'sender:open-last-outcome'],
     ['openLogsDir', [], 'sender:open-logs-dir'],
     ['sendDeveloperReport', ['stack'], 'sender:send-developer-report'],
+    ['clearGmailPassword', [], 'sender:clear-gmail-password'],
     ['openUserDataDir', [], 'sender:open-user-data-dir'],
     ['openPath', ['C:/tmp'], 'sender:open-path'],
     ['showItemInFolder', ['C:/tmp/file'], 'sender:show-item'],
