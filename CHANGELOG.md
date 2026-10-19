@@ -5,6 +5,47 @@ All notable changes to the **AVIS WhatsApp Sender** project will be documented i
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
+## [1.4.0] - 2026-10-19
+
+### Summary
+
+Importante aggiornamento dedicato alla gestione completa della sessione di invio: nuova schermata di riepilogo, configurazione separata per l'invio corrente, report WhatsApp/e-mail personalizzabili e maggiore sicurezza in caso di disconnessione o errore durante l'invio.
+
+### Added
+
+- **Nuova schermata di riepilogo**: tre sezioni espandibili per destinatari, contenuto e azioni finali.
+- **Configurazione per singolo invio**: destinatari, canale del report e azione sul PC valgono solo per la sessione corrente.
+- **Destinatari report WhatsApp ed e-mail**: selezione, aggiunta, rimozione e gestione indipendente delle rubriche.
+- **Report e-mail con allegati**: inclusione dei file `esito.csv` ed `esito_falliti.csv`.
+- **Configurazione Gmail**: salvataggio cifrato della password per app e guida integrata con link alla sicurezza Google.
+- **Failsafe WhatsApp**: salvataggio dell'esito parziale, pausa automatica e notifica e-mail in caso di disconnessione.
+- **Azioni post-invio**: spegnimento, sospensione o ibernazione con conto alla rovescia annullabile.
+- **Gestione autenticazione WhatsApp**: riconnessione, stato autenticato/pronto e diagnostica migliorata.
+
+### Changed
+
+- **Impostazioni globali separate dalla sessione**: le modifiche nel riepilogo non alterano la configurazione permanente.
+- **Notifiche e-mail di emergenza sempre attive**: restano necessarie la configurazione Gmail e almeno un destinatario attivo.
+- **Invio continuo**: gli errori sui singoli destinatari vengono registrati senza interrompere l'intera coda.
+- **Gestione report**: canale e destinatari vengono determinati dalla configurazione effettiva della sessione.
+- **Interfaccia**: miglioramenti a riepilogo, impostazioni, guida Gmail e modale WhatsApp.
+
+### Fixed
+
+- Corretto il collegamento del pulsante “Configura ora” alla sezione Comunicazioni.
+- Corretto il mantenimento dei destinatari e-mail tra impostazioni globali e invio corrente.
+- Corretto l'invio dei recap d'emergenza quando il precedente flag e-mail risultava disattivato.
+- Migliorata la gestione degli errori di connessione e degli stati WhatsApp non pronti.
+- Aggiunti e aggiornati i test backend e GUI per le nuove funzionalità.
+
+### Verification
+
+- 168 test backend superati.
+- 61 test GUI superati.
+- Lint, build e `verify-release` superati.
+
+Full Changelog: [https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.3.0...v1.4.0](https://github.com/CorsiDanilo/AvisWhatsAppSender/compare/v1.3.0...v1.4.0)
+
 ## [1.3.0] - 2026-10-15
 
 ### Summary
