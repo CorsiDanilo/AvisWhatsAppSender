@@ -20,14 +20,14 @@ function createHarness() {
   return { calls, state, failsafe };
 }
 
-test('arma una sola volta il fail-safe, salva l’esito parziale e programma cinque minuti', async () => {
+test('arma una sola volta il fail-safe, salva l’esito parziale e programma un minuto', async () => {
   const { calls, state, failsafe } = createHarness();
 
   const armed = await failsafe.arm('disconnected:LOGOUT');
 
   assert.equal(armed, true);
-  assert.deepEqual(calls.schedule, [300]);
-  assert.deepEqual(state.postSessionCountdown, { action: 'shutdown', secondsLeft: 300, reason: 'disconnected:LOGOUT' });
+  assert.deepEqual(calls.schedule, [60]);
+  assert.deepEqual(state.postSessionCountdown, { action: 'shutdown', secondsLeft: 60, reason: 'disconnected:LOGOUT' });
   assert.deepEqual(calls.outcomes, [{
     reason: 'connection_lost',
     summary: { current: 12, total: 20, sent: 10, failed: 2, skipped: 0, unknown: 0 },
@@ -43,7 +43,7 @@ test('ignora eventi ripetuti e mantiene il countdown già armato', async () => {
   const armedAgain = await failsafe.arm('disconnected:LOGOUT');
 
   assert.equal(armedAgain, false);
-  assert.deepEqual(calls.schedule, [300]);
+  assert.deepEqual(calls.schedule, [60]);
   assert.equal(calls.outcomes.length, 1);
   assert.equal(calls.notices.length, 1);
 });
@@ -60,7 +60,7 @@ test('mantiene lo spegnimento programmato se l’e-mail di emergenza fallisce', 
 
   await failsafe.arm('auth-failure');
 
-  assert.deepEqual(calls.schedule, [300]);
+  assert.deepEqual(calls.schedule, [60]);
   assert.equal(calls.outcomes.length, 1);
   assert.ok(calls.audits.some(({ event }) => event === 'connection_failsafe.notification_failed'));
 });
@@ -91,8 +91,8 @@ test('aggiorna il countdown visualizzato senza affidare lo spegnimento al timer 
   await failsafe.arm('disconnected:LOGOUT');
   tick();
 
-  assert.equal(state.postSessionCountdown.secondsLeft, 299);
-  assert.deepEqual(calls.schedule, [300]);
+  assert.equal(state.postSessionCountdown.secondsLeft, 59);
+  assert.deepEqual(calls.schedule, [60]);
 });
 
 test('non dichiara inviata una notifica quando il canale e-mail non è ancora configurato', async () => {

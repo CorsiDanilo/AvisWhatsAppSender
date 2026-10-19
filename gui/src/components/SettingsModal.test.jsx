@@ -70,6 +70,30 @@ describe('SettingsModal', () => {
     await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({ reportDeliveryMode: 'email' }))
     expect(screen.getByText(/Destinatari del report via e-mail/i)).toBeInTheDocument()
     expect(screen.queryByText(/Destinatari WhatsApp del report/i)).not.toBeInTheDocument()
+    expect(screen.queryByText('Sistema & Notifiche')).not.toBeInTheDocument()
+  })
+
+  it('mostra etichetta e cestino anche per i destinatari e-mail del report', () => {
+    renderSettings({
+      reportDeliveryMode: 'email',
+      reportEmailRecipients: [{ id: 'email-1', label: 'Ufficio', email: 'ufficio@avis.it', enabled: true }],
+    })
+
+    expect(screen.getByText('🏷️ Ufficio')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '🗑️ Rimuovi' })).toBeInTheDocument()
+  })
+
+  it('mostra Sistema & Notifiche esclusivamente nella tab Generali', () => {
+    renderSettings()
+    expect(screen.queryByText('Sistema & Notifiche')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Generali' }))
+    expect(screen.getByText('Sistema & Notifiche')).toBeInTheDocument()
+  })
+
+  it('usa l’icona del cestino per eliminare un preset', () => {
+    renderSettings()
+    fireEvent.click(screen.getByRole('button', { name: /Modelli & Preset/i }))
+    expect(screen.getByTitle('Elimina Standard').querySelector('.lucide-trash-2')).toBeInTheDocument()
   })
 
   it('mostra un feedback di salvataggio del provider prima della card Gmail', async () => {
@@ -89,9 +113,10 @@ describe('SettingsModal', () => {
     expect(screen.getByRole('button', { name: /Modifica provider Gmail/i })).toBeInTheDocument()
   })
 
-  it('descrive chiaramente le notifiche e-mail per le emergenze', () => {
+  it('mantiene sempre attive le notifiche e-mail per le emergenze senza mostrare un toggle', () => {
     renderSettings()
-    expect(screen.getByRole('checkbox', { name: 'Attiva notifiche e-mail per le emergenze' })).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Attiva notifiche e-mail per le emergenze' })).not.toBeInTheDocument()
+    expect(screen.getByText(/recap di emergenza, gli avvisi di spegnimento e l’invio dei log/i)).toBeInTheDocument()
   })
 
   it('switches to the birthday tab and checks the source', async () => {
@@ -104,13 +129,11 @@ describe('SettingsModal', () => {
 
   it('saves Gmail credentials and emergency recipients without putting the password in settings', async () => {
     const { api } = renderSettings()
-    fireEvent.click(screen.getByRole('checkbox', { name: /Attiva notifiche e-mail/i }))
     fireEvent.change(screen.getByLabelText(/Indirizzo e-mail mittente/i), { target: { value: 'avis@example.org' } })
     fireEvent.change(screen.getByLabelText(/Password per app Gmail/i), { target: { value: 'app-password' } })
     fireEvent.click(screen.getByRole('button', { name: 'Salva provider' }))
     await waitFor(() => expect(api.saveGmailPassword).toHaveBeenCalledWith('app-password'))
     expect(await screen.findByRole('button', { name: /Modifica provider Gmail/i })).toBeInTheDocument()
-    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({ emailNotificationsEnabled: true }))
     await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({ gmailAddress: 'avis@example.org' }))
     fireEvent.click(screen.getByRole('button', { name: /Invia e-mail di prova/i }))
     await waitFor(() => expect(api.sendEmailTest).toHaveBeenCalledWith('avis@example.org'))
@@ -173,7 +196,6 @@ describe('SettingsModal', () => {
     }
     view.rerender(<SettingsModal {...view.props} state={persistedState} />)
     await waitFor(() => {
-      expect(screen.getByRole('checkbox', { name: /Attiva notifiche e-mail/i })).toBeChecked()
       expect(screen.getByText('avis@example.org')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /Modifica provider Gmail/i })).toBeInTheDocument()
     })
@@ -187,6 +209,10 @@ describe('SettingsModal', () => {
     expect(screen.getAllByText(/Account Google/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/Verifica in due passaggi/i)).toBeInTheDocument()
     expect(screen.getAllByText(/Password per le app/i).length).toBeGreaterThan(0)
+    expect(screen.getByRole('link', { name: /Password per le app Google/i })).toHaveAttribute(
+      'href',
+      'https://myaccount.google.com/apppasswords',
+    )
   })
 
   it('apre il link della guida nel browser di sistema', async () => {
@@ -194,6 +220,8 @@ describe('SettingsModal', () => {
     fireEvent.click(screen.getByRole('button', { name: /Come creo una password per app/i }))
     fireEvent.click(screen.getByRole('link', { name: /Apri la pagina di sicurezza Google/i }))
     await waitFor(() => expect(api.openExternalUrl).toHaveBeenCalledWith('https://myaccount.google.com/security'))
+    fireEvent.click(screen.getByRole('link', { name: /Password per le app Google/i }))
+    await waitFor(() => expect(api.openExternalUrl).toHaveBeenCalledWith('https://myaccount.google.com/apppasswords'))
   })
 
   it('mostra i campi Gmail vuoti quando il provider non è configurato', () => {

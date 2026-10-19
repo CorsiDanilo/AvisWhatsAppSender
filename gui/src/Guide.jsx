@@ -97,7 +97,7 @@ export default function Guide({ onClose, onStartTutorial }) {
             <strong>Sessione persistente:</strong> Il collegamento rimane memorizzato nella cartella dati dell'applicazione. Ai successivi avvii, l'app si riconnetterà in automatico senza richiedere nuovamente la scansione del QR code.
           </div>
           <div className="guide-note">
-            <strong>Problemi di collegamento:</strong> dalla finestra QR puoi usare <strong>“Riconnetti WhatsApp”</strong> per riavviare il browser e ricaricare la sessione esistente, oppure <strong>“Azzera sessione”</strong> per eliminare le credenziali locali e generare un nuovo codice QR. L'app ritenta automaticamente gli errori iniziali di connessione; se WhatsApp si disconnette durante l'invio, la coda viene messa in pausa.
+            <strong>Problemi di collegamento:</strong> dalla finestra QR puoi usare <strong>“Riconnetti WhatsApp”</strong> per riavviare il browser e ricaricare la sessione esistente, oppure <strong>“Azzera sessione”</strong> per eliminare le credenziali locali e generare un nuovo codice QR. Se WhatsApp si disconnette durante l'invio, l’app salva subito l’esito, invia il recap di emergenza con i CSV disponibili e programma lo spegnimento del PC dopo un minuto.
           </div>
 
           <h3>6. Modelli, preset e tag dinamici</h3>
@@ -161,7 +161,7 @@ export default function Guide({ onClose, onStartTutorial }) {
             <li>Anteprima finale del messaggio e della foto allegata.</li>
             <li>Parametri del ritmo e durata stimata dell’invio.</li>
             <li>Pulsanti <strong>“✏️ Modifica”</strong> per tornare rapidamente allo Step desiderato e modificare i dati.</li>
-            <li><strong>Destinatari del report:</strong> in <strong>Impostazioni → Comunicazioni</strong> scegli se inviarlo via WhatsApp, e-mail, entrambi i canali oppure non inviarlo. Le rubriche WhatsApp e e-mail del report sono separate da quella per emergenze e log.</li>
+            <li><strong>Destinatari del report:</strong> in <strong>Impostazioni → Comunicazioni</strong> scegli se inviarlo via WhatsApp, e-mail, entrambi i canali oppure non inviarlo. Le rubriche WhatsApp e e-mail del report sono separate da quella per emergenze e log; l’e-mail include <code>esito.csv</code> e, se presente, <code>esito_falliti.csv</code>.</li>
             <li><strong>Azione per il PC al termine:</strong> menù a discesa per scegliere se lasciare il PC acceso, sospenderlo, ibernarlo o spegnerlo al termine della sessione (valido solo per quell’invio).</li>
           </ul>
 
@@ -207,7 +207,6 @@ export default function Guide({ onClose, onStartTutorial }) {
             <li>Attivare o disattivare le <strong>notifiche Windows</strong>.</li>
             <li>Configurare l’<strong>avvio automatico con Windows</strong>.</li>
             <li>Impostare l’<strong>azione post-invio predefinita</strong> per il PC (spegnimento, ibernazione, sospensione o nessuna azione).</li>
-            <li>Gestire la sezione <strong>Comunicazioni</strong>: seleziona il canale del report di fine invio e le sue rubriche dedicate WhatsApp ed e-mail, separate dai destinatari di emergenze e log.</li>
             <li>Preparare un log diagnostico da inviare allo sviluppatore tramite Gmail oppure copiarlo negli appunti.</li>
           </ul>
           <p>

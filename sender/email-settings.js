@@ -36,7 +36,7 @@ function normalizeEmailSettings(settings = {}) {
     emailAddresses[emailProvider] = legacyAddress;
   }
   return {
-    emailNotificationsEnabled: settings.emailNotificationsEnabled === true,
+    emailNotificationsEnabled: true,
     emailProvider,
     gmailAddress: emailAddresses[emailProvider] || '',
     emailAddresses,

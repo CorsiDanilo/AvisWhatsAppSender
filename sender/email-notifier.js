@@ -5,10 +5,10 @@ function createEmailNotifier({
   getConfig = () => ({}),
   getPassword = () => '',
 } = {}) {
-  function transport({ requireEmergencyNotifications = true } = {}) {
+  function transport() {
     const config = getConfig();
     const password = getPassword('gmail');
-    if ((requireEmergencyNotifications && !config.emailNotificationsEnabled) || !config.gmailAddress || !password) {
+    if (!config.gmailAddress || !password) {
       throw new Error('Notifiche e-mail non configurate.');
     }
     return {
@@ -22,7 +22,7 @@ function createEmailNotifier({
     };
   }
 
-  async function sendEmergency({ reason, summary = {}, shutdownInSeconds }) {
+  async function sendEmergency({ reason, summary = {}, shutdownInSeconds, attachments = [] }) {
     const { config, sender } = transport();
     const recipients = (config.emailRecipients || []).filter((recipient) => recipient.enabled !== false).map((recipient) => recipient.email);
     if (recipients.length === 0) throw new Error('Nessun destinatario e-mail di emergenza configurato.');
@@ -37,6 +37,7 @@ function createEmailNotifier({
         `Totale: ${summary.total || 0}`,
         `Spegnimento PC programmato tra ${Math.ceil(shutdownInSeconds / 60)} minuti.`,
       ].join('\n'),
+      attachments,
     });
   }
 
@@ -51,8 +52,8 @@ function createEmailNotifier({
     });
   }
 
-  async function sendReport({ recipients, text }) {
-    const { config, sender } = transport({ requireEmergencyNotifications: false });
+  async function sendReport({ recipients, text, subject, attachments = [] }) {
+    const { config, sender } = transport();
     const to = Array.isArray(recipients)
       ? recipients.filter((recipient) => typeof recipient === 'string' && recipient.trim())
       : [];
@@ -60,8 +61,9 @@ function createEmailNotifier({
     return sender.sendMail({
       from: config.gmailAddress,
       to,
-      subject: 'AVIS WhatsApp Sender â€” Esito invio',
+      subject: subject || 'AVIS WhatsApp Sender â€” Esito invio',
       text,
+      attachments,
     });
   }
 

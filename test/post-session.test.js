@@ -81,6 +81,75 @@ test('createPostSessionManager invia il report via e-mail senza richiedere le no
   assert.match(delivered[0].text, /Inviati a WhatsApp: \*5\*/);
 });
 
+test('createPostSessionManager inoltra gli allegati degli esiti al report e-mail', async () => {
+  const delivered = [];
+  const manager = createPostSessionManager({
+    getState: () => ({ fileName: 'Test.csv', connection: 'disconnected' }),
+    emailNotifier: { sendReport: async (message) => delivered.push(message) },
+  });
+
+  await manager.sendSessionReports({
+    sent: 5,
+    failed: 1,
+    skipped: 0,
+    outcomeAttachments: [{ filename: 'esito_falliti.csv', path: 'C:\\esiti\\esito_falliti.csv' }],
+    activeSession: {
+      reportDeliveryMode: 'email',
+      reportEmailRecipients: [{ email: 'segreteria@avis.it', enabled: true }],
+    },
+  });
+
+  assert.deepEqual(delivered[0].attachments, [{ filename: 'esito_falliti.csv', path: 'C:\\esiti\\esito_falliti.csv' }]);
+});
+
+test('createPostSessionManager invia l’esito di un’interruzione ai destinatari e-mail di emergenza', async () => {
+  const delivered = [];
+  const manager = createPostSessionManager({
+    getState: () => ({ fileName: 'Test.csv' }),
+    emailNotifier: { sendReport: async (message) => delivered.push(message) },
+  });
+
+  await manager.sendInterruptionReport({
+    sent: 5,
+    failed: 1,
+    skipped: 0,
+    activeSession: {
+      presetName: 'Test Preset',
+      emergencyEmailRecipients: [{ email: 'emergenze@avis.it', enabled: true }],
+    },
+    outcomeAttachments: [{ filename: 'esito_falliti.csv', path: 'C:\\esiti\\esito_falliti.csv' }],
+  });
+
+  assert.deepEqual(delivered[0].recipients, ['emergenze@avis.it']);
+  assert.match(delivered[0].subject, /Invio interrotto/i);
+  assert.match(delivered[0].text, /Invio interrotto/i);
+  assert.deepEqual(delivered[0].attachments, [{ filename: 'esito_falliti.csv', path: 'C:\\esiti\\esito_falliti.csv' }]);
+});
+
+test('createPostSessionManager invia l’interruzione anche con il vecchio flag disattivato', async () => {
+  const delivered = [];
+  const manager = createPostSessionManager({
+    getState: () => ({
+      fileName: 'Test.csv',
+      settings: { emailNotificationsEnabled: false },
+    }),
+    emailNotifier: { sendReport: async (message) => delivered.push(message) },
+  });
+
+  const result = await manager.sendInterruptionReport({
+    sent: 5,
+    failed: 1,
+    skipped: 0,
+    activeSession: {
+      presetName: 'Test Preset',
+      emergencyEmailRecipients: [{ email: 'emergenze@avis.it', enabled: true }],
+    },
+  });
+
+  assert.equal(result, true);
+  assert.equal(delivered.length, 1);
+});
+
 test('createPostSessionManager continua con il report e-mail se WhatsApp non riesce', async () => {
   const delivered = [];
   const manager = createPostSessionManager({

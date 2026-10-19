@@ -18,6 +18,13 @@ function csvCell(value) {
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
+function outcomeEmailAttachments(folder) {
+  if (!folder) return [];
+  return ['esito_falliti.csv', 'esito.csv']
+    .map((filename) => ({ filename, path: path.join(folder, filename) }))
+    .filter((attachment) => fs.existsSync(attachment.path));
+}
+
 function writeSessionResult({
   desktopDir,
   outputDir = desktopDir,
@@ -92,4 +99,4 @@ function writeSessionResult({
   return folder;
 }
 
-module.exports = { writeSessionResult, safeName, timestampName };
+module.exports = { outcomeEmailAttachments, writeSessionResult, safeName, timestampName };

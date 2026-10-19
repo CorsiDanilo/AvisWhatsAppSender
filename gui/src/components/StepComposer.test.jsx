@@ -57,6 +57,15 @@ describe('StepComposer', () => {
     expect(call).toHaveBeenCalledTimes(1)
   })
 
+  it('apre direttamente la gestione Modelli & Preset', () => {
+    const onOpenSettings = vi.fn()
+    renderComposer({ onOpenSettings })
+
+    fireEvent.click(screen.getByRole('button', { name: /Gestisci modelli/i }))
+
+    expect(onOpenSettings).toHaveBeenCalledWith('presets')
+  })
+
   it('renders a PDF attachment card and preview when a PDF is selected', () => {
     renderComposer({
       state: {

@@ -21,7 +21,7 @@ function deferred() {
   return { promise, resolve };
 }
 
-function createHarness({ clients, renderQr = async (value) => `data:${value}`, onPause = () => {}, onConnectionLost = async () => {} } = {}) {
+function createHarness({ clients, renderQr = async (value) => `data:${value}`, onPause = () => {}, onConnectionLost = async () => {}, controllerOptions = {} } = {}) {
   const state = { connection: 'disconnected', qrDataUrl: '' };
   const pauses = [];
   const audits = [];
@@ -43,9 +43,41 @@ function createHarness({ clients, renderQr = async (value) => `data:${value}`, o
     log: (message) => logs.push(message),
     notify: (title, body) => notifications.push({ title, body }),
     onConnectionLost,
+    ...controllerOptions,
   });
   return { controller, state, pauses, audits, logs, notifications };
 }
+
+test('WhatsApp session riconnette automaticamente se resta autenticata senza diventare pronta', async () => {
+  const first = new FakeClient(async () => {});
+  const second = new FakeClient(async () => {});
+  const scheduledTimeouts = [];
+  const harness = createHarness({
+    clients: [first, second],
+    controllerOptions: {
+      authenticatedReadyTimeoutMs: 45_000,
+      setTimeoutFn: (callback) => {
+        scheduledTimeouts.push(callback);
+        return callback;
+      },
+    },
+  });
+
+  await harness.controller.connect();
+  first.emit('authenticated');
+  assert.equal(harness.state.connection, 'authenticated');
+  assert.equal(scheduledTimeouts.length, 1);
+
+  await scheduledTimeouts[0]();
+
+  assert.equal(first.destroyed, true);
+  assert.equal(harness.controller.getClient(), second);
+  assert.equal(harness.state.connection, 'connecting');
+  assert.ok(harness.audits.some(({ event }) => event === 'whatsapp.authenticated_timeout'));
+
+  second.emit('authenticated');
+  assert.equal(scheduledTimeouts.length, 1);
+});
 
 test('WhatsApp session gestisce QR, autenticazione, ready e disconnessione', async () => {
   const client = new FakeClient(async () => {});

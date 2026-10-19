@@ -14,6 +14,9 @@ function createWhatsAppSessionController({
   onClientCreated = () => {},
   onFailure = () => {},
   onConnectionLost = async () => {},
+  authenticatedReadyTimeoutMs = 45_000,
+  setTimeoutFn = setTimeout,
+  clearTimeoutFn = clearTimeout,
 } = {}) {
   if (typeof createClient !== 'function') throw new TypeError('createClient deve essere una funzione.');
 
@@ -24,6 +27,8 @@ function createWhatsAppSessionController({
   let connectionPromise = null;
   let connectionGeneration = 0;
   let sessionResetter = async () => {};
+  let authenticatedReadyTimer = null;
+  let authenticatedRecoveryAttempted = false;
 
   function snapshot() {
     return { connection, qrDataUrl, clientReady };
@@ -39,8 +44,34 @@ function createWhatsAppSessionController({
     pauseQueue(reason);
   }
 
+  function clearAuthenticatedReadyTimer() {
+    if (authenticatedReadyTimer === null) return;
+    clearTimeoutFn(authenticatedReadyTimer);
+    authenticatedReadyTimer = null;
+  }
+
   function current(candidate) {
     return client === candidate;
+  }
+
+  function scheduleAuthenticatedReadyTimeout(candidate) {
+    clearAuthenticatedReadyTimer();
+    if (!Number.isFinite(authenticatedReadyTimeoutMs) || authenticatedReadyTimeoutMs <= 0 || authenticatedRecoveryAttempted) return;
+
+    authenticatedReadyTimer = setTimeoutFn(async () => {
+      authenticatedReadyTimer = null;
+      if (!current(candidate) || connection !== 'authenticated' || clientReady || authenticatedRecoveryAttempted) return;
+
+      authenticatedRecoveryAttempted = true;
+      audit('warn', 'whatsapp.authenticated_timeout', { timeoutMs: authenticatedReadyTimeoutMs });
+      log('WhatsApp autenticato ma non pronto entro il timeout: riconnessione automatica...');
+      try {
+        await reconnect({ automatic: true });
+      } catch (error) {
+        audit('warn', 'whatsapp.authenticated_reconnect_failed', { error: error?.message || String(error) });
+      }
+    }, authenticatedReadyTimeoutMs);
+    authenticatedReadyTimer?.unref?.();
   }
 
   function attachClientEvents(candidate) {
@@ -64,12 +95,15 @@ function createWhatsAppSessionController({
     candidate.on('authenticated', () => {
       if (!current(candidate)) return;
       transition('authenticated');
+      scheduleAuthenticatedReadyTimeout(candidate);
       log('WhatsApp autenticato.');
       audit('info', 'whatsapp.authenticated');
     });
 
     candidate.on('ready', () => {
       if (!current(candidate)) return;
+      clearAuthenticatedReadyTimer();
+      authenticatedRecoveryAttempted = false;
       clientReady = true;
       transition('ready');
       log('WhatsApp pronto per l’invio.');
@@ -79,6 +113,8 @@ function createWhatsAppSessionController({
 
     candidate.on('auth_failure', async (message) => {
       if (!current(candidate)) return;
+      clearAuthenticatedReadyTimer();
+      authenticatedRecoveryAttempted = false;
       clientReady = false;
       transition('error');
       audit('error', 'whatsapp.auth_failure', { message: String(message) });
@@ -108,6 +144,8 @@ function createWhatsAppSessionController({
       }
 
       const wasDisconnected = connection === 'disconnected';
+      clearAuthenticatedReadyTimer();
+      authenticatedRecoveryAttempted = false;
       clientReady = false;
       transition('disconnected');
       audit('warn', 'whatsapp.disconnected', { reason: reasonStr });
@@ -133,6 +171,7 @@ function createWhatsAppSessionController({
   }
 
   async function destroyCurrent() {
+    clearAuthenticatedReadyTimer();
     const toDestroy = client;
     client = null;
     clientReady = false;
@@ -200,15 +239,18 @@ function createWhatsAppSessionController({
 
   async function connect() {
     if (['connecting', 'authenticated', 'ready'].includes(connection)) return snapshot();
+    authenticatedRecoveryAttempted = false;
     return startConnection('whatsapp.connecting', 'whatsapp.connect_failed');
   }
 
-  async function reconnect() {
+  async function reconnect({ automatic = false } = {}) {
+    if (!automatic) authenticatedRecoveryAttempted = false;
     return startConnection('whatsapp.reconnecting', 'whatsapp.reconnect_failed');
   }
 
   async function reset({ reconnectAfter = true } = {}) {
     pauseForConnection('connection:whatsapp.resetting');
+    authenticatedRecoveryAttempted = false;
     connectionGeneration += 1;
     connectionPromise = null;
     await destroyCurrent();

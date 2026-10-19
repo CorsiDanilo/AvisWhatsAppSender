@@ -64,7 +64,7 @@ function createPostSessionManager({
   let timer = null;
   let interval = null;
 
-  async function sendSessionReports({ sent, failed, skipped, unknown = 0, activeSession }) {
+  async function sendSessionReports({ sent, failed, skipped, unknown = 0, activeSession, outcomeAttachments = [] }) {
     const reportState = getState();
     const configuredRecipients = Array.isArray(activeSession?.reportRecipients)
       ? activeSession.reportRecipients
@@ -92,6 +92,7 @@ function createPostSessionManager({
         try {
           await emailNotifier.sendReport({
             recipients: activeEmailRecipients,
+            attachments: outcomeAttachments,
             text: buildSelfReportMessage({
               sent,
               failed,
@@ -176,6 +177,51 @@ function createPostSessionManager({
 
   async function sendSelfReport(args) {
     return sendSessionReports(args);
+  }
+
+  async function sendInterruptionReport({ sent, failed, skipped, unknown = 0, activeSession, outcomeAttachments = [] }) {
+    const reportState = getState();
+    const configuredRecipients = Array.isArray(activeSession?.emergencyEmailRecipients)
+      ? activeSession.emergencyEmailRecipients
+      : (reportState.settings?.emailRecipients || []);
+    const recipients = configuredRecipients
+      .filter((recipient) => recipient && recipient.enabled !== false && recipient.email)
+      .map((recipient) => recipient.email);
+    if (!emailNotifier || typeof emailNotifier.sendReport !== 'function') {
+      log('Impossibile inviare l’esito dell’interruzione: servizio e-mail non disponibile.');
+      return false;
+    }
+    if (recipients.length === 0) {
+      log('Esito dell’interruzione non inviato: nessun destinatario e-mail di emergenza attivo configurato.');
+      return false;
+    }
+    try {
+      await emailNotifier.sendReport({
+        recipients,
+        subject: 'AVIS WhatsApp Sender â€” Invio interrotto',
+        attachments: outcomeAttachments,
+        text: [
+          '⚠️ *AVIS WhatsApp Sender â€” Invio interrotto*',
+          '',
+          buildSelfReportMessage({
+            sent,
+            failed,
+            skipped,
+            unknown,
+            fileName: reportState.fileName || '',
+            presetName: activeSession?.presetName || '',
+            date: new Date(),
+          }),
+        ].join('\n'),
+      });
+      log(`Esito dell’interruzione inviato via e-mail a ${recipients.length} destinatario/i.`);
+      audit('info', 'post_session.interruption_email_sent', { recipients: recipients.length, sent, failed, skipped, unknown });
+      return true;
+    } catch (error) {
+      logError('post_session.interruption_email_failed', error, { recipients: recipients.length });
+      log(`Invio e-mail dell’interruzione non riuscito: ${redactDiagnosticText(error.message || error)}`);
+      return false;
+    }
   }
 
   function cancelAction() {
@@ -272,6 +318,7 @@ function createPostSessionManager({
   return {
     sendSelfReport,
     sendSessionReports,
+    sendInterruptionReport,
     scheduleAction,
     cancelAction,
     executeAction,

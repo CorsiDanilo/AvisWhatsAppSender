@@ -19,7 +19,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   reportDeliveryMode: 'none',
   reportRecipients: Object.freeze([]),
   reportEmailRecipients: Object.freeze([]),
-  emailNotificationsEnabled: false,
+  emailNotificationsEnabled: true,
   emailProvider: 'gmail',
   gmailAddress: '',
   emailAddresses: Object.freeze({ gmail: '' }),
@@ -28,6 +28,16 @@ const DEFAULT_SETTINGS = Object.freeze({
 
 const POST_SESSION_ACTIONS = Object.freeze(['none', 'sleep', 'hibernate', 'shutdown']);
 const REPORT_DELIVERY_MODES = Object.freeze(['none', 'whatsapp', 'email', 'both']);
+const SESSION_SETTING_KEYS = Object.freeze([
+  'minDelayMs',
+  'maxDelayMs',
+  'pauseAfter',
+  'pauseMinutes',
+  'postSessionAction',
+  'reportDeliveryMode',
+  'reportRecipients',
+  'reportEmailRecipients',
+]);
 
 const LIMITS = {
   minDelayMs: [0, 10 * 60 * 1000],
@@ -94,8 +104,22 @@ function reportDeliveryModeSetting(value, reportRecipients) {
     : DEFAULT_SETTINGS.reportDeliveryMode;
 }
 
+function mergeSessionSettings(currentSettings = {}, sessionOptions = {}) {
+  const merged = { ...currentSettings };
+  for (const key of SESSION_SETTING_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(sessionOptions, key)) merged[key] = sessionOptions[key];
+  }
+  return merged;
+}
+
+function createSessionSettings(currentSettings = {}, sessionOptions = {}) {
+  return normalizeSettings(mergeSessionSettings(currentSettings, sessionOptions));
+}
+
 function normalizeSettings(settings = {}) {
   const reportRecipients = reportRecipientsSetting(settings.reportRecipients, DEFAULT_SETTINGS.reportRecipients);
+  const reportEmailRecipients = normalizeEmailRecipients(settings.reportEmailRecipients);
+  const emailSettings = normalizeEmailSettings(settings);
   const normalized = {
     minDelayMs: numberSetting(settings.minDelayMs, DEFAULT_SETTINGS.minDelayMs, LIMITS.minDelayMs),
     maxDelayMs: numberSetting(settings.maxDelayMs, DEFAULT_SETTINGS.maxDelayMs, LIMITS.maxDelayMs),
@@ -112,8 +136,8 @@ function normalizeSettings(settings = {}) {
     birthdayPresetName: stringSetting(settings.birthdayPresetName, DEFAULT_SETTINGS.birthdayPresetName),
     reportDeliveryMode: reportDeliveryModeSetting(settings.reportDeliveryMode, reportRecipients),
     reportRecipients,
-    reportEmailRecipients: normalizeEmailRecipients(settings.reportEmailRecipients),
-    ...normalizeEmailSettings(settings),
+    ...emailSettings,
+    reportEmailRecipients,
   };
   normalized.maxDelayMs = Math.max(normalized.minDelayMs, normalized.maxDelayMs);
   return normalized;
@@ -138,7 +162,9 @@ module.exports = {
   DEFAULT_SETTINGS,
   POST_SESSION_ACTIONS,
   REPORT_DELIVERY_MODES,
+  createSessionSettings,
   loadSettings,
+  mergeSessionSettings,
   saveSettings,
   normalizeSettings,
 };

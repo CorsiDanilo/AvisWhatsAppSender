@@ -1,20 +1,33 @@
-import { ExternalLink, HelpCircle } from 'lucide-react'
+import { HelpCircle } from 'lucide-react'
 
 const GUIDE = {
   providerName: 'Gmail',
   accountLabel: 'Account Google',
-  steps: [
-    <>Apri il tuo <strong>Account Google</strong> e vai in <strong>Sicurezza</strong>.</>,
-    <>Attiva la <strong>verifica in due passaggi</strong> se non è già attiva.</>,
-    <>Nella stessa pagina apri <strong>Password per le app</strong> e conferma nuovamente l’accesso.</>,
-    <>Inserisci come nome app <strong>AVIS WhatsApp Sender</strong>, poi premi <strong>Genera</strong>.</>,
-    <>Copia la password di 16 caratteri e incollala qui. Gli eventuali spazi verranno ignorati.</>,
-  ],
   note: 'Google mostra la password per le app una sola volta: conservala in modo sicuro e non inserirla nei log o nei messaggi.',
-  link: 'https://myaccount.google.com/security',
+  securityLink: 'https://myaccount.google.com/security',
+  appPasswordsLink: 'https://myaccount.google.com/apppasswords',
 }
 
 export default function EmailGuideDialog({ api, onClose }) {
+  const openExternal = (event, url) => {
+    event.preventDefault()
+    api?.openExternalUrl?.(url)
+  }
+
+  const guideLink = (url, label) => (
+    <a className="email-guide-inline-link" href={url} onClick={(event) => openExternal(event, url)}>
+      {label}
+    </a>
+  )
+
+  const steps = [
+    <>Apri il tuo <strong>Account Google</strong> e vai in <strong>Sicurezza</strong>.</>,
+    <>Attiva la <strong>verifica in due passaggi</strong> se non è già attiva.</>,
+    <>Nella stessa pagina apri <strong>Password per le app</strong> oppure {guideLink(GUIDE.appPasswordsLink, 'Password per le app Google')}, quindi conferma nuovamente l’accesso. Puoi anche usare {guideLink(GUIDE.securityLink, 'Apri la pagina di sicurezza Google')}.</>,
+    <>Inserisci come nome app <strong>AVIS WhatsApp Sender</strong>, poi premi <strong>Genera</strong>.</>,
+    <>Copia la password di 16 caratteri e incollala qui. Gli eventuali spazi verranno ignorati.</>,
+  ]
+
   return (
     <div
       className="guide-backdrop email-guide-backdrop"
@@ -37,19 +50,9 @@ export default function EmailGuideDialog({ api, onClose }) {
             Segui questi passaggi nell’{GUIDE.accountLabel}. La password per app è diversa dalla password principale e serve per autorizzare l’invio SMTP.
           </p>
           <ol className="email-guide-steps">
-            {GUIDE.steps.map((step, index) => <li key={index}>{step}</li>)}
+            {steps.map((step, index) => <li key={index}>{step}</li>)}
           </ol>
           <div className="email-guide-note"><strong>Nota:</strong> {GUIDE.note}</div>
-          <a
-            className="email-guide-link"
-            href={GUIDE.link}
-            onClick={(event) => {
-              event.preventDefault()
-              api?.openExternalUrl?.(GUIDE.link)
-            }}
-          >
-            <ExternalLink size={15} aria-hidden="true" /> Apri la pagina di sicurezza Google
-          </a>
         </div>
         <footer className="email-guide-footer">
           <button type="button" className="button button-secondary" onClick={onClose}>Ho capito</button>

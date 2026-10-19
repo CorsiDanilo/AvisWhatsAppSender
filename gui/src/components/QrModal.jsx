@@ -120,11 +120,17 @@ export default function QrModal({ isOpen, onClose, state, api, call }) {
               <h3>Connessione a WhatsApp in corso…</h3>
               <p className="muted">Verifica della sessione memorizzata nel browser…</p>
             </div>
-          ) : state.connection === 'ready' || state.connection === 'authenticated' ? (
+          ) : state.connection === 'ready' ? (
             <div className="qr-success-box">
               <span className="big-check-icon">✓</span>
               <h3>WhatsApp è già collegato e pronto!</h3>
               <p className="muted">Puoi procedere all'invio dei messaggi.</p>
+            </div>
+          ) : state.connection === 'authenticated' ? (
+            <div className="qr-loading-box">
+              <div className="qr-spinner" />
+              <h3>WhatsApp autenticato</h3>
+              <p className="muted">La sessione è autenticata, ma WhatsApp Web non è ancora pronto per l'invio.</p>
             </div>
           ) : isQrExpired ? (
             <div className="qr-empty-box">
@@ -161,7 +167,7 @@ export default function QrModal({ isOpen, onClose, state, api, call }) {
             </button>
           </div>
           <button type="button" className="button button-primary" onClick={onClose}>
-            {state.connection === 'ready' || state.connection === 'authenticated' ? 'Fatto' : 'Chiudi e continua'}
+            {state.connection === 'ready' ? 'Fatto' : state.connection === 'authenticated' ? 'Chiudi e attendi' : 'Chiudi e continua'}
           </button>
         </div>
       </div>

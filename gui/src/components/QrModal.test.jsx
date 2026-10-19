@@ -49,6 +49,17 @@ describe('QrModal', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('does not present an authenticated session as ready before WhatsApp emits ready', () => {
+    render(
+      <QrModal isOpen onClose={vi.fn()} state={{ connection: 'authenticated', qrDataUrl: '' }} api={{}} call={vi.fn()} />,
+    )
+
+    expect(screen.getByText(/autenticato/i)).toBeInTheDocument()
+    expect(screen.getByText(/non è ancora pronto/i)).toBeInTheDocument()
+    expect(screen.queryByText(/già collegato e pronto/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Chiudi e attendi/i })).toBeInTheDocument()
+  })
+
   it('renders expired QR with overlay reload button and triggers reconnect when clicked', async () => {
     const call = vi.fn((operation) => operation())
     const reconnect = vi.fn(() => Promise.resolve())

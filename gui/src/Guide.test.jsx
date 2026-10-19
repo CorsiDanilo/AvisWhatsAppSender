@@ -20,7 +20,7 @@ describe('Guide', () => {
     expect(screen.getByText(/prime 5 righe/i)).toBeInTheDocument()
     expect(screen.getByText(/Riconnetti WhatsApp/i)).toBeInTheDocument()
     expect(screen.getAllByText(/invio da verificare/i).length).toBeGreaterThan(0)
-    expect(screen.getByText('esito_falliti.csv')).toBeInTheDocument()
+    expect(screen.getAllByText('esito_falliti.csv').length).toBeGreaterThan(0)
     expect(screen.getByText(/Centro notifiche/i)).toBeInTheDocument()
   })
 })

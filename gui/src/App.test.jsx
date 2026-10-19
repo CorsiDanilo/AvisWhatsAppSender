@@ -55,6 +55,7 @@ describe('App', () => {
     expect(screen.getByText(/recap di emergenza e inviare i log allo sviluppatore/i)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Configura ora/i }))
     expect(screen.getByRole('dialog', { name: /Impostazioni/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Comunicazioni' })).toHaveClass('active')
   })
 
   it('non mostra il prompt se Gmail è già configurato', async () => {

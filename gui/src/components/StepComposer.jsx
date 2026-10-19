@@ -234,7 +234,7 @@ export default function StepComposer({
                     type="button"
                     className="link-btn"
                     title="Gestisci o crea nuovi modelli nelle Impostazioni"
-                    onClick={onOpenSettings}
+                    onClick={() => onOpenSettings('presets')}
                   >
                     ⚙️ Gestisci modelli
                   </button>

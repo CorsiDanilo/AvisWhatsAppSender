@@ -26,7 +26,11 @@ test('invia un avviso di emergenza compatto solo ai destinatari attivi', async (
   await notifier.sendEmergency({
     reason: 'disconnected:LOGOUT',
     summary: { sent: 171, failed: 9, total: 206 },
-    shutdownInSeconds: 300,
+    shutdownInSeconds: 60,
+    attachments: [
+      { filename: 'esito_falliti.csv', path: 'C:\\esiti\\esito_falliti.csv' },
+      { filename: 'esito.csv', path: 'C:\\esiti\\esito.csv' },
+    ],
   });
 
   assert.equal(sent.length, 1);
@@ -34,7 +38,10 @@ test('invia un avviso di emergenza compatto solo ai destinatari attivi', async (
   assert.deepEqual(sent[0].to, ['presidente@example.com']);
   assert.match(sent[0].subject, /Emergenza/i);
   assert.match(sent[0].text, /171/);
-  assert.ok(!sent[0].attachments);
+  assert.deepEqual(sent[0].attachments, [
+    { filename: 'esito_falliti.csv', path: 'C:\\esiti\\esito_falliti.csv' },
+    { filename: 'esito.csv', path: 'C:\\esiti\\esito.csv' },
+  ]);
 });
 
 test('propaga l’errore SMTP senza nasconderlo al fail-safe', async () => {
@@ -81,6 +88,18 @@ test('invia il report e-mail anche quando le notifiche di emergenza sono disatti
   assert.deepEqual(sent[0].to, ['segreteria@example.com']);
   assert.match(sent[0].subject, /Esito invio/i);
   assert.equal(sent[0].text, 'Esito invio: 5 messaggi inviati.');
+});
+
+test('allega gli esiti CSV anche al report e-mail finale', async () => {
+  const { notifier, sent } = createHarness();
+
+  await notifier.sendReport({
+    recipients: ['segreteria@example.com'],
+    text: 'Esito invio',
+    attachments: [{ filename: 'esito.csv', path: 'C:\\esiti\\esito.csv' }],
+  });
+
+  assert.deepEqual(sent[0].attachments, [{ filename: 'esito.csv', path: 'C:\\esiti\\esito.csv' }]);
 });
 
 test('usa sempre SMTP Gmail con SSL', async () => {

@@ -1,4 +1,4 @@
-import { FileText, Download, Cake, HelpCircle, ExternalLink, Image, Save, RefreshCw, CheckCircle, Play, BookOpen, AlertCircle, Mail, SlidersHorizontal } from 'lucide-react'
+import { FileText, Download, Cake, HelpCircle, ExternalLink, Image, Save, RefreshCw, CheckCircle, Play, BookOpen, AlertCircle, Mail, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { toUserError } from '../errorMessage'
 import ReactMarkdown from 'react-markdown'
@@ -48,7 +48,6 @@ export default function SettingsModal({
   const [newRecipientLabel, setNewRecipientLabel] = useState('')
   const [newRecipientPhone, setNewRecipientPhone] = useState('')
   const [recipientError, setRecipientError] = useState('')
-  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(state.settings?.emailNotificationsEnabled === true)
   const initialProviderConfigured = state.emailCredentialsByProvider?.gmail === true
     || (state.emailCredentialsByProvider == null && state.emailCredentialsConfigured === true)
   const [gmailAddress, setGmailAddress] = useState(initialProviderConfigured
@@ -78,7 +77,6 @@ export default function SettingsModal({
   // Synchronize the form with persisted settings received asynchronously from Electron.
   useEffect(() => {
     // oxlint-disable-next-line react/set-state-in-effect
-    setEmailNotificationsEnabled(state.settings?.emailNotificationsEnabled === true)
     setReportDeliveryMode(state.settings?.reportDeliveryMode || 'none')
     const configured = providerConfigured(state)
     const persistedAddress = state.settings?.emailAddresses?.gmail || state.settings?.gmailAddress || ''
@@ -102,7 +100,6 @@ export default function SettingsModal({
     gmailConfiguredRef.current = configured
   }, [
     state,
-    state.settings?.emailNotificationsEnabled,
     state.settings?.gmailAddress,
     state.settings?.emailAddresses,
     state.emailCredentialsConfigured,
@@ -152,11 +149,6 @@ export default function SettingsModal({
 
   function saveEmailSettings(patch) {
     return call(() => api.saveSettings(patch))
-  }
-
-  function handleEmailNotificationsChange(enabled) {
-    setEmailNotificationsEnabled(enabled)
-    saveEmailSettings({ emailNotificationsEnabled: enabled })
   }
 
   function handleGmailAddressChange(value) {
@@ -493,12 +485,13 @@ export default function SettingsModal({
 
           {(activeTab === 'general' || activeTab === 'storage' || activeTab === 'communications') && (
             <div className="settings-storage-section">
-              <p className="muted" style={{ marginTop: 0 }}>
-                Configura le opzioni di sistema, le automazioni al termine dell'invio e le cartelle di archiviazione.
-              </p>
+              {(activeTab === 'general' || activeTab === 'storage') && <>
+                <p className="muted" style={{ marginTop: 0 }}>
+                  Configura le opzioni di sistema, le automazioni al termine dell'invio e le cartelle di archiviazione.
+                </p>
 
-              {/* Sistema & Avvio */}
-              <div className="storage-card">
+                {/* Sistema & Avvio */}
+                <div className="storage-card">
                 <div className="storage-card-header">
                   <div>
                     <strong>Sistema & Notifiche</strong>
@@ -535,7 +528,8 @@ export default function SettingsModal({
                     <span className="sr-only">Attiva notifiche Windows</span>
                   </label>
                 </div>
-              </div>
+                </div>
+              </>}
 
               {activeTab === 'communications' && (
                 <>
@@ -694,9 +688,9 @@ export default function SettingsModal({
                           <div key={recipient.id} className={`report-recipient-card ${recipient.enabled !== false ? 'is-active' : 'is-inactive'}`}>
                             <div className="report-recipient-left">
                               <input type="checkbox" className="report-recipient-checkbox" checked={recipient.enabled !== false} aria-label={`Attiva destinatario report e-mail ${recipient.label}`} onChange={(event) => saveEmailSettings({ reportEmailRecipients: state.settings.reportEmailRecipients.map((item) => item.id === recipient.id ? { ...item, enabled: event.target.checked } : item) })} />
-                              <div><span className="report-recipient-label-tag">{recipient.label}</span> <strong className="report-recipient-phone">{recipient.email}</strong></div>
+                              <div><span className="report-recipient-label-tag">🏷️ {recipient.label}</span> <strong className="report-recipient-phone">{recipient.email}</strong></div>
                             </div>
-                            <button type="button" className="link-btn report-recipient-delete-btn" onClick={() => saveEmailSettings({ reportEmailRecipients: state.settings.reportEmailRecipients.filter((item) => item.id !== recipient.id) })}>Rimuovi</button>
+                            <button type="button" className="link-btn report-recipient-delete-btn" onClick={() => saveEmailSettings({ reportEmailRecipients: state.settings.reportEmailRecipients.filter((item) => item.id !== recipient.id) })}>🗑️ Rimuovi</button>
                           </div>
                         ))}
                       </div>
@@ -722,7 +716,6 @@ export default function SettingsModal({
                     onChange={(event) => {
                       const val = event.target.value
                       call(() => api.saveSettings({ postSessionAction: val }))
-                      if (setOptions) setOptions((prev) => ({ ...prev, postSessionAction: val }))
                     }}
                   >
                     <option value="none">Nessuna azione (lascia il PC acceso)</option>
@@ -745,15 +738,6 @@ export default function SettingsModal({
                     <p className="subtle-note">Usa lo stesso account per i recap di emergenza, gli avvisi di spegnimento e l’invio dei log allo sviluppatore.</p>
                   </div>
                 </div>
-
-                <label className="settings-checkbox-row" style={{ marginTop: '10px' }}>
-                  <input
-                    type="checkbox"
-                    checked={emailNotificationsEnabled}
-                    onChange={(event) => handleEmailNotificationsChange(event.target.checked)}
-                  />
-                  <span>Attiva notifiche e-mail per le emergenze</span>
-                </label>
 
                 <div className="field-group" style={{ marginTop: '14px' }}>
                   <div className="field-label-row">
@@ -1180,7 +1164,7 @@ export default function SettingsModal({
                               e.stopPropagation()
                               handleDeletePreset(preset.name)
                             }}
-                          ><ExternalLink size={16} /></button>
+                          ><Trash2 size={16} aria-hidden="true" /></button>
                         </div>
                       )
                     })}

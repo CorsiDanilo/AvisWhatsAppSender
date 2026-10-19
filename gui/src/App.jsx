@@ -70,6 +70,9 @@ const initialState = {
     birthdayEnabled: true,
     birthdaySourceFilePath: '',
     birthdayPresetName: 'Auguri di compleanno',
+    reportDeliveryMode: 'none',
+    reportRecipients: [],
+    reportEmailRecipients: [],
   },
   presets: fallbackPresets,
   defaultOutputDir: '',
@@ -108,9 +111,11 @@ function App() {
     maxDelayMs: 40000,
     pauseAfter: 35,
     pauseMinutes: 15,
-    postSessionAction: 'none',
+    postSessionAction: null,
   })
-  const [sessionReportRecipients, setSessionReportRecipients] = useState([])
+  const [sessionReportRecipients, setSessionReportRecipients] = useState(null)
+  const [sessionReportEmailRecipients, setSessionReportEmailRecipients] = useState(null)
+  const [sessionReportDeliveryMode, setSessionReportDeliveryMode] = useState(null)
   const [error, setError] = useState('')
   const [rawError, setRawError] = useState('')
   const [reportStatus, setReportStatus] = useState('')
@@ -159,14 +164,12 @@ const [showBirthdayCenter, setShowBirthdayCenter] = useState(false)
           setShowEmailSetupPrompt(true)
         }
         if (next.settings) {
+          const defaultOptions = { ...next.settings }
+          delete defaultOptions.postSessionAction
           setOptions((prev) => ({
             ...prev,
-            ...next.settings,
-            postSessionAction: prev.postSessionAction || next.settings.postSessionAction || 'none',
+            ...defaultOptions,
           }))
-          if (Array.isArray(next.settings.reportRecipients)) {
-            setSessionReportRecipients(next.settings.reportRecipients)
-          }
         }
         if ((next.queue === 'stopped' || next.queue === 'completed') && (next.progress?.total || 0) > 0) {
           setManualSendingView(true)
@@ -189,15 +192,6 @@ const [showBirthdayCenter, setShowBirthdayCenter] = useState(false)
       .catch((reason) => setError(toUserError(reason)))
     return api.onState((next) => {
       setState(next)
-      if (next.settings) {
-        setOptions((prev) => ({
-          ...prev,
-          postSessionAction: prev.postSessionAction ?? next.settings.postSessionAction ?? 'none',
-        }))
-      }
-      if (Array.isArray(next.settings?.reportRecipients)) {
-        setSessionReportRecipients(next.settings.reportRecipients)
-      }
     })
   }, [api])
 
@@ -243,7 +237,7 @@ if (!api?.onOpenBirthdays) return undefined
   const isSendingActive = isRunning || isPaused || isSimulating
   const showDashboard = isSendingActive || manualSendingView
 
-  const canStart = (state.connection === 'ready' || state.connection === 'authenticated') && selectedCount > 0 && message.trim().length > 0
+  const canStart = state.connection === 'ready' && selectedCount > 0 && message.trim().length > 0
 
   // Calculate highest reachable step
   const maxStepReached = useMemo(() => {
@@ -485,19 +479,36 @@ if (!api?.onOpenBirthdays) return undefined
     }
 
     try {
+      const reportRecipients = Array.isArray(sessionReportRecipients)
+        ? sessionReportRecipients
+        : (state.settings?.reportRecipients || [])
+      const reportEmailRecipients = Array.isArray(sessionReportEmailRecipients)
+        ? sessionReportEmailRecipients
+        : (state.settings?.reportEmailRecipients || [])
+      const reportDeliveryMode = sessionReportDeliveryMode ?? state.settings?.reportDeliveryMode ?? 'none'
+      const postSessionAction = options.postSessionAction ?? state.settings?.postSessionAction ?? 'none'
       setManualSendingView(true)
-      await call(() =>
+      const next = await call(() =>
         api.start({
           ...options,
-          reportRecipients: sessionReportRecipients.filter((r) => r && r.enabled !== false),
-          reportDeliveryMode: state.settings?.reportDeliveryMode || 'none',
-          reportEmailRecipients: state.settings?.reportEmailRecipients || [],
-          postSessionAction: options.postSessionAction || state.settings?.postSessionAction || 'none',
+          reportRecipients: reportRecipients.filter((r) => r && r.enabled !== false),
+          reportDeliveryMode,
+          reportEmailRecipients: reportEmailRecipients.filter((r) => r && r.enabled !== false),
+          postSessionAction,
           pauseMs: options.pauseMinutes * 60 * 1000,
           message,
           presetName,
         })
       )
+      if (next) {
+        setSessionReportRecipients(null)
+        setSessionReportEmailRecipients(null)
+        setSessionReportDeliveryMode(null)
+        setOptions((current) => ({
+          ...current,
+          postSessionAction: null,
+        }))
+      }
     } catch {
       // Error is set by call()
     }
@@ -650,7 +661,7 @@ if (!api?.onOpenBirthdays) return undefined
       disconnected: 'Non connesso',
       connecting: 'Connessione...',
       qr: 'Scansiona il QR',
-      authenticated: 'Connesso',
+      authenticated: 'Autenticato',
       ready: 'Connesso',
       error: 'Errore connessione',
     }[state.connection] || state.connection
@@ -965,7 +976,10 @@ if (!api?.onOpenBirthdays) return undefined
                   firstSelectedDonor={firstSelectedDonor}
                   onBack={() => setCurrentStep(1)}
                   onNext={() => setCurrentStep(3)}
-                  onOpenSettings={() => setShowSettings(true)}
+                  onOpenSettings={(tab = 'general') => {
+                    setSettingsTab(tab)
+                    setShowSettings(true)
+                  }}
                 />
               )}
 
@@ -979,13 +993,44 @@ if (!api?.onOpenBirthdays) return undefined
                   canStart={canStart}
                   firstSelectedDonor={firstSelectedDonor}
                   sessionReportRecipients={sessionReportRecipients}
+                  sessionReportEmailRecipients={sessionReportEmailRecipients}
+                  reportDeliveryMode={sessionReportDeliveryMode}
+                  onReportDeliveryModeChange={setSessionReportDeliveryMode}
                   onToggleSessionRecipient={(id) => {
-                    setSessionReportRecipients((prev) =>
-                      prev.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r))
-                    )
+                    setSessionReportRecipients((prev) => {
+                      const recipients = Array.isArray(prev) ? prev : (state.settings?.reportRecipients || [])
+                      return recipients.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r))
+                    })
                   }}
                   onAddSessionRecipient={(newRec) => {
-                    setSessionReportRecipients((prev) => [...prev, newRec])
+                    setSessionReportRecipients((prev) => [
+                      ...(Array.isArray(prev) ? prev : (state.settings?.reportRecipients || [])),
+                      newRec,
+                    ])
+                  }}
+                  onRemoveSessionRecipient={(id) => {
+                    setSessionReportRecipients((prev) => {
+                      const recipients = Array.isArray(prev) ? prev : (state.settings?.reportRecipients || [])
+                      return recipients.filter((recipient) => recipient.id !== id)
+                    })
+                  }}
+                  onToggleSessionEmailRecipient={(id) => {
+                    setSessionReportEmailRecipients((prev) => {
+                      const recipients = Array.isArray(prev) ? prev : (state.settings?.reportEmailRecipients || [])
+                      return recipients.map((recipient) => (recipient.id === id ? { ...recipient, enabled: !recipient.enabled } : recipient))
+                    })
+                  }}
+                  onAddSessionEmailRecipient={(newRec) => {
+                    setSessionReportEmailRecipients((prev) => [
+                      ...(Array.isArray(prev) ? prev : (state.settings?.reportEmailRecipients || [])),
+                      newRec,
+                    ])
+                  }}
+                  onRemoveSessionEmailRecipient={(id) => {
+                    setSessionReportEmailRecipients((prev) => {
+                      const recipients = Array.isArray(prev) ? prev : (state.settings?.reportEmailRecipients || [])
+                      return recipients.filter((recipient) => recipient.id !== id)
+                    })
                   }}
                   onBack={() => setCurrentStep(2)}
                   onGoToStep={(step) => setCurrentStep(step)}
@@ -1030,7 +1075,7 @@ if (!api?.onOpenBirthdays) return undefined
         <EmailSetupPrompt
           onConfigure={() => {
             setShowEmailSetupPrompt(false)
-            setSettingsTab('general')
+            setSettingsTab('communications')
             setShowSettings(true)
           }}
           onClose={() => setShowEmailSetupPrompt(false)}

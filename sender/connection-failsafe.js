@@ -8,7 +8,7 @@ function createConnectionFailsafe({
   publish = () => {},
   setIntervalFn = setInterval,
   clearIntervalFn = clearInterval,
-  countdownSeconds = 300,
+  countdownSeconds = 60,
 } = {}) {
   let armed = false;
   let interval = null;
@@ -26,7 +26,7 @@ function createConnectionFailsafe({
     const summary = { ...(state.progress || {}) };
     let secondsLeft = countdownSeconds;
     state.postSessionCountdown = { action: 'shutdown', secondsLeft, reason };
-    saveOutcome('connection_lost', summary);
+    const outcomeFolder = saveOutcome('connection_lost', summary);
     scheduleShutdown(countdownSeconds);
     publish();
 
@@ -43,7 +43,7 @@ function createConnectionFailsafe({
 
     if (typeof notifyEmergency === 'function') {
       try {
-        await notifyEmergency({ reason, summary, shutdownInSeconds: countdownSeconds });
+        await notifyEmergency({ reason, summary, shutdownInSeconds: countdownSeconds, outcomeFolder });
         audit('info', 'connection_failsafe.notification_sent', { reason });
       } catch (error) {
         audit('warn', 'connection_failsafe.notification_failed', {

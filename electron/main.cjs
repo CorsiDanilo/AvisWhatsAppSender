@@ -38,8 +38,8 @@ const {
 const { createLogger, dateFile } = require('../sender/logger');
 const { maskPhone, redactDiagnosticText } = require('../sender/diagnostics');
 const { deletePreset, loadPresets, upsertPreset } = require('../sender/presets');
-const { writeSessionResult } = require('../sender/results');
-const { DEFAULT_SETTINGS, loadSettings, saveSettings } = require('../sender/settings');
+const { outcomeEmailAttachments, writeSessionResult } = require('../sender/results');
+const { DEFAULT_SETTINGS, createSessionSettings, loadSettings, saveSettings } = require('../sender/settings');
 const {
   appendNotification,
   clearAllNotifications,
@@ -418,7 +418,10 @@ const connectionFailsafe = createConnectionFailsafe({
     windowsShutdown.cancel().catch((error) => logError('connection_failsafe.shutdown_cancel_failed', error));
   },
   saveOutcome: (reason, summary) => writeOutcome(reason, summary),
-  notifyEmergency: (incident) => emailNotifier.sendEmergency(incident),
+  notifyEmergency: ({ outcomeFolder, ...incident }) => emailNotifier.sendEmergency({
+    ...incident,
+    attachments: outcomeEmailAttachments(outcomeFolder),
+  }),
   audit,
   publish,
 });
@@ -1143,9 +1146,16 @@ function attachQueueListeners() {
   queue.on('completed', async ({ sent, failed, skipped, unknown }) => {
     log(`Coda completata: ${sent} inviati a WhatsApp, ${failed} falliti, ${skipped} saltati, ${unknown} da verificare.`);
     notifyUser('Invio completato', `${sent} inviati a WhatsApp, ${failed} falliti, ${skipped} saltati, ${unknown} da verificare.`);
-    writeOutcome('completed', { sent, failed, skipped, unknown });
+    const outcomeFolder = writeOutcome('completed', { sent, failed, skipped, unknown });
 
-    await postSessionManager.sendSessionReports({ sent, failed, skipped, unknown, activeSession });
+    await postSessionManager.sendSessionReports({
+      sent,
+      failed,
+      skipped,
+      unknown,
+      activeSession,
+      outcomeAttachments: outcomeEmailAttachments(outcomeFolder),
+    });
     if (activeSession?.postSessionAction && activeSession.postSessionAction !== 'none') {
       postSessionManager.scheduleAction(activeSession.postSessionAction);
     }
@@ -1153,7 +1163,12 @@ function attachQueueListeners() {
   queue.on('stopped', () => {
     log('Coda fermata dall’operatore.');
     notifyUser('Invio interrotto', 'L’invio dei messaggi è stato interrotto.');
-    writeOutcome('stopped', { ...state.progress });
+    const outcomeFolder = writeOutcome('stopped', { ...state.progress });
+    postSessionManager.sendInterruptionReport({
+      ...state.progress,
+      activeSession,
+      outcomeAttachments: outcomeEmailAttachments(outcomeFolder),
+    }).catch((error) => logError('post_session.interruption_email_failed', error));
     postSessionManager.cancelAction();
   });
 }
@@ -1167,7 +1182,7 @@ function getEffectiveLogDir() {
 }
 
 function writeOutcome(reason, summary) {
-  if (!activeSession || resultWritten) return;
+  if (!activeSession || resultWritten) return null;
   try {
     const baseDir = getEffectiveOutputDir();
     const folder = writeSessionResult({
@@ -1191,8 +1206,10 @@ function writeOutcome(reason, summary) {
     audit('info', 'session.result_saved', { folder, reason });
     log(`Esito salvato in: ${folder}`);
     publish();
+    return folder;
   } catch (error) {
     logError('session.result_save_failed', error, { reason });
+    return null;
   }
 }
 
@@ -1844,7 +1861,7 @@ async function startQueue(options = {}) {
   }
   const selectedDonors = state.donors.filter((donor) => donor.selected !== false);
   if (!selectedDonors.length) throw new Error('Seleziona almeno un destinatario.');
-  state.settings = saveSettings(settingsPath, { ...state.settings, ...options });
+  const sessionSettings = createSessionSettings(state.settings, options);
   postSessionManager.cancelAction();
   connectionFailsafe.cancel();
   activeSession = {
@@ -1853,7 +1870,7 @@ async function startQueue(options = {}) {
     imageName: state.imageName,
     attachments: attachmentsToSend.map((a) => ({ name: a.name, type: a.type, size: a.size })),
     attachmentPosition: positionToSend,
-    settings: state.settings,
+    settings: sessionSettings,
     reportRecipients: Array.isArray(options.reportRecipients)
       ? options.reportRecipients
       : (state.settings.reportRecipients || []),
@@ -1861,6 +1878,9 @@ async function startQueue(options = {}) {
     reportEmailRecipients: Array.isArray(options.reportEmailRecipients)
       ? options.reportEmailRecipients
       : (state.settings.reportEmailRecipients || []),
+    emergencyEmailRecipients: Array.isArray(state.settings.emailRecipients)
+      ? state.settings.emailRecipients
+      : [],
     postSessionAction: options.postSessionAction || state.settings.postSessionAction || 'none',
     startedAt: new Date().toISOString(),
   };

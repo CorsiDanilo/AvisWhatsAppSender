@@ -12,8 +12,9 @@ Applicazione desktop per le sezioni AVIS che permette di preparare e inviare com
 - Crea modelli di messaggio con tag dinamici, ad esempio `[nome]`, `[cognome]` e le colonne personalizzate della lista.
 - Salva preset completi: testo, ritmo di invio e un allegato immagine opzionale (`.jpg`, `.jpeg`, `.png`). L'allegato viene copiato nell'area dati interna dell'app, quindi resta disponibile anche se il file originale viene spostato.
 - Mostra un'anteprima prima dell'invio e applica pause e ritardi configurabili tra i messaggi; il tempo rimanente stimato viene aggiornato in tempo reale durante la sessione.
-- Genera report di esito (`.xlsx` e report falliti) e log locali al termine di ogni sessione.
-- Invia automaticamente un resoconto di fine sessione (inviati, falliti, saltati, durata) via WhatsApp, e-mail oppure entrambi i canali, con rubriche separate per il report e per gli avvisi di emergenza/log.
+- Genera report di esito locali (`esito.csv`, `esito.json` e, quando necessario, `esito_falliti.csv`) al termine di ogni sessione.
+- Invia automaticamente un resoconto di fine sessione via WhatsApp, e-mail oppure entrambi i canali, con rubriche separate per il report e per gli avvisi di emergenza/log. I report e-mail includono i CSV dell’esito.
+- Se WhatsApp si disconnette durante un invio, salva l’esito, tenta il recap e-mail di emergenza con i CSV allegati e programma lo spegnimento del PC dopo un minuto.
 - Automazione post-invio: spegni, iberna o sospendi automaticamente il PC al termine dell'invio, con un conto alla rovescia di 60 secondi annullabile prima dell'esecuzione.
 - Segnalazione rapida degli errori allo sviluppatore tramite Gmail configurato nell'app oppure copia negli appunti, con log giornaliero disponibile per l'allegato.
 - Ripristina la sessione WhatsApp dall'app per eliminare le credenziali locali e generare un nuovo QR code in caso di problemi di collegamento.

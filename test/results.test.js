@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const { safeName, timestampName, writeSessionResult } = require('../sender/results');
+const { outcomeEmailAttachments, safeName, timestampName, writeSessionResult } = require('../sender/results');
 
 function temporaryDirectory() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'avis-results-test-'));
@@ -58,6 +58,21 @@ test('writeSessionResult salva JSON, CSV completo e CSV dei problemi inclusi gli
 
 test('writeSessionResult richiede una cartella di output', () => {
   assert.throws(() => writeSessionResult({ presetName: 'Test', donors: [] }), /Cartella di output/);
+});
+
+test('outcomeEmailAttachments include il CSV completo e quello dei soli problemi quando disponibili', () => {
+  const directory = temporaryDirectory();
+  try {
+    fs.writeFileSync(path.join(directory, 'esito.csv'), 'completo', 'utf8');
+    fs.writeFileSync(path.join(directory, 'esito_falliti.csv'), 'problemi', 'utf8');
+
+    assert.deepEqual(outcomeEmailAttachments(directory), [
+      { filename: 'esito_falliti.csv', path: path.join(directory, 'esito_falliti.csv') },
+      { filename: 'esito.csv', path: path.join(directory, 'esito.csv') },
+    ]);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test('writeSessionResult conserva i valori falsy dei campi personalizzati', () => {
